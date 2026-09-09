@@ -1,0 +1,76 @@
+/* oRRbit Premium Brand Layer — preview only */
+:root{
+  --bg:#06110b;--bg2:#0a1710;--text:#f4fbf5;--muted:#9db1a2;
+  --line:rgba(170,230,179,.14);--card:rgba(255,255,255,.045);--card2:rgba(255,255,255,.075);
+  --p:#2f7138;--p2:#79bd43;--accent:#b7e185;--shadow:0 28px 90px rgba(0,0,0,.42)
+}
+[data-theme="light"]{
+  --bg:#f7fbf7;--bg2:#fff;--text:#102215;--muted:#617266;--line:rgba(31,93,45,.13);
+  --card:rgba(47,113,56,.045);--card2:rgba(47,113,56,.08);--shadow:0 22px 70px rgba(37,86,46,.12)
+}
+body{
+  background:radial-gradient(circle at 10% 8%,rgba(61,138,72,.18),transparent 30%),
+  radial-gradient(circle at 92% 20%,rgba(126,190,73,.10),transparent 28%),
+  linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),
+  linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px),var(--bg);
+  background-size:auto,auto,48px 48px,48px 48px,auto
+}
+[data-theme="light"] body{
+  background:radial-gradient(circle at 10% 8%,rgba(61,138,72,.09),transparent 30%),
+  radial-gradient(circle at 92% 20%,rgba(126,190,73,.08),transparent 28%),
+  linear-gradient(rgba(47,113,56,.025) 1px,transparent 1px),
+  linear-gradient(90deg,rgba(47,113,56,.025) 1px,transparent 1px),var(--bg);
+  background-size:auto,auto,48px 48px,48px 48px,auto
+}
+.site-header{height:86px;padding:10px 0}
+.site-header.scrolled{background:rgba(5,15,9,.78);backdrop-filter:blur(22px) saturate(140%);border-bottom:1px solid rgba(121,189,67,.14)}
+[data-theme="light"] .site-header.scrolled{background:rgba(248,252,248,.86)}
+.nav{padding:0 12px;border:1px solid transparent;border-radius:20px}
+.site-header.scrolled .nav{border-color:rgba(255,255,255,.06)}
+.brand--official{gap:0;min-width:146px}
+.brand-logo{display:block;width:auto;height:44px;object-fit:contain;filter:drop-shadow(0 8px 25px rgba(60,133,68,.12))}
+.footer .brand-logo{height:54px}
+.gradient-text{background:linear-gradient(105deg,#efffed 5%,#8ed35b 45%,#b9e98f 75%,#fff 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+[data-theme="light"] .gradient-text{background:linear-gradient(105deg,#163c20,#347b3e 48%,#6da53d 78%,#163c20);-webkit-background-clip:text;background-clip:text;color:transparent}
+.eyebrow{border-color:rgba(121,189,67,.22);background:rgba(61,138,72,.08)}
+.eyebrow:before{background:#93d35c;box-shadow:0 0 22px rgba(147,211,92,.8)}
+.btn{border-radius:15px;transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease,background .22s ease}
+.btn-primary{background:linear-gradient(135deg,#2f7138,#4d9a47 55%,#79bd43);box-shadow:0 14px 42px rgba(54,137,65,.25)}
+.btn-primary:hover{box-shadow:0 20px 55px rgba(54,137,65,.34)}
+.btn-secondary{background:rgba(255,255,255,.045)}
+.icon-btn{border-color:rgba(149,207,129,.14)}
+.hero{position:relative;padding-top:178px}
+.hero:before{content:"";position:absolute;inset:60px 0 auto 50%;width:min(900px,90vw);height:520px;transform:translateX(-50%);background:radial-gradient(ellipse,rgba(65,144,76,.13),transparent 68%);filter:blur(10px);pointer-events:none}
+.hero-copy h1{max-width:860px;text-wrap:balance}
+.hero-proof span{padding:8px 11px;border:1px solid rgba(135,195,112,.12);border-radius:999px;background:rgba(255,255,255,.025)}
+.product-window{border-color:rgba(150,211,125,.15);box-shadow:0 34px 110px rgba(0,0,0,.48),0 0 0 1px rgba(136,206,94,.08)}
+.orbit{border-color:rgba(130,205,95,.16)}
+.orbit:after{background:#8ed35b;box-shadow:0 0 30px #8ed35b}
+.side-brand,.mini-btn{background:linear-gradient(90deg,#2f7138,#79bd43)}
+.side-row.active{background:rgba(93,164,73,.18);border-color:rgba(121,189,67,.26)}
+.chart{background:linear-gradient(180deg,rgba(85,154,67,.10),transparent),repeating-linear-gradient(to bottom,transparent 0 28px,var(--line) 29px 30px)}
+.chip-icon{background:rgba(92,159,72,.18);color:#a7db7a}
+.logo-strip{background:rgba(255,255,255,.012)}
+.ticker span:after{color:#8ed35b}
+.stats{box-shadow:0 24px 80px rgba(0,0,0,.12)}
+.stat b{background:linear-gradient(120deg,var(--text),#95d45f);-webkit-background-clip:text;background-clip:text;color:transparent}
+.cap-card,.path-card,.product-card,.service-block,.company-card,.contact-info,.contact-form,.industry,.stat{
+  background:linear-gradient(160deg,rgba(255,255,255,.055),rgba(255,255,255,.025));border-color:rgba(182,229,173,.11)
+}
+.cap-card,.path-card,.product-card,.service-block,.company-card{transition:transform .25s ease,border-color .25s ease,box-shadow .25s ease,background .25s ease}
+.cap-card:hover,.path-card:hover,.product-card:hover,.service-block:hover,.company-card:hover{transform:translateY(-5px);border-color:rgba(121,189,67,.38);box-shadow:0 28px 80px rgba(0,0,0,.25);background:linear-gradient(160deg,rgba(73,143,72,.10),rgba(255,255,255,.03))}
+.cap-icon{background:rgba(67,139,65,.15);color:#a8db7c}
+.feature-card{border-color:rgba(147,205,118,.15);background:radial-gradient(circle at 75% 10%,rgba(121,189,67,.16),transparent 30%),linear-gradient(145deg,rgba(47,113,56,.15),rgba(255,255,255,.035));box-shadow:0 26px 85px rgba(0,0,0,.18)}
+.feature-list span{background:rgba(255,255,255,.025)}
+.visual-panel{background:linear-gradient(180deg,rgba(72,144,67,.10),var(--card))}
+.step:before{border-color:#70b64f;box-shadow:0 0 0 7px rgba(103,170,73,.10)}
+.step small,.tag,.path-num,.text-link{color:#91d25c}
+.industry{box-shadow:inset 0 1px 0 rgba(255,255,255,.025)}
+.quote-card{border-color:rgba(121,189,67,.18);background:radial-gradient(circle at 80% 20%,rgba(121,189,67,.12),transparent 30%),radial-gradient(circle at 20% 80%,rgba(47,113,56,.16),transparent 30%),var(--card)}
+.cta-box{border-color:rgba(121,189,67,.28);background:radial-gradient(circle at 85% 15%,rgba(121,189,67,.20),transparent 30%),linear-gradient(135deg,rgba(47,113,56,.24),rgba(255,255,255,.03));box-shadow:0 32px 100px rgba(0,0,0,.26)}
+.footer{background:linear-gradient(180deg,transparent,rgba(33,79,41,.07))}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:#68ac4a;box-shadow:0 0 0 4px rgba(104,172,74,.12)}
+::selection{background:rgba(121,189,67,.28)}
+@media(max-width:980px){.site-header{height:78px;padding:6px 0}.brand-logo{height:39px}.hero{padding-top:140px}.nav-links{top:78px}}
+@media(max-width:640px){.brand--official{min-width:auto}.brand-logo{height:34px}.footer .brand-logo{height:44px}.hero{padding-top:122px}.hero-proof{gap:8px}.hero-proof span{font-size:11px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
