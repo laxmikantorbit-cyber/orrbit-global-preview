@@ -8,7 +8,7 @@ document.head.appendChild(pageStyles);
 
 const premiumStyles = document.createElement('link');
 premiumStyles.rel = 'stylesheet';
-premiumStyles.href = 'premium.css?v=3';
+premiumStyles.href = 'premium.css?v=4';
 document.head.appendChild(premiumStyles);
 
 const header = $('.site-header');
