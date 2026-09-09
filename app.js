@@ -8,7 +8,7 @@ document.head.appendChild(pageStyles);
 
 const premiumStyles = document.createElement('link');
 premiumStyles.rel = 'stylesheet';
-premiumStyles.href = 'premium.css?v=2';
+premiumStyles.href = 'premium.css?v=3';
 document.head.appendChild(premiumStyles);
 
 const header = $('.site-header');
@@ -70,13 +70,10 @@ $$('[data-year]').forEach(el => el.textContent = year);
 
 (async function loadOfficialORRbitBrand(){
   try {
-    const partFiles = ['brand-logo.part1','brand-logo.part2','brand-logo.part3'];
-    const parts = await Promise.all(partFiles.map(async file => {
-      const response = await fetch(`${file}?v=2`, {cache:'force-cache'});
-      if(!response.ok) throw new Error(`Brand asset ${file} failed`);
-      return (await response.text()).trim();
-    }));
-    const logoSrc = `data:image/webp;base64,${parts.join('')}`;
+    const response = await fetch('brand-logo.b64?v=3', {cache:'force-cache'});
+    if(!response.ok) throw new Error('Official logo asset failed');
+    const encoded = (await response.text()).trim();
+    const logoSrc = `data:image/webp;base64,${encoded}`;
     $$('.brand').forEach(brand => {
       brand.classList.add('brand--official');
       brand.innerHTML = `<img class="brand-logo" src="${logoSrc}" alt="oRRbit™" />`;
