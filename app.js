@@ -6,6 +6,11 @@ pageStyles.rel = 'stylesheet';
 pageStyles.href = 'pages.css';
 document.head.appendChild(pageStyles);
 
+const premiumStyles = document.createElement('link');
+premiumStyles.rel = 'stylesheet';
+premiumStyles.href = 'premium.css?v=2';
+document.head.appendChild(premiumStyles);
+
 const header = $('.site-header');
 const menuBtn = $('.menu-btn');
 const navLinks = $('.nav-links');
@@ -62,3 +67,21 @@ $$('form[data-whatsapp-form]').forEach(form => form.addEventListener('submit', e
 
 const year = new Date().getFullYear();
 $$('[data-year]').forEach(el => el.textContent = year);
+
+(async function loadOfficialORRbitBrand(){
+  try {
+    const partFiles = ['brand-logo.part1','brand-logo.part2','brand-logo.part3'];
+    const parts = await Promise.all(partFiles.map(async file => {
+      const response = await fetch(`${file}?v=2`, {cache:'force-cache'});
+      if(!response.ok) throw new Error(`Brand asset ${file} failed`);
+      return (await response.text()).trim();
+    }));
+    const logoSrc = `data:image/webp;base64,${parts.join('')}`;
+    $$('.brand').forEach(brand => {
+      brand.classList.add('brand--official');
+      brand.innerHTML = `<img class="brand-logo" src="${logoSrc}" alt="oRRbit™" />`;
+    });
+  } catch (error) {
+    console.warn('Official oRRbit logo could not be loaded; text brand retained.', error);
+  }
+})();
