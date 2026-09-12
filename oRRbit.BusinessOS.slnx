@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BusinessOS.Api/BusinessOS.Api.csproj" />
+    <Project Path="src/BusinessOS.Licensing/BusinessOS.Licensing.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BusinessOS.Licensing.Tests/BusinessOS.Licensing.Tests.csproj" />
+    <Project Path="tests/BusinessOS.Tenancy.Tests/BusinessOS.Tenancy.Tests.csproj" />
+  </Folder>
+</Solution>
