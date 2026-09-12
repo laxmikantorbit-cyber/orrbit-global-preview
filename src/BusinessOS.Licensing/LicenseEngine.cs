@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -52,7 +52,7 @@ public sealed class LicenseEngine
 		{
 			throw new ArgumentException("Device fingerprint is required.");
 		}
-		if ((object)_activations.LastOrDefault((DeviceActivation x) => x.Active && x.DeviceFingerprint == deviceFingerprint) != null)
+		if (_activations.Any(x => x.Active && x.DeviceFingerprint == deviceFingerprint))
 		{
 			return CreateLease(deviceFingerprint, now);
 		}
