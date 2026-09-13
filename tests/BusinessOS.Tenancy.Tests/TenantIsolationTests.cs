@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using BusinessOS.Api.Customers;
+using BusinessOS.Api.Tenancy;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace BusinessOS.Tenancy.Tests;
@@ -19,7 +20,7 @@ public sealed class TenantIsolationTests : IClassFixture<WebApplicationFactory<P
 
         Assert.NotNull(customers);
         Assert.Single(customers!);
-        Assert.Equal("TENANT-A", customers![0].TenantId);
+        Assert.Equal(PocIdentitySeed.TenantAId, customers![0].TenantId);
     }
 
     [Fact]

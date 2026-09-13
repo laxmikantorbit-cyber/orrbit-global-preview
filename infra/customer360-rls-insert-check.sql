@@ -1,0 +1,5 @@
+SET app.tenant_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+SELECT CASE WHEN count(*) = 0 THEN 'PASS:CROSS_TENANT_INSERT_ABSENT'
+  ELSE 'FAIL:CROSS_TENANT_INSERT_ABSENT' END
+FROM organisations
+WHERE id = '33333333-3333-3333-3333-333333333333';

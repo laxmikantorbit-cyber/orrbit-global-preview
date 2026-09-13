@@ -1,5 +1,6 @@
 using BusinessOS.Api.Customers;
 using BusinessOS.Api.Tenancy;
+using BusinessOS.Customers;
 using BusinessOS.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -7,6 +8,7 @@ builder.Services.AddOpenApi();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<TenantContext>();
 builder.Services.AddScoped<CustomerStore>();
+builder.Services.AddSingleton<IOrganisationRepository>(_ => CustomerSeed.CreateRepository());
 
 var identityConnection = builder.Configuration.GetConnectionString("Identity");
 if (string.IsNullOrWhiteSpace(identityConnection))
@@ -24,12 +26,17 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseMiddleware<PocApiKeyTenantMiddleware>();
+app.MapGet("/api/customers", async (
+    CustomerStore store,
+    CancellationToken cancellationToken) =>
+    Results.Ok(await store.ListAsync(cancellationToken)));
 
-app.MapGet("/api/customers", (CustomerStore store) => Results.Ok(store.List()));
-
-app.MapGet("/api/customers/{id:guid}", (Guid id, CustomerStore store) =>
+app.MapGet("/api/customers/{id:guid}", async (
+    Guid id,
+    CustomerStore store,
+    CancellationToken cancellationToken) =>
 {
-    var customer = store.Find(id);
+    var customer = await store.FindAsync(id, cancellationToken);
     return customer is null ? Results.NotFound() : Results.Ok(customer);
 });
 

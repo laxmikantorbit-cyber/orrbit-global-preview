@@ -2,6 +2,6 @@ namespace BusinessOS.Api.Customers;
 
 public sealed record Customer(
     Guid Id,
-    string TenantId,
+    Guid TenantId,
     string Name,
-    string Email);
+    string? Email);

@@ -4,14 +4,13 @@ namespace BusinessOS.Api.Tenancy;
 
 public static class PocIdentitySeed
 {
+    public static readonly Guid TenantAId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    public static readonly Guid TenantBId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+
     public static IdentityDirectory CreateDirectory()
     {
-        var tenantA = new Tenant(
-            Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
-            "TENANT-A", "Tenant A", TenantStatus.Active);
-        var tenantB = new Tenant(
-            Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
-            "TENANT-B", "Tenant B", TenantStatus.Active);
+        var tenantA = new Tenant(TenantAId, "TENANT-A", "Tenant A", TenantStatus.Active);
+        var tenantB = new Tenant(TenantBId, "TENANT-B", "Tenant B", TenantStatus.Active);
 
         var userA = new UserIdentity(
             Guid.Parse("aaaaaaaa-1111-1111-1111-111111111111"),
@@ -25,10 +24,6 @@ public static class PocIdentitySeed
             new TenantMembership(Guid.NewGuid(), userA.Id, tenantA.Id, "Owner", MembershipStatus.Active),
             new TenantMembership(Guid.NewGuid(), userB.Id, tenantB.Id, "Owner", MembershipStatus.Active)
         };
-
-        return new IdentityDirectory(
-            new[] { tenantA, tenantB },
-            new[] { userA, userB },
-            memberships);
+        return new IdentityDirectory(new[] { tenantA, tenantB }, new[] { userA, userB }, memberships);
     }
 }

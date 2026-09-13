@@ -1,4 +1,5 @@
 using BusinessOS.Api.Tenancy;
+using BusinessOS.Customers;
 
 namespace BusinessOS.Api.Customers;
 
@@ -8,17 +9,37 @@ public sealed class CustomerStore
     public static readonly Guid TenantBCustomerId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
     private readonly TenantContext _tenant;
-    private readonly Customer[] _customers =
-    [
-        new(TenantACustomerId, "TENANT-A", "Alpha Customer", "alpha@example.test"),
-        new(TenantBCustomerId, "TENANT-B", "Beta Customer", "beta@example.test")
-    ];
+    private readonly IOrganisationRepository _organisations;
 
-    public CustomerStore(TenantContext tenant) => _tenant = tenant;
+    public CustomerStore(TenantContext tenant, IOrganisationRepository organisations)
+    {
+        _tenant = tenant;
+        _organisations = organisations;
+    }
 
-    public IReadOnlyList<Customer> List() =>
-        _customers.Where(x => x.TenantId == _tenant.TenantCode).ToArray();
+    public async Task<IReadOnlyList<Customer>> ListAsync(CancellationToken cancellationToken = default)
+    {
+        var organisations = await _organisations.ListByRoleAsync(
+            _tenant.TenantId,
+            OrganisationRole.Customer,
+            cancellationToken);
 
-    public Customer? Find(Guid id) =>
-        _customers.SingleOrDefault(x => x.TenantId == _tenant.TenantCode && x.Id == id);
+        return organisations.Select(ToCustomer).ToArray();
+    }
+    public async Task<Customer?> FindAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var organisation = await _organisations.GetAsync(_tenant.TenantId, id, cancellationToken);
+        return organisation is not null && organisation.HasRole(OrganisationRole.Customer)
+            ? ToCustomer(organisation)
+            : null;
+    }
+
+    private static Customer ToCustomer(Organisation organisation) =>
+        new(
+            organisation.Id,
+            organisation.TenantId,
+            organisation.Name,
+            organisation.PrimaryContact?.Email);
 }
