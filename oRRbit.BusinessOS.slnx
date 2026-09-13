@@ -1,12 +1,14 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/BusinessOS.Api/BusinessOS.Api.csproj" />
+    <Project Path="src/BusinessOS.Crm/BusinessOS.Crm.csproj" />
     <Project Path="src/BusinessOS.Customers/BusinessOS.Customers.csproj" />
     <Project Path="src/BusinessOS.Identity/BusinessOS.Identity.csproj" />
     <Project Path="src/BusinessOS.Licensing/BusinessOS.Licensing.csproj" />
     <Project Path="src/BusinessOS.Payments/BusinessOS.Payments.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/BusinessOS.Crm.Tests/BusinessOS.Crm.Tests.csproj" />
     <Project Path="tests/BusinessOS.Customers.Tests/BusinessOS.Customers.Tests.csproj" />
     <Project Path="tests/BusinessOS.Identity.Tests/BusinessOS.Identity.Tests.csproj" />
     <Project Path="tests/BusinessOS.Licensing.Tests/BusinessOS.Licensing.Tests.csproj" />
