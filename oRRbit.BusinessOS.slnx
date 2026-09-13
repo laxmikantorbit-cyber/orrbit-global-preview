@@ -6,6 +6,7 @@
     <Project Path="src/BusinessOS.Identity/BusinessOS.Identity.csproj" />
     <Project Path="src/BusinessOS.Licensing/BusinessOS.Licensing.csproj" />
     <Project Path="src/BusinessOS.Payments/BusinessOS.Payments.csproj" />
+    <Project Path="src/BusinessOS.Sales/BusinessOS.Sales.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/BusinessOS.Crm.Tests/BusinessOS.Crm.Tests.csproj" />
@@ -13,6 +14,7 @@
     <Project Path="tests/BusinessOS.Identity.Tests/BusinessOS.Identity.Tests.csproj" />
     <Project Path="tests/BusinessOS.Licensing.Tests/BusinessOS.Licensing.Tests.csproj" />
     <Project Path="tests/BusinessOS.Payments.Tests/BusinessOS.Payments.Tests.csproj" />
+    <Project Path="tests/BusinessOS.Sales.Tests/BusinessOS.Sales.Tests.csproj" />
     <Project Path="tests/BusinessOS.Tenancy.Tests/BusinessOS.Tenancy.Tests.csproj" />
   </Folder>
 </Solution>
