@@ -17,8 +17,8 @@ public sealed class CustomerStore
     public CustomerStore(TenantContext tenant) => _tenant = tenant;
 
     public IReadOnlyList<Customer> List() =>
-        _customers.Where(x => x.TenantId == _tenant.TenantId).ToArray();
+        _customers.Where(x => x.TenantId == _tenant.TenantCode).ToArray();
 
     public Customer? Find(Guid id) =>
-        _customers.SingleOrDefault(x => x.TenantId == _tenant.TenantId && x.Id == id);
+        _customers.SingleOrDefault(x => x.TenantId == _tenant.TenantCode && x.Id == id);
 }

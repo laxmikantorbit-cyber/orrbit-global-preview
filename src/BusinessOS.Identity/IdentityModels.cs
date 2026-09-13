@@ -38,4 +38,5 @@ public sealed record TenantMembership(
 public sealed record TenantAccess(
     Guid UserId,
     Guid TenantId,
+    string TenantCode,
     string RoleCode);

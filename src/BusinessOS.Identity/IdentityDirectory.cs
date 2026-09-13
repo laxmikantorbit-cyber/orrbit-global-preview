@@ -3,6 +3,7 @@ namespace BusinessOS.Identity;
 public sealed class IdentityDirectory
 {
     private readonly Dictionary<Guid, Tenant> _tenants;
+    private readonly Dictionary<string, Tenant> _tenantsByCode;
     private readonly Dictionary<Guid, UserIdentity> _users;
     private readonly List<TenantMembership> _memberships;
     private readonly Dictionary<string, UserIdentity> _usersBySubject;
@@ -15,7 +16,16 @@ public sealed class IdentityDirectory
         _tenants = tenants.ToDictionary(x => x.Id);
         _users = users.ToDictionary(x => x.Id);
         _memberships = memberships.ToList();
+        _tenantsByCode = new Dictionary<string, Tenant>(StringComparer.OrdinalIgnoreCase);
         _usersBySubject = new Dictionary<string, UserIdentity>(StringComparer.Ordinal);
+
+        foreach (var tenant in _tenants.Values)
+        {
+            if (string.IsNullOrWhiteSpace(tenant.Code))
+                throw new InvalidOperationException("Tenant code is required.");
+            if (!_tenantsByCode.TryAdd(tenant.Code, tenant))
+                throw new InvalidOperationException("Tenant code must be unique.");
+        }
 
         foreach (var user in _users.Values)
         {
@@ -34,18 +44,25 @@ public sealed class IdentityDirectory
         return _usersBySubject.GetValueOrDefault(subject);
     }
 
+    public TenantAccess? ResolveAccess(string subject, string tenantCode)
+    {
+        var user = FindBySubject(subject);
+        if (user is null) return null;
+        if (string.IsNullOrWhiteSpace(tenantCode)) return null;
+        if (!_tenantsByCode.TryGetValue(tenantCode, out var tenant)) return null;
+        return ResolveAccess(user.Id, tenant.Id);
+    }
+
     public TenantAccess? ResolveAccess(Guid userId, Guid tenantId)
     {
         if (!_users.TryGetValue(userId, out var user) || !user.Active) return null;
         if (!_tenants.TryGetValue(tenantId, out var tenant) || tenant.Status != TenantStatus.Active) return null;
 
         var membership = _memberships.SingleOrDefault(x =>
-            x.UserId == userId &&
-            x.TenantId == tenantId &&
-            x.Status == MembershipStatus.Active);
+            x.UserId == userId && x.TenantId == tenantId && x.Status == MembershipStatus.Active);
 
         if (membership is null) return null;
-        return new TenantAccess(userId, tenantId, membership.RoleCode);
+        return new TenantAccess(userId, tenantId, tenant.Code, membership.RoleCode);
     }
 
     public IReadOnlyList<TenantMembership> GetActiveMemberships(Guid userId) =>

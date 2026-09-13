@@ -43,6 +43,17 @@ public sealed class TenantIsolationTests : IClassFixture<WebApplicationFactory<P
     }
 
     [Fact]
+    public async Task Authenticated_User_Cannot_Select_Unauthorized_Tenant()
+    {
+        var client = CreateClient("tenant-a-poc-key");
+        client.DefaultRequestHeaders.Add("X-Tenant-Code", "TENANT-B");
+
+        var response = await client.GetAsync("/api/customers");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Invalid_Credential_Is_Rejected()
     {
         var client = CreateClient("invalid-key");
