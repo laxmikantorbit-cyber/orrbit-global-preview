@@ -75,6 +75,7 @@ app.MapGet("/api/customers/{id:guid}", async (
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapCommerceActivationEndpoints();
+app.MapCommerceAdminEndpoints();
 app.MapPaymentCheckoutEndpoints();
 app.MapPaymentWebhookEndpoints();
 

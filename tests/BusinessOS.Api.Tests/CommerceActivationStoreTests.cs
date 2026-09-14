@@ -1,4 +1,5 @@
 using BusinessOS.Api.Commerce;
+using BusinessOS.Api.Payments;
 using BusinessOS.Application;
 using BusinessOS.Licensing;
 using BusinessOS.Payments;
@@ -292,6 +293,74 @@ public sealed class CommerceActivationStoreTests
 
         Assert.NotNull(activation);
         Assert.Equal(checkout.CommerceOrderId, activation!.OrderId);
+    }
+
+    [Fact]
+    public async Task Admin_Snapshot_Shows_Pending_Order_And_Ledger_Payment()
+    {
+        using var signer = new LeaseSigner();
+        ICommerceActivationStore store = new InMemoryCommerceActivationStore(
+            new PaymentSubscriptionActivationService(),
+            signer);
+        var paymentEvents = new InMemoryPaymentEventStore(new PaymentProcessor());
+
+        var checkout = await store.CreateInitialCheckoutOrderAsync(
+            TenantA,
+            InitialCheckoutRequest());
+        await store.RecordRazorpayOrderAsync(
+            TenantA,
+            checkout.CommerceOrderId,
+            "order_admin_pending_1",
+            checkout.ProductCode,
+            checkout.SubscriptionId);
+        await paymentEvents.ProcessAsync(
+            "razorpay",
+            new PaymentWebhookMessage(
+                "event_admin_pending_1", "pay_admin_pending_1",
+                "order_admin_pending_1", PaymentStatus.Pending,
+                checked(decimal.ToInt64(checkout.Amount * 100m)), checkout.CurrencyCode));
+
+        var snapshot = await store.GetAdminSnapshotAsync(TenantA, 50);
+        var payments = await paymentEvents.ListPaymentsForProviderOrdersAsync(
+            "razorpay",
+            ["order_admin_pending_1"],
+            50);
+
+        Assert.Single(snapshot.Orders);
+        Assert.Equal(checkout.CommerceOrderId, snapshot.Orders[0].CommerceOrderId);
+        Assert.Single(payments);
+        Assert.Equal("Pending", payments[0].Status);
+        Assert.Empty(snapshot.Activations);
+    }
+
+    [Fact]
+    public async Task Admin_Snapshot_Shows_Activation_After_Captured_Payment()
+    {
+        using var signer = new LeaseSigner();
+        ICommerceActivationStore store = new InMemoryCommerceActivationStore(
+            new PaymentSubscriptionActivationService(),
+            signer);
+
+        var checkout = await store.CreateInitialCheckoutOrderAsync(
+            TenantA,
+            InitialCheckoutRequest());
+        var activation = await store.ActivateCapturedInitialOrderAsync(
+            TenantA,
+            new PaymentRecord(
+                "pay_admin_captured_1",
+                checkout.CommerceOrderId.ToString(),
+                PaymentStatus.Captured,
+                checked(decimal.ToInt64(checkout.Amount * 100m)),
+                checkout.CurrencyCode,
+                new DateTimeOffset(2026, 9, 14, 10, 0, 0, TimeSpan.Zero)),
+            checkout.ProductCode);
+
+        var snapshot = await store.GetAdminSnapshotAsync(TenantA, 50);
+
+        Assert.NotNull(activation);
+        Assert.Empty(snapshot.Orders);
+        Assert.Single(snapshot.Activations);
+        Assert.Equal(activation!.SubscriptionId, snapshot.Activations[0].SubscriptionId);
     }
 
     private static InitialActivationRequest InitialRequest(string paymentId) => new(

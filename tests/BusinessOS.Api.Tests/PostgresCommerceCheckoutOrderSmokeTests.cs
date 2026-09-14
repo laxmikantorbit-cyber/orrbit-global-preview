@@ -1,4 +1,5 @@
 using BusinessOS.Api.Commerce;
+using BusinessOS.Api.Payments;
 using BusinessOS.Application;
 using BusinessOS.Licensing;
 using BusinessOS.Payments;
@@ -50,6 +51,18 @@ public sealed class PostgresCommerceCheckoutOrderSmokeTests
             razorpayOrderId);
         Assert.NotNull(pendingStatus);
         Assert.Equal("verified_pending_activation", pendingStatus!.Outcome);
+        await using var paymentEvents = new PostgresPaymentEventStore(cs);
+        await paymentEvents.ProcessAsync(
+            "razorpay",
+            new PaymentWebhookMessage(
+                $"event_pg_admin_{suffix}", $"pay_pg_admin_{suffix}",
+                razorpayOrderId, PaymentStatus.Pending,
+                checked(decimal.ToInt64(checkout.Amount * 100m)), checkout.CurrencyCode));
+        var adminSnapshot = await store.GetAdminSnapshotAsync(TenantA, 50);
+        var adminPayments = await paymentEvents.ListPaymentsForProviderOrdersAsync(
+            "razorpay", [razorpayOrderId], 50);
+        Assert.Contains(adminSnapshot.Orders, x => x.CommerceOrderId == checkout.CommerceOrderId);
+        Assert.Contains(adminPayments, x => x.Status == "Pending");
 
         var activation = await store.ActivateCapturedInitialOrderAsync(
             TenantA,

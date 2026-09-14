@@ -4,6 +4,11 @@ namespace BusinessOS.Api.Commerce;
 
 public interface ICommerceActivationStore
 {
+    Task<CommerceAdminSnapshot> GetAdminSnapshotAsync(
+        Guid tenantId,
+        int take,
+        CancellationToken cancellationToken = default);
+
     Task<ActivationResponse?> FindActivationAsync(
         Guid tenantId,
         Guid subscriptionId,

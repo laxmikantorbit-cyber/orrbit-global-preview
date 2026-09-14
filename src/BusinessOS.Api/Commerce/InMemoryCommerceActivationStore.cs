@@ -24,6 +24,36 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
         _signer = signer;
     }
 
+    public Task<CommerceAdminSnapshot> GetAdminSnapshotAsync(
+        Guid tenantId,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            var limit = Math.Clamp(take, 1, 200);
+            var pendingOrders = _pendingOrders.Values
+                .Where(x => x.Order.TenantId == tenantId)
+                .OrderByDescending(x => x.ExpiresAtUtc)
+                .Take(limit)
+                .Select(x => ToAdminOrderSnapshot(tenantId, x))
+                .ToList();
+            var activations = _activations
+                .Where(x => x.Key.TenantId == tenantId)
+                .Select(x => ToResponse(tenantId, x.Value))
+                .Take(limit)
+                .ToList();
+            var renewals = _renewalsByOrder
+                .Where(x => x.Key.TenantId == tenantId)
+                .Select(x => x.Value)
+                .Take(limit)
+                .ToList();
+            return Task.FromResult(new CommerceAdminSnapshot(
+                tenantId, DateTimeOffset.UtcNow,
+                pendingOrders, activations, renewals));
+        }
+    }
+
     public Task<ActivationResponse?> FindActivationAsync(
         Guid tenantId,
         Guid subscriptionId,
@@ -410,6 +440,34 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
             activation.Subscription,
             activation.License,
             productCode.Trim());
+    }
+
+    private CommerceAdminOrderSnapshot ToAdminOrderSnapshot(
+        Guid tenantId,
+        PendingCheckoutOrder pending)
+    {
+        var providerRoute = _providerRoutes.Values.FirstOrDefault(x =>
+            x.TenantId == tenantId && x.CommerceOrderId == pending.Order.Id);
+        var providerOrderId = providerRoute?.ProviderOrderId ?? pending.RazorpayOrderId;
+        return new CommerceAdminOrderSnapshot(
+            tenantId,
+            pending.Order.OrganisationId,
+            pending.Order.QuoteId,
+            pending.Order.Id,
+            pending.Order.Snapshot.PlanId,
+            pending.Order.Snapshot.PlanVersionId,
+            pending.Order.Snapshot.Billing.Amount,
+            pending.Order.Snapshot.Billing.CurrencyCode,
+            pending.Order.Status.ToString(),
+            pending.Order.PaymentId,
+            pending.Order.PaidAtUtc,
+            pending.RazorpayOrderId,
+            providerRoute?.Provider,
+            providerOrderId,
+            pending.ProductCode,
+            pending.SubscriptionId,
+            pending.ExpiresAtUtc.AddDays(-7),
+            pending.ExpiresAtUtc);
     }
 
     private static CheckoutOrderResponse ToCheckoutResponse(

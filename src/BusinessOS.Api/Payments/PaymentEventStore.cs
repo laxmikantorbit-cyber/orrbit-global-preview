@@ -1,3 +1,4 @@
+using BusinessOS.Api.Commerce;
 using BusinessOS.Payments;
 using Npgsql;
 using NpgsqlTypes;
@@ -9,6 +10,12 @@ public interface IPaymentEventStore
     Task<PaymentProcessResult> ProcessAsync(
         string provider,
         PaymentWebhookMessage message,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<CommerceAdminPaymentItem>> ListPaymentsForProviderOrdersAsync(
+        string provider,
+        IReadOnlyCollection<string> providerOrderIds,
+        int take,
         CancellationToken cancellationToken = default);
 }
 
@@ -24,6 +31,33 @@ public sealed class InMemoryPaymentEventStore : IPaymentEventStore
         PaymentWebhookMessage message,
         CancellationToken cancellationToken = default) =>
         Task.FromResult(_processor.Process(message));
+
+    public Task<IReadOnlyList<CommerceAdminPaymentItem>> ListPaymentsForProviderOrdersAsync(
+        string provider,
+        IReadOnlyCollection<string> providerOrderIds,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        var wanted = providerOrderIds
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .ToHashSet(StringComparer.Ordinal);
+        var rows = _processor.Payments
+            .Where(x => wanted.Contains(x.OrderId))
+            .OrderByDescending(x => x.CapturedAtUtc ?? DateTimeOffset.MinValue)
+            .Take(Math.Clamp(take, 1, 200))
+            .Select(x => new CommerceAdminPaymentItem(
+                NormalizeProviderName(provider), x.PaymentId, x.OrderId,
+                x.Status.ToString(), x.AmountPaise, x.Currency,
+                x.CapturedAtUtc, x.CapturedAtUtc ?? DateTimeOffset.MinValue))
+            .ToList();
+        return Task.FromResult<IReadOnlyList<CommerceAdminPaymentItem>>(rows);
+    }
+
+    private static string NormalizeProviderName(string provider) =>
+        string.IsNullOrWhiteSpace(provider)
+            ? throw new ArgumentException("Payment provider is required.", nameof(provider))
+            : provider.Trim().ToLowerInvariant();
 }
 public sealed class PostgresPaymentEventStore : IPaymentEventStore, IAsyncDisposable
 {
@@ -73,6 +107,40 @@ public sealed class PostgresPaymentEventStore : IPaymentEventStore, IAsyncDispos
             throw new InvalidOperationException($"Payment persistence rejected the operation: {ex.MessageText}", ex);
         }
     }
+
+    public async Task<IReadOnlyList<CommerceAdminPaymentItem>> ListPaymentsForProviderOrdersAsync(
+        string provider,
+        IReadOnlyCollection<string> providerOrderIds,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = providerOrderIds
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (ids.Length == 0)
+            return Array.Empty<CommerceAdminPaymentItem>();
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        const string sql = """
+            SELECT provider,payment_id,provider_order_id,status,amount_subunits,
+                   currency_code,captured_at_utc,updated_at_utc
+            FROM payment_gateway_records
+            WHERE provider=@provider AND provider_order_id=ANY(@provider_order_ids)
+            ORDER BY updated_at_utc DESC
+            LIMIT @take
+            """;
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("provider", NormalizeProvider(provider));
+        command.Parameters.AddWithValue("provider_order_ids", ids);
+        command.Parameters.AddWithValue("take", Math.Clamp(take, 1, 200));
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var rows = new List<CommerceAdminPaymentItem>();
+        while (await reader.ReadAsync(cancellationToken))
+            rows.Add(ReadAdminPayment(reader));
+        return rows;
+    }
+
     private static async Task<(PaymentRecord Payment, bool Duplicate)> CreatePaymentAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
@@ -221,6 +289,17 @@ public sealed class PostgresPaymentEventStore : IPaymentEventStore, IAsyncDispos
             reader.GetInt64(3),
             reader.GetString(4),
             reader.IsDBNull(5) ? null : reader.GetFieldValue<DateTimeOffset>(5));
+
+    private static CommerceAdminPaymentItem ReadAdminPayment(NpgsqlDataReader reader) =>
+        new(
+            reader.GetString(0),
+            reader.GetString(1),
+            reader.GetString(2),
+            ((PaymentStatus)reader.GetInt32(3)).ToString(),
+            reader.GetInt64(4),
+            reader.GetString(5),
+            reader.IsDBNull(6) ? null : reader.GetFieldValue<DateTimeOffset>(6),
+            reader.GetFieldValue<DateTimeOffset>(7));
 
     private static PaymentRecord ToRecord(PaymentWebhookMessage message) =>
         new(

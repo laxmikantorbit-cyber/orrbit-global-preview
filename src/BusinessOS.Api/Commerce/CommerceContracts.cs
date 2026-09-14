@@ -87,6 +87,33 @@ public sealed record ProviderOrderStatus(
     ActivationResponse? InitialActivation,
     RenewalResponse? RenewalActivation);
 
+public sealed record CommerceAdminSnapshot(
+    Guid TenantId,
+    DateTimeOffset GeneratedAtUtc,
+    IReadOnlyList<CommerceAdminOrderSnapshot> Orders,
+    IReadOnlyList<ActivationResponse> Activations,
+    IReadOnlyList<RenewalResponse> Renewals);
+
+public sealed record CommerceAdminOrderSnapshot(
+    Guid TenantId,
+    Guid OrganisationId,
+    Guid QuoteId,
+    Guid CommerceOrderId,
+    Guid PlanId,
+    Guid PlanVersionId,
+    decimal Amount,
+    string CurrencyCode,
+    string OrderStatus,
+    string? PaymentId,
+    DateTimeOffset? PaidAtUtc,
+    string? RazorpayOrderId,
+    string? Provider,
+    string? ProviderOrderId,
+    string? ProductCode,
+    Guid? SubscriptionId,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset ExpiresAtUtc);
+
 public sealed record RazorpayCheckoutOrderResponse(
     Guid TenantId,
     Guid OrganisationId,
@@ -124,5 +151,37 @@ public sealed record RenewalResponse(
     DateOnly PreviousValidUntil,
     DateOnly NewValidUntil,
     EntitlementSnapshot Entitlements);
+
+public sealed record CommerceAdminStatusResponse(
+    Guid TenantId,
+    DateTimeOffset GeneratedAtUtc,
+    CommerceAdminCounts Counts,
+    IReadOnlyList<CommerceAdminOrderStatusItem> Orders,
+    IReadOnlyList<CommerceAdminPaymentItem> Payments,
+    IReadOnlyList<ActivationResponse> Activations,
+    IReadOnlyList<RenewalResponse> Renewals);
+
+public sealed record CommerceAdminCounts(
+    int PendingOrders,
+    int CapturedPayments,
+    int FailedPayments,
+    int ActiveSubscriptions,
+    int Renewals,
+    int NeedsReconciliation);
+
+public sealed record CommerceAdminOrderStatusItem(
+    CommerceAdminOrderSnapshot Order,
+    string? PaymentStatus,
+    string ReconciliationStatus);
+
+public sealed record CommerceAdminPaymentItem(
+    string Provider,
+    string PaymentId,
+    string ProviderOrderId,
+    string Status,
+    long AmountSubunits,
+    string CurrencyCode,
+    DateTimeOffset? CapturedAtUtc,
+    DateTimeOffset UpdatedAtUtc);
 
 public sealed record ErrorResponse(string Error);
