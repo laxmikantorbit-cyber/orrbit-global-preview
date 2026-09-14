@@ -107,6 +107,8 @@ END $$;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_commerce_subscriptions_tenant_license
   ON commerce_subscriptions(tenant_id, license_id)
   WHERE license_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_commerce_subscriptions_tenant_order
+  ON commerce_subscriptions(tenant_id, order_id);
 
 ALTER TABLE commerce_quotes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE commerce_quotes FORCE ROW LEVEL SECURITY;

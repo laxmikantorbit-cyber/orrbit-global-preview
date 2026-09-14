@@ -16,6 +16,12 @@ public sealed class PocApiKeyTenantMiddleware
 
     public async Task InvokeAsync(HttpContext context, IIdentityAccessRepository repository)
     {
+        if (context.Request.Path.StartsWithSegments("/api/payments/webhooks"))
+        {
+            await _next(context);
+            return;
+        }
+
         if (!context.Request.Headers.TryGetValue("X-POC-Api-Key", out var key) ||
             !Credentials.TryGetValue(key.ToString(), out var credential))
         {

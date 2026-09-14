@@ -1,12 +1,14 @@
 using System.Text.Json;
 using BusinessOS.Application;
+using BusinessOS.Catalog;
 using BusinessOS.Commerce;
 using BusinessOS.Licensing;
+using BusinessOS.Payments;
 using Npgsql;
 
 namespace BusinessOS.Api.Commerce;
 
-public sealed class PostgresCommerceActivationStore : ICommerceActivationStore, IAsyncDisposable
+public sealed partial class PostgresCommerceActivationStore : ICommerceActivationStore, IAsyncDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {

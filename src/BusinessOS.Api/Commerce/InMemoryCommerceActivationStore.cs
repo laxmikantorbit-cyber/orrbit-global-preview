@@ -1,6 +1,7 @@
 using BusinessOS.Application;
 using BusinessOS.Commerce;
 using BusinessOS.Licensing;
+using BusinessOS.Payments;
 
 namespace BusinessOS.Api.Commerce;
 
@@ -133,6 +134,20 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
             result.Subscription.Entitlements);
         return Task.FromResult<RenewalResponse?>(response);
     }
+
+    public Task<ActivationResponse?> ActivateCapturedInitialOrderAsync(
+        Guid tenantId,
+        PaymentRecord payment,
+        string productCode,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult<ActivationResponse?>(null);
+
+    public Task<RenewalResponse?> ActivateCapturedRenewalOrderAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        PaymentRecord payment,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult<RenewalResponse?>(null);
 
     private static ActivationResponse ToResponse(
         Guid tenantId,

@@ -11,11 +11,13 @@ Verified the Quote -> Order -> Subscription foundation and Subscription Renewal 
 
 ## Application verification
 
-- Full solution regression: 97/97 tests passed.
+- Full solution regression: 99/99 tests passed.
 - Commerce tests: 13/13 passed.
 - Application activation bridge tests: 3/3 passed.
-- API activation store tests: 4/4 passed.
+- API activation/webhook store tests: 6/6 passed.
 - PostgreSQL API persistence smoke: initial activation, lookup, renewal extension and cross-tenant read block passed.
+- PostgreSQL webhook activation smoke: pending order -> captured payment -> subscription/license activation passed.
+- PostgreSQL webhook renewal smoke: pending renewal order -> captured payment -> same subscription extension passed.
 - Release build: 0 warnings, 0 errors.
 - Validity starts from captured payment date, not activation date.
 - Quote commercial snapshot is carried into Order and Subscription without rereading mutable plan pricing.
@@ -76,3 +78,16 @@ Persistence verification:
 - Negative proof runs inside a transaction and rolls back its temporary proof order.
 
 Reusable proof: `infra/commerce-renewal-negative-proof.sql`.
+
+## Razorpay webhook activation verification
+
+Webhook endpoint added under `/api/payments`:
+- `POST /api/payments/webhooks/razorpay`
+
+Verification completed:
+- Razorpay signature verification is required through `X-Razorpay-Signature`.
+- Webhook route is excluded from POC API-key middleware because Razorpay will not send tenant API headers.
+- Tenant, commerce order, product and subscription routing are read from signed webhook notes.
+- Captured payment can activate a previously pending Commerce order.
+- Captured renewal payment can extend the same existing subscription.
+- Duplicate captured webhook processing returns the existing subscription or renewal instead of creating another row.

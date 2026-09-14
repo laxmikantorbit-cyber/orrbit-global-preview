@@ -1,3 +1,5 @@
+using BusinessOS.Payments;
+
 namespace BusinessOS.Api.Commerce;
 
 public interface ICommerceActivationStore
@@ -16,5 +18,17 @@ public interface ICommerceActivationStore
         Guid tenantId,
         Guid subscriptionId,
         RenewalActivationRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<ActivationResponse?> ActivateCapturedInitialOrderAsync(
+        Guid tenantId,
+        PaymentRecord payment,
+        string productCode,
+        CancellationToken cancellationToken = default);
+
+    Task<RenewalResponse?> ActivateCapturedRenewalOrderAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        PaymentRecord payment,
         CancellationToken cancellationToken = default);
 }
