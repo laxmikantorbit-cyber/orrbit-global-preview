@@ -16,7 +16,7 @@ public static class PaymentWebhookEndpoints
         group.MapPost("/razorpay", async (
             HttpRequest request,
             IConfiguration configuration,
-            PaymentProcessor processor,
+            IPaymentEventStore paymentEvents,
             ICommerceActivationStore store,
             CancellationToken cancellationToken) =>
         {
@@ -40,7 +40,10 @@ public static class PaymentWebhookEndpoints
                 return Results.Unauthorized();
 
             var webhook = RazorpayWebhookParser.Parse(rawBody);
-            var paymentResult = processor.Process(webhook.Message);
+            var paymentResult = await paymentEvents.ProcessAsync(
+                RazorpayProvider,
+                webhook.Message with { OrderId = webhook.ProviderOrderId },
+                cancellationToken);
             if (paymentResult.Payment.Status != PaymentStatus.Captured)
                 return Results.Ok(new PaymentWebhookResponse(
                     "payment_recorded",

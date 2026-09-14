@@ -29,10 +29,13 @@ builder.Services.AddScoped<RazorpayCheckoutService>();
 var commerceConnection = builder.Configuration.GetConnectionString("Commerce");
 if (string.IsNullOrWhiteSpace(commerceConnection))
 {
+    builder.Services.AddSingleton<IPaymentEventStore, InMemoryPaymentEventStore>();
     builder.Services.AddSingleton<ICommerceActivationStore, InMemoryCommerceActivationStore>();
 }
 else
 {
+    builder.Services.AddSingleton<IPaymentEventStore>(_ =>
+        new PostgresPaymentEventStore(commerceConnection));
     builder.Services.AddSingleton<ICommerceActivationStore>(sp =>
         new PostgresCommerceActivationStore(
             commerceConnection,

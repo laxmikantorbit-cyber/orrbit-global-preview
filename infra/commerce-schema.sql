@@ -143,6 +143,37 @@ CREATE TABLE IF NOT EXISTS commerce_provider_order_routes (
 CREATE UNIQUE INDEX IF NOT EXISTS ux_commerce_provider_routes_tenant_provider_order
   ON commerce_provider_order_routes(tenant_id, provider, provider_order_id);
 
+CREATE TABLE IF NOT EXISTS payment_gateway_records (
+    provider text NOT NULL CHECK (length(btrim(provider)) > 0),
+    payment_id text NOT NULL CHECK (length(btrim(payment_id)) > 0),
+    provider_order_id text NOT NULL CHECK (length(btrim(provider_order_id)) > 0),
+    status integer NOT NULL CHECK (status IN (0,1,2)),
+    amount_subunits bigint NOT NULL CHECK (amount_subunits > 0),
+    currency_code text NOT NULL CHECK (char_length(currency_code) = 3),
+    captured_at_utc timestamptz NULL,
+    created_at_utc timestamptz NOT NULL,
+    updated_at_utc timestamptz NOT NULL,
+    PRIMARY KEY (provider, payment_id)
+);
+CREATE INDEX IF NOT EXISTS ix_payment_gateway_records_provider_order
+  ON payment_gateway_records(provider, provider_order_id);
+
+CREATE TABLE IF NOT EXISTS payment_gateway_events (
+    provider text NOT NULL CHECK (length(btrim(provider)) > 0),
+    event_id text NOT NULL CHECK (length(btrim(event_id)) > 0),
+    payment_id text NOT NULL CHECK (length(btrim(payment_id)) > 0),
+    provider_order_id text NOT NULL CHECK (length(btrim(provider_order_id)) > 0),
+    status integer NOT NULL CHECK (status IN (0,1,2)),
+    amount_subunits bigint NOT NULL CHECK (amount_subunits > 0),
+    currency_code text NOT NULL CHECK (char_length(currency_code) = 3),
+    received_at_utc timestamptz NOT NULL,
+    PRIMARY KEY (provider, event_id),
+    FOREIGN KEY (provider, payment_id)
+      REFERENCES payment_gateway_records(provider, payment_id)
+);
+CREATE INDEX IF NOT EXISTS ix_payment_gateway_events_provider_payment
+  ON payment_gateway_events(provider, payment_id);
+
 ALTER TABLE commerce_quotes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE commerce_quotes FORCE ROW LEVEL SECURITY;
 ALTER TABLE commerce_orders ENABLE ROW LEVEL SECURITY;

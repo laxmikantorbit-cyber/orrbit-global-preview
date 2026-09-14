@@ -11,10 +11,10 @@ Verified the Quote -> Order -> Subscription foundation and Subscription Renewal 
 
 ## Application verification
 
-- Full solution regression: 115/115 tests passed.
+- Full solution regression: 118/118 tests passed.
 - Commerce tests: 13/13 passed.
 - Application activation bridge tests: 3/3 passed.
-- API activation/checkout/webhook/Razorpay order/provider-route/checkout-success/reconciliation tests: 22/22 passed.
+- API activation/checkout/webhook/Razorpay order/provider-route/checkout-success/reconciliation/payment-ledger tests: 25/25 passed.
 - PostgreSQL API persistence smoke: initial activation, lookup, renewal extension and cross-tenant read block passed.
 - PostgreSQL checkout smoke: checkout order -> Razorpay order id persisted -> captured payment -> subscription/license activation passed.
 - PostgreSQL renewal checkout smoke: renewal checkout order -> Razorpay order id persisted -> captured payment -> same subscription extension passed.
@@ -156,3 +156,13 @@ A delayed-webhook recovery endpoint now verifies Checkout signature, fetches pro
 - Captured provider payments are passed through the same idempotent PaymentProcessor and Commerce activation path used by webhooks.
 - Initial purchase and renewal reconciliation continue to use provider-order routes plus tenant-scoped Commerce activation.
 - Tests verify payment fetch HTTP shape, Basic auth, captured mapping, in-memory reconciliation and PostgreSQL status lookup before/after activation.
+
+## Persistent payment ledger verification
+
+Payment webhook and reconciliation processing now uses `IPaymentEventStore`:
+- PostgreSQL mode persists provider payment records in `payment_gateway_records`.
+- Provider event ids are persisted in `payment_gateway_events` for restart-safe idempotency.
+- Duplicate event replay after a new store instance returns the existing payment instead of creating a second payment.
+- Pending payment records can be upgraded to captured when Razorpay later confirms capture.
+- Reusing the same provider payment id for a different provider order is rejected.
+- Local fallback keeps the existing in-memory `PaymentProcessor` behavior for development.

@@ -43,7 +43,7 @@ public static class PaymentCheckoutEndpoints
             IConfiguration configuration,
             ICommerceActivationStore store,
             IRazorpayPaymentClient paymentClient,
-            PaymentProcessor processor,
+            IPaymentEventStore paymentEvents,
             CancellationToken cancellationToken) =>
         {
             var preflight = await VerifyAndLoadStatusAsync(
@@ -62,7 +62,10 @@ public static class PaymentCheckoutEndpoints
                 return Results.BadRequest(new ErrorResponse(providerError));
 
             var message = RazorpayHttpPaymentClient.ToWebhookMessage(providerPayment);
-            var paymentResult = processor.Process(message);
+            var paymentResult = await paymentEvents.ProcessAsync(
+                RazorpayProvider,
+                message,
+                cancellationToken);
             var route = preflight.Status!.Route;
 
             if (paymentResult.Payment.Status != PaymentStatus.Captured)
