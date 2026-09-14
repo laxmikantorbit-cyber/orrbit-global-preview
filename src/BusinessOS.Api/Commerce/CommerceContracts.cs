@@ -33,6 +33,44 @@ public sealed record RenewalActivationRequest(
     string PaymentId,
     DateTimeOffset CapturedAtUtc);
 
+public sealed record CreateInitialCheckoutOrderRequest(
+    Guid OrganisationId,
+    string ProductCode,
+    Guid? PlanId,
+    Guid? PlanVersionId,
+    int PlanVersionNumber,
+    decimal Amount,
+    string CurrencyCode,
+    int TermMonths,
+    int DesktopDeviceLimit,
+    int LocationLimit,
+    int WebAdminSeats,
+    int FieldStaffSeats,
+    bool MultiLocationCloud);
+
+public sealed record CreateRenewalCheckoutOrderRequest(
+    Guid? PlanVersionId,
+    int PlanVersionNumber,
+    decimal Amount,
+    string CurrencyCode,
+    int TermMonths,
+    int DesktopDeviceLimit,
+    int LocationLimit,
+    int WebAdminSeats,
+    int FieldStaffSeats,
+    bool MultiLocationCloud);
+public sealed record CheckoutOrderResponse(
+    Guid TenantId,
+    Guid OrganisationId,
+    Guid QuoteId,
+    Guid CommerceOrderId,
+    Guid PlanId,
+    Guid PlanVersionId,
+    decimal Amount,
+    string CurrencyCode,
+    DateTimeOffset ExpiresAtUtc,
+    IReadOnlyDictionary<string, string> RazorpayNotes);
+
 public sealed record ActivationResponse(
     Guid TenantId,
     Guid OrganisationId,

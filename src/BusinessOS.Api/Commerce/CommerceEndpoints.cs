@@ -24,6 +24,35 @@ public static class CommerceEndpoints
                 : Results.Ok(activation);
         });
 
+        group.MapPost("/checkout/initial", async (
+            CreateInitialCheckoutOrderRequest request,
+            TenantContext tenant,
+            ICommerceActivationStore store,
+            CancellationToken cancellationToken) => await ExecuteAsync(() =>
+                store.CreateInitialCheckoutOrderAsync(
+                    tenant.TenantId,
+                    request,
+                    cancellationToken)));
+
+        group.MapPost("/subscriptions/{subscriptionId:guid}/checkout/renewal", async (
+            Guid subscriptionId,
+            CreateRenewalCheckoutOrderRequest request,
+            TenantContext tenant,
+            ICommerceActivationStore store,
+            CancellationToken cancellationToken) =>
+        {
+            var checkout = await ExecuteNullableAsync(() =>
+                store.CreateRenewalCheckoutOrderAsync(
+                    tenant.TenantId,
+                    subscriptionId,
+                    request,
+                    cancellationToken));
+
+            return checkout is null
+                ? Results.NotFound(new ErrorResponse("Subscription was not found for this tenant."))
+                : Results.Ok(checkout);
+        });
+
         group.MapPost("/activations/initial", async (
             InitialActivationRequest request,
             TenantContext tenant,

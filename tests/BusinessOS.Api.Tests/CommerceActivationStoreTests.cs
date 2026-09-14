@@ -1,6 +1,7 @@
 using BusinessOS.Api.Commerce;
 using BusinessOS.Application;
 using BusinessOS.Licensing;
+using BusinessOS.Payments;
 
 namespace BusinessOS.Api.Tests;
 
@@ -74,6 +75,81 @@ public sealed class CommerceActivationStoreTests
         Assert.Null(renewal);
     }
 
+    [Fact]
+    public async Task Checkout_Order_Can_Be_Activated_From_Captured_Payment()
+    {
+        using var signer = new LeaseSigner();
+        ICommerceActivationStore store = new InMemoryCommerceActivationStore(
+            new PaymentSubscriptionActivationService(),
+            signer);
+
+        var checkout = await store.CreateInitialCheckoutOrderAsync(
+            TenantA,
+            InitialCheckoutRequest());
+        var payment = CapturedPayment(
+            "pay_checkout_initial",
+            checkout.CommerceOrderId,
+            checkout.Amount,
+            checkout.CurrencyCode,
+            new DateTimeOffset(2026, 9, 14, 10, 0, 0, TimeSpan.Zero));
+
+        var activation = await store.ActivateCapturedInitialOrderAsync(
+            TenantA,
+            payment,
+            "ORRBIT-REPAIR");
+        var duplicate = await store.ActivateCapturedInitialOrderAsync(
+            TenantA,
+            payment,
+            "ORRBIT-REPAIR");
+
+        Assert.NotNull(activation);
+        Assert.NotNull(duplicate);
+        Assert.Equal(activation!.SubscriptionId, duplicate!.SubscriptionId);
+        Assert.Equal(checkout.CommerceOrderId, activation.OrderId);
+        Assert.Equal("ORRBIT-REPAIR", checkout.RazorpayNotes["productCode"]);
+        Assert.Equal(checkout.CommerceOrderId.ToString(), checkout.RazorpayNotes["commerceOrderId"]);
+        Assert.Equal(new DateOnly(2027, 9, 13), activation.ValidUntil);
+    }
+
+    [Fact]
+    public async Task Renewal_Checkout_Order_Can_Be_Activated_From_Captured_Payment()
+    {
+        using var signer = new LeaseSigner();
+        ICommerceActivationStore store = new InMemoryCommerceActivationStore(
+            new PaymentSubscriptionActivationService(),
+            signer);
+        var activation = await store.ActivateInitialPurchaseAsync(
+            TenantA,
+            InitialRequest("pay_initial"));
+
+        var checkout = await store.CreateRenewalCheckoutOrderAsync(
+            TenantA,
+            activation.SubscriptionId,
+            RenewalCheckoutRequest());
+        Assert.NotNull(checkout);
+        var payment = CapturedPayment(
+            "pay_checkout_renewal",
+            checkout!.CommerceOrderId,
+            checkout.Amount,
+            checkout.CurrencyCode,
+            new DateTimeOffset(2027, 8, 1, 10, 0, 0, TimeSpan.Zero));
+
+        var renewal = await store.ActivateCapturedRenewalOrderAsync(
+            TenantA,
+            activation.SubscriptionId,
+            payment);
+        var duplicate = await store.ActivateCapturedRenewalOrderAsync(
+            TenantA,
+            activation.SubscriptionId,
+            payment);
+
+        Assert.NotNull(renewal);
+        Assert.NotNull(duplicate);
+        Assert.Equal(renewal!.RenewalId, duplicate!.RenewalId);
+        Assert.Equal(activation.SubscriptionId.ToString(), checkout.RazorpayNotes["subscriptionId"]);
+        Assert.Equal(new DateOnly(2028, 9, 13), renewal.NewValidUntil);
+    }
+
     private static InitialActivationRequest InitialRequest(string paymentId) => new(
         OrgA,
         "ORRBIT-REPAIR",
@@ -104,4 +180,45 @@ public sealed class CommerceActivationStoreTests
         true,
         paymentId,
         new DateTimeOffset(2027, 8, 1, 10, 0, 0, TimeSpan.Zero));
+
+    private static CreateInitialCheckoutOrderRequest InitialCheckoutRequest() => new(
+        OrgA,
+        "ORRBIT-REPAIR",
+        Guid.NewGuid(),
+        Guid.NewGuid(),
+        1,
+        100m,
+        "USD",
+        12,
+        1,
+        1,
+        10,
+        5,
+        true);
+
+    private static CreateRenewalCheckoutOrderRequest RenewalCheckoutRequest() => new(
+        Guid.NewGuid(),
+        2,
+        100m,
+        "USD",
+        12,
+        1,
+        1,
+        20,
+        5,
+        true);
+
+    private static PaymentRecord CapturedPayment(
+        string paymentId,
+        Guid orderId,
+        decimal amount,
+        string currency,
+        DateTimeOffset capturedAtUtc)
+        => new(
+            paymentId,
+            orderId.ToString(),
+            PaymentStatus.Captured,
+            checked(decimal.ToInt64(amount * 100m)),
+            currency,
+            capturedAtUtc);
 }

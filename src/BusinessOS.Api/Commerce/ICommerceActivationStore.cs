@@ -9,6 +9,17 @@ public interface ICommerceActivationStore
         Guid subscriptionId,
         CancellationToken cancellationToken = default);
 
+    Task<CheckoutOrderResponse> CreateInitialCheckoutOrderAsync(
+        Guid tenantId,
+        CreateInitialCheckoutOrderRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<CheckoutOrderResponse?> CreateRenewalCheckoutOrderAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        CreateRenewalCheckoutOrderRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<ActivationResponse> ActivateInitialPurchaseAsync(
         Guid tenantId,
         InitialActivationRequest request,

@@ -11,11 +11,13 @@ Verified the Quote -> Order -> Subscription foundation and Subscription Renewal 
 
 ## Application verification
 
-- Full solution regression: 99/99 tests passed.
+- Full solution regression: 102/102 tests passed.
 - Commerce tests: 13/13 passed.
 - Application activation bridge tests: 3/3 passed.
-- API activation/webhook store tests: 6/6 passed.
+- API activation/checkout/webhook store tests: 9/9 passed.
 - PostgreSQL API persistence smoke: initial activation, lookup, renewal extension and cross-tenant read block passed.
+- PostgreSQL checkout smoke: checkout order -> captured payment -> subscription/license activation passed.
+- PostgreSQL renewal checkout smoke: renewal checkout order -> captured payment -> same subscription extension passed.
 - PostgreSQL webhook activation smoke: pending order -> captured payment -> subscription/license activation passed.
 - PostgreSQL webhook renewal smoke: pending renewal order -> captured payment -> same subscription extension passed.
 - Release build: 0 warnings, 0 errors.
@@ -47,6 +49,8 @@ The database uses FORCE ROW LEVEL SECURITY on Commerce tables plus same-tenant c
 ## API activation wiring verification
 
 Backend endpoints added under `/api/commerce`:
+- `POST /api/commerce/checkout/initial`
+- `POST /api/commerce/subscriptions/{subscriptionId}/checkout/renewal`
 - `POST /api/commerce/activations/initial`
 - `POST /api/commerce/subscriptions/{subscriptionId}/renewals`
 - `GET /api/commerce/subscriptions/{subscriptionId}`
@@ -91,3 +95,15 @@ Verification completed:
 - Captured payment can activate a previously pending Commerce order.
 - Captured renewal payment can extend the same existing subscription.
 - Duplicate captured webhook processing returns the existing subscription or renewal instead of creating another row.
+
+## Checkout order creation verification
+
+Checkout endpoints create pending Commerce orders before payment:
+- `POST /api/commerce/checkout/initial`
+- `POST /api/commerce/subscriptions/{subscriptionId}/checkout/renewal`
+
+Verification completed:
+- Initial checkout returns a pending internal Commerce order id and Razorpay notes.
+- Renewal checkout returns the same note contract plus `subscriptionId`.
+- Webhook activation uses the signed notes to match tenant, order, product and subscription.
+- In-memory fallback and PostgreSQL store both support checkout -> captured payment -> activation.
