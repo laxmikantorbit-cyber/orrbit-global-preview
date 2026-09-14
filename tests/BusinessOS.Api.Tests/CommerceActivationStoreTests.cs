@@ -256,6 +256,44 @@ public sealed class CommerceActivationStoreTests
         Assert.Equal(checkout.CommerceOrderId, activated.InitialActivation!.OrderId);
     }
 
+    [Fact]
+    public async Task Fetched_Razorpay_Payment_Can_Reconcile_And_Activate_Order()
+    {
+        using var signer = new LeaseSigner();
+        ICommerceActivationStore store = new InMemoryCommerceActivationStore(
+            new PaymentSubscriptionActivationService(),
+            signer);
+        var processor = new PaymentProcessor();
+
+        var checkout = await store.CreateInitialCheckoutOrderAsync(
+            TenantA,
+            InitialCheckoutRequest());
+        await store.RecordRazorpayOrderAsync(
+            TenantA,
+            checkout.CommerceOrderId,
+            "order_fetch_reconcile_1",
+            checkout.ProductCode,
+            checkout.SubscriptionId);
+        var fetched = new BusinessOS.Api.Payments.RazorpayPaymentResult(
+            "pay_fetch_reconcile_1",
+            "order_fetch_reconcile_1",
+            checked(decimal.ToInt64(checkout.Amount * 100m)),
+            checkout.CurrencyCode,
+            "captured",
+            true,
+            new DateTimeOffset(2026, 9, 14, 10, 0, 0, TimeSpan.Zero));
+        var processed = processor.Process(
+            BusinessOS.Api.Payments.RazorpayHttpPaymentClient.ToWebhookMessage(fetched));
+
+        var activation = await store.ActivateCapturedInitialOrderAsync(
+            TenantA,
+            processed.Payment,
+            checkout.ProductCode);
+
+        Assert.NotNull(activation);
+        Assert.Equal(checkout.CommerceOrderId, activation!.OrderId);
+    }
+
     private static InitialActivationRequest InitialRequest(string paymentId) => new(
         OrgA,
         "ORRBIT-REPAIR",

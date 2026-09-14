@@ -21,6 +21,10 @@ builder.Services.AddHttpClient<IRazorpayOrderClient, RazorpayHttpOrderClient>(cl
 {
     client.BaseAddress = new Uri("https://api.razorpay.com");
 });
+builder.Services.AddHttpClient<IRazorpayPaymentClient, RazorpayHttpPaymentClient>(client =>
+{
+    client.BaseAddress = new Uri("https://api.razorpay.com");
+});
 builder.Services.AddScoped<RazorpayCheckoutService>();
 var commerceConnection = builder.Configuration.GetConnectionString("Commerce");
 if (string.IsNullOrWhiteSpace(commerceConnection))

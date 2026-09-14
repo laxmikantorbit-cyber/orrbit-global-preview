@@ -11,10 +11,10 @@ Verified the Quote -> Order -> Subscription foundation and Subscription Renewal 
 
 ## Application verification
 
-- Full solution regression: 112/112 tests passed.
+- Full solution regression: 115/115 tests passed.
 - Commerce tests: 13/13 passed.
 - Application activation bridge tests: 3/3 passed.
-- API activation/checkout/webhook/Razorpay order/provider-route/checkout-success tests: 19/19 passed.
+- API activation/checkout/webhook/Razorpay order/provider-route/checkout-success/reconciliation tests: 22/22 passed.
 - PostgreSQL API persistence smoke: initial activation, lookup, renewal extension and cross-tenant read block passed.
 - PostgreSQL checkout smoke: checkout order -> Razorpay order id persisted -> captured payment -> subscription/license activation passed.
 - PostgreSQL renewal checkout smoke: renewal checkout order -> Razorpay order id persisted -> captured payment -> same subscription extension passed.
@@ -145,3 +145,14 @@ Frontend payment-success verification is now available:
 - The endpoint resolves the provider order route and returns whether activation is still pending webhook processing or already activated.
 - It does not fulfil/activate by itself; fulfilment remains webhook-driven.
 - In-memory and PostgreSQL tests verify pending and activated status lookup for initial and renewal checkout flows.
+
+## Razorpay payment fetch reconciliation verification
+
+A delayed-webhook recovery endpoint now verifies Checkout signature, fetches provider payment state server-side, and reconciles safely:
+- `POST /api/payments/checkout/razorpay/reconcile`.
+- The endpoint fetches `GET /v1/payments/{razorpay_payment_id}` using server-side Razorpay credentials.
+- It rejects provider payment responses whose payment id or order id does not match the signed checkout payload.
+- Pending or failed provider payments are recorded without activating entitlements.
+- Captured provider payments are passed through the same idempotent PaymentProcessor and Commerce activation path used by webhooks.
+- Initial purchase and renewal reconciliation continue to use provider-order routes plus tenant-scoped Commerce activation.
+- Tests verify payment fetch HTTP shape, Basic auth, captured mapping, in-memory reconciliation and PostgreSQL status lookup before/after activation.
