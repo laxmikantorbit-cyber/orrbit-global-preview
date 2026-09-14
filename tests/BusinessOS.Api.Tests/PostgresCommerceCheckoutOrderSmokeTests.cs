@@ -45,6 +45,11 @@ public sealed class PostgresCommerceCheckoutOrderSmokeTests
         Assert.Equal(TenantA, initialRoute!.TenantId);
         Assert.Equal(checkout.CommerceOrderId, initialRoute.CommerceOrderId);
         Assert.Null(initialRoute.SubscriptionId);
+        var pendingStatus = await store.FindProviderOrderStatusAsync(
+            "razorpay",
+            razorpayOrderId);
+        Assert.NotNull(pendingStatus);
+        Assert.Equal("verified_pending_activation", pendingStatus!.Outcome);
 
         var activation = await store.ActivateCapturedInitialOrderAsync(
             TenantA,
@@ -53,6 +58,11 @@ public sealed class PostgresCommerceCheckoutOrderSmokeTests
         Assert.NotNull(activation);
         Assert.Equal(checkout.CommerceOrderId, activation!.OrderId);
         Assert.Equal(new DateOnly(2027, 9, 13), activation.ValidUntil);
+        var activatedStatus = await store.FindProviderOrderStatusAsync(
+            "razorpay",
+            razorpayOrderId);
+        Assert.Equal("activated", activatedStatus!.Outcome);
+        Assert.NotNull(activatedStatus.InitialActivation);
 
         var renewalCheckout = await store.CreateRenewalCheckoutOrderAsync(
             TenantA,
@@ -73,6 +83,10 @@ public sealed class PostgresCommerceCheckoutOrderSmokeTests
             renewalRazorpayOrderId);
         Assert.NotNull(renewalRoute);
         Assert.Equal(activation.SubscriptionId, renewalRoute!.SubscriptionId);
+        var renewalPendingStatus = await store.FindProviderOrderStatusAsync(
+            "razorpay",
+            renewalRazorpayOrderId);
+        Assert.Equal("verified_pending_activation", renewalPendingStatus!.Outcome);
 
         var renewal = await store.ActivateCapturedRenewalOrderAsync(
             TenantA,
@@ -85,6 +99,11 @@ public sealed class PostgresCommerceCheckoutOrderSmokeTests
         Assert.Equal(new DateOnly(2028, 9, 13), renewal!.NewValidUntil);
         Assert.Equal(new DateOnly(2028, 9, 13), current!.ValidUntil);
         Assert.Equal(20, current.Entitlements.WebAdminSeats);
+        var renewalActivatedStatus = await store.FindProviderOrderStatusAsync(
+            "razorpay",
+            renewalRazorpayOrderId);
+        Assert.Equal("activated", renewalActivatedStatus!.Outcome);
+        Assert.NotNull(renewalActivatedStatus.RenewalActivation);
     }
 
     private static CreateInitialCheckoutOrderRequest InitialCheckoutRequest() => new(

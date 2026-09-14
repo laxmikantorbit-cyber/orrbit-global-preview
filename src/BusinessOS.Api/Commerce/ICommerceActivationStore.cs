@@ -33,6 +33,11 @@ public interface ICommerceActivationStore
         string providerOrderId,
         CancellationToken cancellationToken = default);
 
+    Task<ProviderOrderStatus?> FindProviderOrderStatusAsync(
+        string provider,
+        string providerOrderId,
+        CancellationToken cancellationToken = default);
+
     Task<ActivationResponse> ActivateInitialPurchaseAsync(
         Guid tenantId,
         InitialActivationRequest request,

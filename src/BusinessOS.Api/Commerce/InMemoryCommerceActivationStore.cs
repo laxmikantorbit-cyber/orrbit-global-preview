@@ -163,11 +163,39 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
             return Task.FromResult<ProviderOrderRoute?>(null);
         lock (_gate)
         {
-            return Task.FromResult(_providerRoutes.TryGetValue(
-                (NormalizeProvider(provider), providerOrderId.Trim()),
-                out var route)
-                    ? route
+            return Task.FromResult(TryFindRouteUnsafe(provider, providerOrderId, out var route)
+                ? route
+                : null);
+        }
+    }
+
+    public Task<ProviderOrderStatus?> FindProviderOrderStatusAsync(
+        string provider,
+        string providerOrderId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(providerOrderId))
+            return Task.FromResult<ProviderOrderStatus?>(null);
+        lock (_gate)
+        {
+            if (!TryFindRouteUnsafe(provider, providerOrderId, out var route))
+                return Task.FromResult<ProviderOrderStatus?>(null);
+            var renewal = route.SubscriptionId is null
+                ? null
+                : (_renewalsByOrder.TryGetValue((route.TenantId, route.CommerceOrderId), out var foundRenewal)
+                    ? foundRenewal
                     : null);
+            var activation = route.SubscriptionId is null
+                ? _activations.Values
+                    .Where(x => x.Subscription.TenantId == route.TenantId)
+                    .FirstOrDefault(x => x.Subscription.OrderId == route.CommerceOrderId)
+                : null;
+            var activationResponse = activation is null ? null : ToResponse(route.TenantId, activation);
+            var outcome = activationResponse is not null || renewal is not null
+                ? "activated"
+                : "verified_pending_activation";
+            return Task.FromResult<ProviderOrderStatus?>(new ProviderOrderStatus(
+                route, outcome, activationResponse, renewal));
         }
     }
 
@@ -478,6 +506,14 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
         orderId = Guid.Empty;
         return false;
     }
+
+    private bool TryFindRouteUnsafe(
+        string provider,
+        string providerOrderId,
+        out ProviderOrderRoute route) =>
+        _providerRoutes.TryGetValue(
+            (NormalizeProvider(provider), providerOrderId.Trim()),
+            out route!);
 
     private static string NormalizeProvider(string provider) =>
         provider.Trim().ToLowerInvariant();

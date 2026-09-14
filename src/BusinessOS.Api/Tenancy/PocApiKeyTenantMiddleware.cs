@@ -16,7 +16,8 @@ public sealed class PocApiKeyTenantMiddleware
 
     public async Task InvokeAsync(HttpContext context, IIdentityAccessRepository repository)
     {
-        if (context.Request.Path.StartsWithSegments("/api/payments/webhooks"))
+        if (context.Request.Path.StartsWithSegments("/api/payments/webhooks") ||
+            context.Request.Path.StartsWithSegments("/api/payments/checkout"))
         {
             await _next(context);
             return;

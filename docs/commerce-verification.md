@@ -11,10 +11,10 @@ Verified the Quote -> Order -> Subscription foundation and Subscription Renewal 
 
 ## Application verification
 
-- Full solution regression: 108/108 tests passed.
+- Full solution regression: 112/112 tests passed.
 - Commerce tests: 13/13 passed.
 - Application activation bridge tests: 3/3 passed.
-- API activation/checkout/webhook/Razorpay order/provider-route tests: 15/15 passed.
+- API activation/checkout/webhook/Razorpay order/provider-route/checkout-success tests: 19/19 passed.
 - PostgreSQL API persistence smoke: initial activation, lookup, renewal extension and cross-tenant read block passed.
 - PostgreSQL checkout smoke: checkout order -> Razorpay order id persisted -> captured payment -> subscription/license activation passed.
 - PostgreSQL renewal checkout smoke: renewal checkout order -> Razorpay order id persisted -> captured payment -> same subscription extension passed.
@@ -135,3 +135,13 @@ A dedicated provider routing table now supports note-free Razorpay webhook recov
 - If webhook notes are present, conflicting tenant, subscription or product values are rejected.
 - After route recovery, activation still happens through the normal tenant-scoped Commerce store.
 - In-memory and PostgreSQL tests verify provider route lookup and note-free captured payment activation from Razorpay order id.
+
+## Razorpay checkout success verification
+
+Frontend payment-success verification is now available:
+- `POST /api/payments/checkout/razorpay/verify`
+- The endpoint verifies `razorpay_order_id`, `razorpay_payment_id` and `razorpay_signature` using the server-side Razorpay key secret.
+- It uses `order_id|payment_id` HMAC verification and does not expose the key secret.
+- The endpoint resolves the provider order route and returns whether activation is still pending webhook processing or already activated.
+- It does not fulfil/activate by itself; fulfilment remains webhook-driven.
+- In-memory and PostgreSQL tests verify pending and activated status lookup for initial and renewal checkout flows.

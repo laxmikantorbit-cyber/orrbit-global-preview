@@ -213,6 +213,49 @@ public sealed class CommerceActivationStoreTests
         Assert.Null(route.SubscriptionId);
     }
 
+    [Fact]
+    public async Task Provider_Order_Status_Reflects_Pending_Then_Activated()
+    {
+        using var signer = new LeaseSigner();
+        ICommerceActivationStore store = new InMemoryCommerceActivationStore(
+            new PaymentSubscriptionActivationService(),
+            signer);
+
+        var checkout = await store.CreateInitialCheckoutOrderAsync(
+            TenantA,
+            InitialCheckoutRequest());
+        await store.RecordRazorpayOrderAsync(
+            TenantA,
+            checkout.CommerceOrderId,
+            "order_status_initial",
+            checkout.ProductCode,
+            checkout.SubscriptionId);
+
+        var pending = await store.FindProviderOrderStatusAsync(
+            "razorpay",
+            "order_status_initial");
+        Assert.NotNull(pending);
+        Assert.Equal("verified_pending_activation", pending!.Outcome);
+        Assert.Null(pending.InitialActivation);
+
+        await store.ActivateCapturedInitialOrderAsync(
+            TenantA,
+            new PaymentRecord(
+                "pay_status_initial",
+                "order_status_initial",
+                PaymentStatus.Captured,
+                checked(decimal.ToInt64(checkout.Amount * 100m)),
+                checkout.CurrencyCode,
+                new DateTimeOffset(2026, 9, 14, 10, 0, 0, TimeSpan.Zero)),
+            checkout.ProductCode);
+        var activated = await store.FindProviderOrderStatusAsync(
+            "razorpay",
+            "order_status_initial");
+        Assert.Equal("activated", activated!.Outcome);
+        Assert.NotNull(activated.InitialActivation);
+        Assert.Equal(checkout.CommerceOrderId, activated.InitialActivation!.OrderId);
+    }
+
     private static InitialActivationRequest InitialRequest(string paymentId) => new(
         OrgA,
         "ORRBIT-REPAIR",

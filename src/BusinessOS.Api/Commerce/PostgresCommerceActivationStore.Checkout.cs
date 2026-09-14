@@ -160,21 +160,45 @@ public sealed partial class PostgresCommerceActivationStore
         if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(providerOrderId))
             return null;
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        const string sql = """
-            SELECT provider,provider_order_id,tenant_id,commerce_order_id,product_code,subscription_id
-            FROM commerce_provider_order_routes
-            WHERE provider=@provider AND provider_order_id=@provider_order_id
-            """;
-        await using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("provider", NormalizeProvider(provider));
-        command.Parameters.AddWithValue("provider_order_id", providerOrderId.Trim());
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken))
+        return await LoadProviderOrderRouteAsync(
+            connection,
+            provider,
+            providerOrderId,
+            cancellationToken);
+    }
+
+    public async Task<ProviderOrderStatus?> FindProviderOrderStatusAsync(
+        string provider,
+        string providerOrderId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(providerOrderId))
             return null;
-        return new ProviderOrderRoute(
-            reader.GetString(0), reader.GetString(1), reader.GetGuid(2),
-            reader.GetGuid(3), reader.GetString(4),
-            reader.IsDBNull(5) ? null : reader.GetGuid(5));
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        var route = await LoadProviderOrderRouteAsync(
+            connection, provider, providerOrderId, cancellationToken);
+        if (route is null)
+            return null;
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await SetTenantAsync(connection, transaction, route.TenantId, cancellationToken);
+        var activation = route.SubscriptionId is null
+            ? await LoadActivationByOrderAsync(
+                connection, transaction, route.TenantId,
+                route.CommerceOrderId.ToString(), cancellationToken)
+            : null;
+        var renewal = route.SubscriptionId is Guid subscriptionId
+            ? await LoadRenewalByOrderAsync(
+                connection, transaction, route.TenantId, subscriptionId,
+                route.CommerceOrderId.ToString(), cancellationToken)
+            : null;
+        await transaction.CommitAsync(cancellationToken);
+        var outcome = activation is not null || renewal is not null
+            ? "activated"
+            : "verified_pending_activation";
+        return new ProviderOrderStatus(
+            route, outcome,
+            activation is null ? null : ToResponse(activation),
+            renewal);
     }
 
     private static Order CreatePendingOrder(
@@ -239,6 +263,29 @@ public sealed partial class PostgresCommerceActivationStore
         command.Parameters.AddWithValue("currency_code", order.Snapshot.Billing.CurrencyCode);
         command.Parameters.AddWithValue("status", (int)OrderStatus.PendingPayment);
         await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task<ProviderOrderRoute?> LoadProviderOrderRouteAsync(
+        NpgsqlConnection connection,
+        string provider,
+        string providerOrderId,
+        CancellationToken cancellationToken)
+    {
+        const string sql = """
+            SELECT provider,provider_order_id,tenant_id,commerce_order_id,product_code,subscription_id
+            FROM commerce_provider_order_routes
+            WHERE provider=@provider AND provider_order_id=@provider_order_id
+            """;
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("provider", NormalizeProvider(provider));
+        command.Parameters.AddWithValue("provider_order_id", providerOrderId.Trim());
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+            return null;
+        return new ProviderOrderRoute(
+            reader.GetString(0), reader.GetString(1), reader.GetGuid(2),
+            reader.GetGuid(3), reader.GetString(4),
+            reader.IsDBNull(5) ? null : reader.GetGuid(5));
     }
 
     private static async Task InsertProviderOrderRouteAsync(

@@ -81,6 +81,12 @@ public sealed record ProviderOrderRoute(
     string ProductCode,
     Guid? SubscriptionId);
 
+public sealed record ProviderOrderStatus(
+    ProviderOrderRoute Route,
+    string Outcome,
+    ActivationResponse? InitialActivation,
+    RenewalResponse? RenewalActivation);
+
 public sealed record RazorpayCheckoutOrderResponse(
     Guid TenantId,
     Guid OrganisationId,
