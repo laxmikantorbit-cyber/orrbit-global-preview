@@ -11,10 +11,10 @@ Verified the Quote -> Order -> Subscription foundation and Subscription Renewal 
 
 ## Application verification
 
-- Full solution regression: 102/102 tests passed.
+- Full solution regression: 104/104 tests passed.
 - Commerce tests: 13/13 passed.
 - Application activation bridge tests: 3/3 passed.
-- API activation/checkout/webhook store tests: 9/9 passed.
+- API activation/checkout/webhook/Razorpay order tests: 11/11 passed.
 - PostgreSQL API persistence smoke: initial activation, lookup, renewal extension and cross-tenant read block passed.
 - PostgreSQL checkout smoke: checkout order -> captured payment -> subscription/license activation passed.
 - PostgreSQL renewal checkout smoke: renewal checkout order -> captured payment -> same subscription extension passed.
@@ -107,3 +107,13 @@ Verification completed:
 - Renewal checkout returns the same note contract plus `subscriptionId`.
 - Webhook activation uses the signed notes to match tenant, order, product and subscription.
 - In-memory fallback and PostgreSQL store both support checkout -> captured payment -> activation.
+
+## Razorpay order creation verification
+
+Checkout endpoints now use the real Razorpay Orders API client boundary:
+- `POST https://api.razorpay.com/v1/orders`
+- HTTP Basic auth is applied inside the server-side client only.
+- Checkout responses expose the Razorpay order id and public key id only; the key secret is never returned.
+- The order request sends amount in currency subunits, currency, receipt and signed activation notes.
+- Receipt uses the internal Commerce order id, shortened to the Razorpay receipt length constraint.
+- Unit tests verify HTTP method/path, Basic auth presence, amount/currency/receipt/notes serialization and returned `razorpay_order_id` mapping.

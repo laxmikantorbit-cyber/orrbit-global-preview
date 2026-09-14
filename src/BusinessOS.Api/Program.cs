@@ -17,6 +17,11 @@ builder.Services.AddSingleton<IOrganisationRepository>(_ => CustomerSeed.CreateR
 builder.Services.AddSingleton<LeaseSigner>();
 builder.Services.AddSingleton<PaymentProcessor>();
 builder.Services.AddSingleton<PaymentSubscriptionActivationService>();
+builder.Services.AddHttpClient<IRazorpayOrderClient, RazorpayHttpOrderClient>(client =>
+{
+    client.BaseAddress = new Uri("https://api.razorpay.com");
+});
+builder.Services.AddScoped<RazorpayCheckoutService>();
 var commerceConnection = builder.Configuration.GetConnectionString("Commerce");
 if (string.IsNullOrWhiteSpace(commerceConnection))
 {

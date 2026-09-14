@@ -71,6 +71,23 @@ public sealed record CheckoutOrderResponse(
     DateTimeOffset ExpiresAtUtc,
     IReadOnlyDictionary<string, string> RazorpayNotes);
 
+public sealed record RazorpayCheckoutOrderResponse(
+    Guid TenantId,
+    Guid OrganisationId,
+    Guid QuoteId,
+    Guid CommerceOrderId,
+    Guid PlanId,
+    Guid PlanVersionId,
+    decimal Amount,
+    string CurrencyCode,
+    DateTimeOffset ExpiresAtUtc,
+    string RazorpayOrderId,
+    string RazorpayKeyId,
+    long RazorpayAmount,
+    string Receipt,
+    string RazorpayStatus,
+    IReadOnlyDictionary<string, string> RazorpayNotes);
+
 public sealed record ActivationResponse(
     Guid TenantId,
     Guid OrganisationId,

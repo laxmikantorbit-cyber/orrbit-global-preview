@@ -27,9 +27,9 @@ public static class CommerceEndpoints
         group.MapPost("/checkout/initial", async (
             CreateInitialCheckoutOrderRequest request,
             TenantContext tenant,
-            ICommerceActivationStore store,
+            RazorpayCheckoutService checkoutService,
             CancellationToken cancellationToken) => await ExecuteAsync(() =>
-                store.CreateInitialCheckoutOrderAsync(
+                checkoutService.CreateInitialAsync(
                     tenant.TenantId,
                     request,
                     cancellationToken)));
@@ -38,11 +38,11 @@ public static class CommerceEndpoints
             Guid subscriptionId,
             CreateRenewalCheckoutOrderRequest request,
             TenantContext tenant,
-            ICommerceActivationStore store,
+            RazorpayCheckoutService checkoutService,
             CancellationToken cancellationToken) =>
         {
             var checkout = await ExecuteNullableAsync(() =>
-                store.CreateRenewalCheckoutOrderAsync(
+                checkoutService.CreateRenewalAsync(
                     tenant.TenantId,
                     subscriptionId,
                     request,
