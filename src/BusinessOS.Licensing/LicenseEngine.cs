@@ -13,13 +13,16 @@ public sealed class LicenseEngine
     public IReadOnlyList<DeviceActivation> Activations => _activations.AsReadOnly();
 
     private LicenseEngine(
+        Guid licenseId,
         string productCode,
         DateOnly startsOn,
         DateOnly validUntil,
         EntitlementSnapshot entitlements,
         LeaseSigner signer)
     {
-        LicenseId = Guid.NewGuid();
+        if (licenseId == Guid.Empty)
+            throw new ArgumentException("License id is required.", nameof(licenseId));
+        LicenseId = licenseId;
         ProductCode = productCode;
         StartsOn = startsOn;
         ValidUntil = validUntil;
@@ -53,7 +56,24 @@ public sealed class LicenseEngine
         ArgumentNullException.ThrowIfNull(signer);
 
         return new LicenseEngine(
-            productCode.Trim(), startsOn, validUntil, entitlements, signer);
+            Guid.NewGuid(), productCode.Trim(), startsOn, validUntil, entitlements, signer);
+    }
+
+    public static LicenseEngine FromPersistedSubscription(
+        Guid licenseId,
+        string productCode,
+        DateOnly startsOn,
+        DateOnly validUntil,
+        EntitlementSnapshot entitlements,
+        LeaseSigner signer)
+    {
+        if (string.IsNullOrWhiteSpace(productCode))
+            throw new ArgumentException("Product code is required.");
+        ValidateTerm(startsOn, validUntil);
+        ValidateEntitlements(entitlements);
+        ArgumentNullException.ThrowIfNull(signer);
+        return new LicenseEngine(
+            licenseId, productCode.Trim(), startsOn, validUntil, entitlements, signer);
     }
 
     public SignedLicenseLease Activate(string deviceFingerprint, DateTimeOffset now)

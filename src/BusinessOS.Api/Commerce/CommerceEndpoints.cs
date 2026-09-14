@@ -9,49 +9,58 @@ public static class CommerceEndpoints
     {
         var group = app.MapGroup("/api/commerce");
 
-        group.MapGet("/subscriptions/{subscriptionId:guid}", (
+        group.MapGet("/subscriptions/{subscriptionId:guid}", async (
             Guid subscriptionId,
             TenantContext tenant,
-            CommerceActivationStore store) =>
+            ICommerceActivationStore store,
+            CancellationToken cancellationToken) =>
         {
-            var activation = store.FindActivation(tenant.TenantId, subscriptionId);
+            var activation = await store.FindActivationAsync(
+                tenant.TenantId,
+                subscriptionId,
+                cancellationToken);
             return activation is null
                 ? Results.NotFound(new ErrorResponse("Subscription was not found for this tenant."))
                 : Results.Ok(activation);
         });
 
-        group.MapPost("/activations/initial", (
+        group.MapPost("/activations/initial", async (
             InitialActivationRequest request,
             TenantContext tenant,
-            CommerceActivationStore store) => Execute(() =>
-                Results.Ok(store.ActivateInitialPurchase(
+            ICommerceActivationStore store,
+            CancellationToken cancellationToken) => await ExecuteAsync(() =>
+                store.ActivateInitialPurchaseAsync(
                     tenant.TenantId,
-                    request))));
+                    request,
+                    cancellationToken)));
 
-        group.MapPost("/subscriptions/{subscriptionId:guid}/renewals", (
+        group.MapPost("/subscriptions/{subscriptionId:guid}/renewals", async (
             Guid subscriptionId,
             RenewalActivationRequest request,
             TenantContext tenant,
-            CommerceActivationStore store) => Execute(() =>
+            ICommerceActivationStore store,
+            CancellationToken cancellationToken) =>
         {
-            var renewal = store.ActivateRenewal(
-                tenant.TenantId,
-                subscriptionId,
-                request);
+            var renewal = await ExecuteNullableAsync(() =>
+                store.ActivateRenewalAsync(
+                    tenant.TenantId,
+                    subscriptionId,
+                    request,
+                    cancellationToken));
 
             return renewal is null
                 ? Results.NotFound(new ErrorResponse("Subscription was not found for this tenant."))
                 : Results.Ok(renewal);
-        }));
+        });
 
         return app;
     }
 
-    private static IResult Execute(Func<IResult> action)
+    private static async Task<IResult> ExecuteAsync<T>(Func<Task<T>> action)
     {
         try
         {
-            return action();
+            return Results.Ok(await action());
         }
         catch (ArgumentException ex)
         {
@@ -60,6 +69,23 @@ public static class CommerceEndpoints
         catch (InvalidOperationException ex)
         {
             return Results.BadRequest(new ErrorResponse(ex.Message));
+        }
+    }
+
+    private static async Task<T?> ExecuteNullableAsync<T>(Func<Task<T?>> action)
+        where T : class
+    {
+        try
+        {
+            return await action();
+        }
+        catch (ArgumentException ex)
+        {
+            throw new BadHttpRequestException(ex.Message, StatusCodes.Status400BadRequest);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new BadHttpRequestException(ex.Message, StatusCodes.Status400BadRequest);
         }
     }
 }

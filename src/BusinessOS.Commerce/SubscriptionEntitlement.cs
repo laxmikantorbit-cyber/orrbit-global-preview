@@ -8,17 +8,42 @@ public sealed class SubscriptionEntitlement
     private readonly List<SubscriptionRenewal> _renewals = new();
 
     private SubscriptionEntitlement(Guid id, Order order, DateOnly startsOn, DateOnly? validUntil)
+        : this(
+            id,
+            order.TenantId,
+            order.OrganisationId,
+            order.Id,
+            order.Snapshot.PlanId,
+            order.Snapshot.PlanVersionId,
+            startsOn,
+            validUntil,
+            order.Snapshot.ToLicensingSnapshot(),
+            SubscriptionStatus.Active)
+    {
+    }
+
+    private SubscriptionEntitlement(
+        Guid id,
+        Guid tenantId,
+        Guid organisationId,
+        Guid orderId,
+        Guid planId,
+        Guid planVersionId,
+        DateOnly startsOn,
+        DateOnly? validUntil,
+        EntitlementSnapshot entitlements,
+        SubscriptionStatus status)
     {
         Id = id;
-        TenantId = order.TenantId;
-        OrganisationId = order.OrganisationId;
-        OrderId = order.Id;
-        PlanId = order.Snapshot.PlanId;
-        PlanVersionId = order.Snapshot.PlanVersionId;
+        TenantId = tenantId;
+        OrganisationId = organisationId;
+        OrderId = orderId;
+        PlanId = planId;
+        PlanVersionId = planVersionId;
         StartsOn = startsOn;
         ValidUntil = validUntil;
-        Entitlements = order.Snapshot.ToLicensingSnapshot();
-        Status = SubscriptionStatus.Active;
+        Entitlements = entitlements;
+        Status = status;
     }
 
     public Guid Id { get; }
@@ -46,6 +71,27 @@ public sealed class SubscriptionEntitlement
             : startsOn.AddMonths(months.Value).AddDays(-1);
 
         return new SubscriptionEntitlement(id, order, startsOn, validUntil);
+    }
+
+    public static SubscriptionEntitlement Rehydrate(
+        Guid id,
+        Guid tenantId,
+        Guid organisationId,
+        Guid orderId,
+        Guid planId,
+        Guid planVersionId,
+        DateOnly startsOn,
+        DateOnly? validUntil,
+        EntitlementSnapshot entitlements,
+        SubscriptionStatus status)
+    {
+        if (id == Guid.Empty || tenantId == Guid.Empty || organisationId == Guid.Empty ||
+            orderId == Guid.Empty || planId == Guid.Empty || planVersionId == Guid.Empty)
+            throw new ArgumentException("Persisted subscription identity is incomplete.");
+        ArgumentNullException.ThrowIfNull(entitlements);
+        return new SubscriptionEntitlement(
+            id, tenantId, organisationId, orderId, planId, planVersionId,
+            startsOn, validUntil, entitlements, status);
     }
 
     internal SubscriptionRenewal ApplyRenewal(Guid renewalId, Order order)

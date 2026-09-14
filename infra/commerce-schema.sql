@@ -90,6 +90,24 @@ CREATE INDEX IF NOT EXISTS ix_commerce_orders_tenant_status
 CREATE INDEX IF NOT EXISTS ix_commerce_subscriptions_tenant_status
   ON commerce_subscriptions(tenant_id, status);
 
+ALTER TABLE commerce_subscriptions
+  ADD COLUMN IF NOT EXISTS license_id uuid NULL;
+ALTER TABLE commerce_subscriptions
+  ADD COLUMN IF NOT EXISTS product_code text NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'ck_commerce_subscription_product_code') THEN
+    ALTER TABLE commerce_subscriptions
+      ADD CONSTRAINT ck_commerce_subscription_product_code
+      CHECK (product_code IS NULL OR length(btrim(product_code)) > 0);
+  END IF;
+END $$;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_commerce_subscriptions_tenant_license
+  ON commerce_subscriptions(tenant_id, license_id)
+  WHERE license_id IS NOT NULL;
+
 ALTER TABLE commerce_quotes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE commerce_quotes FORCE ROW LEVEL SECURITY;
 ALTER TABLE commerce_orders ENABLE ROW LEVEL SECURITY;

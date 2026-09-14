@@ -3,7 +3,7 @@
 Date: 2026-09-14
 Machine: DESKTOP-FOFADB8
 Runtime: PostgreSQL 18.6, isolated user-space cluster on 127.0.0.1:55432
-Database: `businessos_commerce`; latest isolated proof database: `businessos_commerce_iso_20260914_1850`
+Database: `businessos_commerce`; latest isolated proof database: `businessos_commerce_iso_20260914_1850`; latest API persistence smoke database: `businessos_commerce_api_pg_20260914_2226`
 
 ## Scope
 
@@ -11,10 +11,11 @@ Verified the Quote -> Order -> Subscription foundation and Subscription Renewal 
 
 ## Application verification
 
-- Full solution regression: 96/96 tests passed.
+- Full solution regression: 97/97 tests passed.
 - Commerce tests: 13/13 passed.
 - Application activation bridge tests: 3/3 passed.
-- API activation store tests: 3/3 passed.
+- API activation store tests: 4/4 passed.
+- PostgreSQL API persistence smoke: initial activation, lookup, renewal extension and cross-tenant read block passed.
 - Release build: 0 warnings, 0 errors.
 - Validity starts from captured payment date, not activation date.
 - Quote commercial snapshot is carried into Order and Subscription without rereading mutable plan pricing.
@@ -48,7 +49,7 @@ Backend endpoints added under `/api/commerce`:
 - `POST /api/commerce/subscriptions/{subscriptionId}/renewals`
 - `GET /api/commerce/subscriptions/{subscriptionId}`
 
-Verified initial activation smoke response returned a same-tenant subscription and license with validity `2026-09-14` to `2027-09-13`. API store tests verify same-tenant lookup, other-tenant isolation, renewal extension to `2028-09-13`, and entitlement synchronization.
+Verified initial activation smoke response returned a same-tenant subscription and license with validity `2026-09-14` to `2027-09-13`. API store tests verify same-tenant lookup, other-tenant isolation, renewal extension to `2028-09-13`, and entitlement synchronization. API now selects the PostgreSQL-backed store when `ConnectionStrings:Commerce` is configured, and uses the in-memory store only as local fallback.
 
 ## Renewal / Subscription Extension verification
 

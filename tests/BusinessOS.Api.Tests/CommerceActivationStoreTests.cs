@@ -11,35 +11,35 @@ public sealed class CommerceActivationStoreTests
     private static readonly Guid OrgA = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
     [Fact]
-    public void Initial_Activation_Is_Retrievable_Only_For_Same_Tenant()
+    public async Task Initial_Activation_Is_Retrievable_Only_For_Same_Tenant()
     {
         using var signer = new LeaseSigner();
-        var store = new CommerceActivationStore(
+        ICommerceActivationStore store = new InMemoryCommerceActivationStore(
             new PaymentSubscriptionActivationService(),
             signer);
 
-        var activation = store.ActivateInitialPurchase(
+        var activation = await store.ActivateInitialPurchaseAsync(
             TenantA,
             InitialRequest("pay_initial"));
 
-        Assert.NotNull(store.FindActivation(TenantA, activation.SubscriptionId));
-        Assert.Null(store.FindActivation(TenantB, activation.SubscriptionId));
+        Assert.NotNull(await store.FindActivationAsync(TenantA, activation.SubscriptionId));
+        Assert.Null(await store.FindActivationAsync(TenantB, activation.SubscriptionId));
         Assert.Equal(new DateOnly(2027, 9, 13), activation.ValidUntil);
         Assert.Equal(10, activation.Entitlements.WebAdminSeats);
     }
 
     [Fact]
-    public void Renewal_Extends_Subscription_And_Updates_Entitlements()
+    public async Task Renewal_Extends_Subscription_And_Updates_Entitlements()
     {
         using var signer = new LeaseSigner();
-        var store = new CommerceActivationStore(
+        ICommerceActivationStore store = new InMemoryCommerceActivationStore(
             new PaymentSubscriptionActivationService(),
             signer);
-        var activation = store.ActivateInitialPurchase(
+        var activation = await store.ActivateInitialPurchaseAsync(
             TenantA,
             InitialRequest("pay_initial"));
 
-        var renewal = store.ActivateRenewal(
+        var renewal = await store.ActivateRenewalAsync(
             TenantA,
             activation.SubscriptionId,
             RenewalRequest("pay_renewal"));
@@ -49,24 +49,24 @@ public sealed class CommerceActivationStoreTests
         Assert.Equal(new DateOnly(2028, 9, 13), renewal.NewValidUntil);
         Assert.Equal(20, renewal.Entitlements.WebAdminSeats);
 
-        var current = store.FindActivation(TenantA, activation.SubscriptionId);
+        var current = await store.FindActivationAsync(TenantA, activation.SubscriptionId);
         Assert.NotNull(current);
         Assert.Equal(new DateOnly(2028, 9, 13), current!.ValidUntil);
         Assert.Equal(20, current.Entitlements.WebAdminSeats);
     }
 
     [Fact]
-    public void Renewal_For_Other_Tenant_Is_Not_Found()
+    public async Task Renewal_For_Other_Tenant_Is_Not_Found()
     {
         using var signer = new LeaseSigner();
-        var store = new CommerceActivationStore(
+        ICommerceActivationStore store = new InMemoryCommerceActivationStore(
             new PaymentSubscriptionActivationService(),
             signer);
-        var activation = store.ActivateInitialPurchase(
+        var activation = await store.ActivateInitialPurchaseAsync(
             TenantA,
             InitialRequest("pay_initial"));
 
-        var renewal = store.ActivateRenewal(
+        var renewal = await store.ActivateRenewalAsync(
             TenantB,
             activation.SubscriptionId,
             RenewalRequest("pay_renewal"));

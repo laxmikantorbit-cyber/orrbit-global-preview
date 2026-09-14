@@ -14,7 +14,19 @@ builder.Services.AddScoped<CustomerStore>();
 builder.Services.AddSingleton<IOrganisationRepository>(_ => CustomerSeed.CreateRepository());
 builder.Services.AddSingleton<LeaseSigner>();
 builder.Services.AddSingleton<PaymentSubscriptionActivationService>();
-builder.Services.AddSingleton<CommerceActivationStore>();
+var commerceConnection = builder.Configuration.GetConnectionString("Commerce");
+if (string.IsNullOrWhiteSpace(commerceConnection))
+{
+    builder.Services.AddSingleton<ICommerceActivationStore, InMemoryCommerceActivationStore>();
+}
+else
+{
+    builder.Services.AddSingleton<ICommerceActivationStore>(sp =>
+        new PostgresCommerceActivationStore(
+            commerceConnection,
+            sp.GetRequiredService<PaymentSubscriptionActivationService>(),
+            sp.GetRequiredService<LeaseSigner>()));
+}
 
 var identityConnection = builder.Configuration.GetConnectionString("Identity");
 if (string.IsNullOrWhiteSpace(identityConnection))
