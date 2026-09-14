@@ -1,7 +1,10 @@
+using BusinessOS.Api.Commerce;
 using BusinessOS.Api.Customers;
 using BusinessOS.Api.Tenancy;
+using BusinessOS.Application;
 using BusinessOS.Customers;
 using BusinessOS.Identity;
+using BusinessOS.Licensing;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddOpenApi();
@@ -9,6 +12,9 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<TenantContext>();
 builder.Services.AddScoped<CustomerStore>();
 builder.Services.AddSingleton<IOrganisationRepository>(_ => CustomerSeed.CreateRepository());
+builder.Services.AddSingleton<LeaseSigner>();
+builder.Services.AddSingleton<PaymentSubscriptionActivationService>();
+builder.Services.AddSingleton<CommerceActivationStore>();
 
 var identityConnection = builder.Configuration.GetConnectionString("Identity");
 if (string.IsNullOrWhiteSpace(identityConnection))
@@ -41,6 +47,7 @@ app.MapGet("/api/customers/{id:guid}", async (
 });
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapCommerceActivationEndpoints();
 
 app.Run();
 

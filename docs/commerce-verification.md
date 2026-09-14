@@ -11,9 +11,10 @@ Verified the Quote -> Order -> Subscription foundation and Subscription Renewal 
 
 ## Application verification
 
-- Full solution regression: 93/93 tests passed.
+- Full solution regression: 96/96 tests passed.
 - Commerce tests: 13/13 passed.
 - Application activation bridge tests: 3/3 passed.
+- API activation store tests: 3/3 passed.
 - Release build: 0 warnings, 0 errors.
 - Validity starts from captured payment date, not activation date.
 - Quote commercial snapshot is carried into Order and Subscription without rereading mutable plan pricing.
@@ -39,6 +40,15 @@ Commerce negative attack matrix:
 - PASS:REJECTED_ROWS_ABSENT=0
 
 The database uses FORCE ROW LEVEL SECURITY on Commerce tables plus same-tenant composite foreign keys. The payment index prevents duplicate non-null PaymentId values within the same tenant.
+
+## API activation wiring verification
+
+Backend endpoints added under `/api/commerce`:
+- `POST /api/commerce/activations/initial`
+- `POST /api/commerce/subscriptions/{subscriptionId}/renewals`
+- `GET /api/commerce/subscriptions/{subscriptionId}`
+
+Verified initial activation smoke response returned a same-tenant subscription and license with validity `2026-09-14` to `2027-09-13`. API store tests verify same-tenant lookup, other-tenant isolation, renewal extension to `2028-09-13`, and entitlement synchronization.
 
 ## Renewal / Subscription Extension verification
 

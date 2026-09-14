@@ -12,6 +12,7 @@
     <Project Path="src/BusinessOS.Sales/BusinessOS.Sales.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/BusinessOS.Api.Tests/BusinessOS.Api.Tests.csproj" />
     <Project Path="tests/BusinessOS.Application.Tests/BusinessOS.Application.Tests.csproj" />
     <Project Path="tests/BusinessOS.Catalog.Tests/BusinessOS.Catalog.Tests.csproj" />
     <Project Path="tests/BusinessOS.Commerce.Tests/BusinessOS.Commerce.Tests.csproj" />

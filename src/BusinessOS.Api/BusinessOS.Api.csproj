@@ -8,6 +8,7 @@
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\BusinessOS.Application\BusinessOS.Application.csproj" />
     <ProjectReference Include="..\BusinessOS.Customers\BusinessOS.Customers.csproj" />
     <ProjectReference Include="..\BusinessOS.Identity\BusinessOS.Identity.csproj" />
   </ItemGroup>
