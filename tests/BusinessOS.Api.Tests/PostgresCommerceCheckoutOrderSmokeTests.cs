@@ -31,10 +31,15 @@ public sealed class PostgresCommerceCheckoutOrderSmokeTests
             InitialCheckoutRequest());
         Assert.Equal(checkout.CommerceOrderId.ToString(), checkout.RazorpayNotes["commerceOrderId"]);
         Assert.Equal("ORRBIT-REPAIR", checkout.RazorpayNotes["productCode"]);
+        var razorpayOrderId = $"order_pg_checkout_{suffix}";
+        await store.RecordRazorpayOrderAsync(
+            TenantA,
+            checkout.CommerceOrderId,
+            razorpayOrderId);
 
         var activation = await store.ActivateCapturedInitialOrderAsync(
             TenantA,
-            CapturedPayment($"pay_pg_checkout_{suffix}", checkout),
+            CapturedPayment($"pay_pg_checkout_{suffix}", checkout, razorpayOrderId),
             "ORRBIT-REPAIR");
         Assert.NotNull(activation);
         Assert.Equal(checkout.CommerceOrderId, activation!.OrderId);
@@ -47,10 +52,16 @@ public sealed class PostgresCommerceCheckoutOrderSmokeTests
         Assert.NotNull(renewalCheckout);
         Assert.Equal(activation.SubscriptionId.ToString(), renewalCheckout!.RazorpayNotes["subscriptionId"]);
 
+        var renewalRazorpayOrderId = $"order_pg_checkout_renewal_{suffix}";
+        await store.RecordRazorpayOrderAsync(
+            TenantA,
+            renewalCheckout.CommerceOrderId,
+            renewalRazorpayOrderId);
+
         var renewal = await store.ActivateCapturedRenewalOrderAsync(
             TenantA,
             activation.SubscriptionId,
-            CapturedPayment($"pay_pg_checkout_renewal_{suffix}", renewalCheckout));
+            CapturedPayment($"pay_pg_checkout_renewal_{suffix}", renewalCheckout, renewalRazorpayOrderId));
         var current = await store.FindActivationAsync(TenantA, activation.SubscriptionId);
 
         Assert.NotNull(renewal);
@@ -89,10 +100,11 @@ public sealed class PostgresCommerceCheckoutOrderSmokeTests
 
     private static PaymentRecord CapturedPayment(
         string paymentId,
-        CheckoutOrderResponse checkout)
+        CheckoutOrderResponse checkout,
+        string? orderReference = null)
         => new(
             paymentId,
-            checkout.CommerceOrderId.ToString(),
+            orderReference ?? checkout.CommerceOrderId.ToString(),
             PaymentStatus.Captured,
             checked(decimal.ToInt64(checkout.Amount * 100m)),
             checkout.CurrencyCode,

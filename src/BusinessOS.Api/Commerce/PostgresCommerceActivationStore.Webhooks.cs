@@ -3,6 +3,7 @@ using BusinessOS.Commerce;
 using BusinessOS.Licensing;
 using BusinessOS.Payments;
 using Npgsql;
+using NpgsqlTypes;
 
 namespace BusinessOS.Api.Commerce;
 
@@ -14,7 +15,7 @@ public sealed partial class PostgresCommerceActivationStore
         string productCode,
         CancellationToken cancellationToken = default)
     {
-        var orderId = ValidateCapturedPaymentRecord(payment);
+        var orderReference = ValidateCapturedPaymentRecord(payment);
         if (string.IsNullOrWhiteSpace(productCode))
             throw new ArgumentException("Product code is required.", nameof(productCode));
 
@@ -25,7 +26,7 @@ public sealed partial class PostgresCommerceActivationStore
             await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
 
             var existing = await LoadActivationByOrderAsync(
-                connection, transaction, tenantId, orderId, cancellationToken);
+                connection, transaction, tenantId, orderReference, cancellationToken);
             if (existing is not null)
             {
                 await transaction.CommitAsync(cancellationToken);
@@ -33,7 +34,7 @@ public sealed partial class PostgresCommerceActivationStore
             }
 
             var persistedOrder = await LoadOrderForActivationAsync(
-                connection, transaction, tenantId, orderId, cancellationToken);
+                connection, transaction, tenantId, orderReference, cancellationToken);
             if (persistedOrder is null)
             {
                 await transaction.RollbackAsync(cancellationToken);
@@ -41,8 +42,9 @@ public sealed partial class PostgresCommerceActivationStore
             }
 
             EnsurePendingOrder(persistedOrder.Status);
+            var normalizedPayment = payment with { OrderId = persistedOrder.Order.Id.ToString() };
             var activation = _activationService.ActivateInitialPurchase(
-                payment,
+                normalizedPayment,
                 persistedOrder.Order,
                 Guid.NewGuid(),
                 productCode,
@@ -77,7 +79,7 @@ public sealed partial class PostgresCommerceActivationStore
         PaymentRecord payment,
         CancellationToken cancellationToken = default)
     {
-        var orderId = ValidateCapturedPaymentRecord(payment);
+        var orderReference = ValidateCapturedPaymentRecord(payment);
         try
         {
             await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
@@ -85,7 +87,7 @@ public sealed partial class PostgresCommerceActivationStore
             await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
 
             var existingRenewal = await LoadRenewalByOrderAsync(
-                connection, transaction, tenantId, subscriptionId, orderId, cancellationToken);
+                connection, transaction, tenantId, subscriptionId, orderReference, cancellationToken);
             if (existingRenewal is not null)
             {
                 await transaction.CommitAsync(cancellationToken);
@@ -102,7 +104,7 @@ public sealed partial class PostgresCommerceActivationStore
             }
 
             var persistedOrder = await LoadOrderForActivationAsync(
-                connection, transaction, tenantId, orderId, cancellationToken);
+                connection, transaction, tenantId, orderReference, cancellationToken);
             if (persistedOrder is null)
             {
                 await transaction.RollbackAsync(cancellationToken);
@@ -110,6 +112,7 @@ public sealed partial class PostgresCommerceActivationStore
             }
 
             EnsurePendingOrder(persistedOrder.Status);
+            var normalizedPayment = payment with { OrderId = persistedOrder.Order.Id.ToString() };
             var license = LicenseEngine.FromPersistedSubscription(
                 persisted.LicenseId,
                 persisted.ProductCode,
@@ -118,7 +121,7 @@ public sealed partial class PostgresCommerceActivationStore
                 persisted.Subscription.Entitlements,
                 _signer);
             var result = _activationService.ActivateRenewal(
-                payment,
+                normalizedPayment,
                 persistedOrder.Order,
                 Guid.NewGuid(),
                 persisted.Subscription,
@@ -151,19 +154,20 @@ public sealed partial class PostgresCommerceActivationStore
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
         Guid tenantId,
-        Guid orderId,
+        string orderReference,
         CancellationToken cancellationToken)
     {
         const string sql = """
-            SELECT id,tenant_id,organisation_id,order_id,plan_id,plan_version_id,
-                   starts_on,valid_until,entitlement_snapshot,status,license_id,product_code
-            FROM commerce_subscriptions
-            WHERE tenant_id=@tenant_id AND order_id=@order_id
-              AND license_id IS NOT NULL AND product_code IS NOT NULL
+            SELECT s.id,s.tenant_id,s.organisation_id,s.order_id,s.plan_id,s.plan_version_id,
+                   s.starts_on,s.valid_until,s.entitlement_snapshot,s.status,s.license_id,s.product_code
+            FROM commerce_subscriptions s
+            JOIN commerce_orders o ON o.tenant_id=s.tenant_id AND o.id=s.order_id
+            WHERE s.tenant_id=@tenant_id
+              AND (s.order_id=@internal_order_id OR o.razorpay_order_id=@order_reference)
+              AND s.license_id IS NOT NULL AND s.product_code IS NOT NULL
             """;
         await using var command = new NpgsqlCommand(sql, connection, transaction);
-        command.Parameters.AddWithValue("tenant_id", tenantId);
-        command.Parameters.AddWithValue("order_id", orderId);
+        AddOrderReferenceParameters(command, tenantId, orderReference);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
             return null;
@@ -186,7 +190,7 @@ public sealed partial class PostgresCommerceActivationStore
         NpgsqlTransaction transaction,
         Guid tenantId,
         Guid subscriptionId,
-        Guid orderId,
+        string orderReference,
         CancellationToken cancellationToken)
     {
         const string sql = """
@@ -195,12 +199,13 @@ public sealed partial class PostgresCommerceActivationStore
                    r.new_valid_until,s.entitlement_snapshot
             FROM commerce_subscription_renewals r
             JOIN commerce_subscriptions s ON s.tenant_id=r.tenant_id AND s.id=r.subscription_id
-            WHERE r.tenant_id=@tenant_id AND r.subscription_id=@subscription_id AND r.order_id=@order_id
+            JOIN commerce_orders o ON o.tenant_id=r.tenant_id AND o.id=r.order_id
+            WHERE r.tenant_id=@tenant_id AND r.subscription_id=@subscription_id
+              AND (r.order_id=@internal_order_id OR o.razorpay_order_id=@order_reference)
             """;
         await using var command = new NpgsqlCommand(sql, connection, transaction);
-        command.Parameters.AddWithValue("tenant_id", tenantId);
+        AddOrderReferenceParameters(command, tenantId, orderReference);
         command.Parameters.AddWithValue("subscription_id", subscriptionId);
-        command.Parameters.AddWithValue("order_id", orderId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
             return null;
@@ -220,7 +225,7 @@ public sealed partial class PostgresCommerceActivationStore
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
         Guid tenantId,
-        Guid orderId,
+        string orderReference,
         CancellationToken cancellationToken)
     {
         const string sql = """
@@ -230,12 +235,12 @@ public sealed partial class PostgresCommerceActivationStore
             FROM commerce_orders o
             JOIN commerce_quotes q ON q.tenant_id=o.tenant_id
                 AND q.id=o.quote_id AND q.organisation_id=o.organisation_id
-            WHERE o.tenant_id=@tenant_id AND o.id=@order_id
+            WHERE o.tenant_id=@tenant_id
+              AND (o.id=@internal_order_id OR o.razorpay_order_id=@order_reference)
             FOR UPDATE
             """;
         await using var command = new NpgsqlCommand(sql, connection, transaction);
-        command.Parameters.AddWithValue("tenant_id", tenantId);
-        command.Parameters.AddWithValue("order_id", orderId);
+        AddOrderReferenceParameters(command, tenantId, orderReference);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
             return null;
@@ -264,6 +269,21 @@ public sealed partial class PostgresCommerceActivationStore
         return new PersistedCommerceOrder(order, (OrderStatus)reader.GetInt32(13));
     }
 
+    private static void AddOrderReferenceParameters(
+        NpgsqlCommand command,
+        Guid tenantId,
+        string orderReference)
+    {
+        var internalOrderId = Guid.TryParse(orderReference, out var parsed) && parsed != Guid.Empty
+            ? parsed
+            : (Guid?)null;
+        command.Parameters.AddWithValue("tenant_id", tenantId);
+        command.Parameters.Add("internal_order_id", NpgsqlDbType.Uuid).Value = internalOrderId is null
+            ? DBNull.Value
+            : internalOrderId.Value;
+        command.Parameters.AddWithValue("order_reference", orderReference.Trim());
+    }
+
     private static async Task UpdateExistingOrderActivatedAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
@@ -286,14 +306,14 @@ public sealed partial class PostgresCommerceActivationStore
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    private static Guid ValidateCapturedPaymentRecord(PaymentRecord payment)
+    private static string ValidateCapturedPaymentRecord(PaymentRecord payment)
     {
         ArgumentNullException.ThrowIfNull(payment);
         if (payment.Status != PaymentStatus.Captured || payment.CapturedAtUtc is null)
             throw new InvalidOperationException("Only captured payment can activate commerce order.");
-        if (!Guid.TryParse(payment.OrderId, out var orderId) || orderId == Guid.Empty)
-            throw new InvalidOperationException("Payment order id must be the internal commerce order id.");
-        return orderId;
+        if (string.IsNullOrWhiteSpace(payment.OrderId))
+            throw new InvalidOperationException("Payment order id is required.");
+        return payment.OrderId.Trim();
     }
 
     private static void EnsurePendingOrder(OrderStatus status)

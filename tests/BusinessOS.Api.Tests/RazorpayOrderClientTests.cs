@@ -78,6 +78,19 @@ public sealed class RazorpayOrderClientTests
         Assert.Equal(10000, checkout.RazorpayAmount);
         Assert.Equal("created", checkout.RazorpayStatus);
         Assert.Equal(checkout.CommerceOrderId.ToString(), checkout.RazorpayNotes["commerceOrderId"]);
+
+        var activation = await store.ActivateCapturedInitialOrderAsync(
+            TenantA,
+            new BusinessOS.Payments.PaymentRecord(
+                "pay_stub_1",
+                checkout.RazorpayOrderId,
+                BusinessOS.Payments.PaymentStatus.Captured,
+                checkout.RazorpayAmount,
+                checkout.CurrencyCode,
+                new DateTimeOffset(2026, 9, 14, 10, 0, 0, TimeSpan.Zero)),
+            "ORRBIT-REPAIR");
+        Assert.NotNull(activation);
+        Assert.Equal(checkout.CommerceOrderId, activation!.OrderId);
     }
     private static void AssertAuth(AuthenticationHeaderValue? auth)
     {

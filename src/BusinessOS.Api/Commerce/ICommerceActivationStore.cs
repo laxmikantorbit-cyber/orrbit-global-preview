@@ -20,6 +20,12 @@ public interface ICommerceActivationStore
         CreateRenewalCheckoutOrderRequest request,
         CancellationToken cancellationToken = default);
 
+    Task RecordRazorpayOrderAsync(
+        Guid tenantId,
+        Guid commerceOrderId,
+        string razorpayOrderId,
+        CancellationToken cancellationToken = default);
+
     Task<ActivationResponse> ActivateInitialPurchaseAsync(
         Guid tenantId,
         InitialActivationRequest request,

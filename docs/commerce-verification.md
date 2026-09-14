@@ -11,13 +11,13 @@ Verified the Quote -> Order -> Subscription foundation and Subscription Renewal 
 
 ## Application verification
 
-- Full solution regression: 104/104 tests passed.
+- Full solution regression: 105/105 tests passed.
 - Commerce tests: 13/13 passed.
 - Application activation bridge tests: 3/3 passed.
-- API activation/checkout/webhook/Razorpay order tests: 11/11 passed.
+- API activation/checkout/webhook/Razorpay order tests: 12/12 passed.
 - PostgreSQL API persistence smoke: initial activation, lookup, renewal extension and cross-tenant read block passed.
-- PostgreSQL checkout smoke: checkout order -> captured payment -> subscription/license activation passed.
-- PostgreSQL renewal checkout smoke: renewal checkout order -> captured payment -> same subscription extension passed.
+- PostgreSQL checkout smoke: checkout order -> Razorpay order id persisted -> captured payment -> subscription/license activation passed.
+- PostgreSQL renewal checkout smoke: renewal checkout order -> Razorpay order id persisted -> captured payment -> same subscription extension passed.
 - PostgreSQL webhook activation smoke: pending order -> captured payment -> subscription/license activation passed.
 - PostgreSQL webhook renewal smoke: pending renewal order -> captured payment -> same subscription extension passed.
 - Release build: 0 warnings, 0 errors.
@@ -117,3 +117,11 @@ Checkout endpoints now use the real Razorpay Orders API client boundary:
 - The order request sends amount in currency subunits, currency, receipt and signed activation notes.
 - Receipt uses the internal Commerce order id, shortened to the Razorpay receipt length constraint.
 - Unit tests verify HTTP method/path, Basic auth presence, amount/currency/receipt/notes serialization and returned `razorpay_order_id` mapping.
+
+## Razorpay order id persistence verification
+
+Commerce orders now persist the provider order id after Razorpay order creation:
+- `commerce_orders.razorpay_order_id` stores the Razorpay order reference.
+- A tenant-scoped unique index prevents two Commerce orders from sharing the same Razorpay order id.
+- Webhook activation can resolve the internal Commerce order from the Razorpay payment `order_id` when the internal order note is absent or malformed.
+- With FORCE RLS, webhook processing still requires trusted tenant context from the signed payload; a separate provider-routing table would be needed for fully note-free tenant discovery.

@@ -62,6 +62,22 @@ ALTER TABLE commerce_orders ADD CONSTRAINT fk_commerce_order_plan_version_tenant
 CREATE UNIQUE INDEX IF NOT EXISTS uq_commerce_order_payment
   ON commerce_orders(tenant_id, payment_id) WHERE payment_id IS NOT NULL;
 
+ALTER TABLE commerce_orders
+  ADD COLUMN IF NOT EXISTS razorpay_order_id text NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'ck_commerce_order_razorpay_order_id') THEN
+    ALTER TABLE commerce_orders
+      ADD CONSTRAINT ck_commerce_order_razorpay_order_id
+      CHECK (razorpay_order_id IS NULL OR length(btrim(razorpay_order_id)) > 0);
+  END IF;
+END $$;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_commerce_orders_tenant_razorpay_order
+  ON commerce_orders(tenant_id, razorpay_order_id)
+  WHERE razorpay_order_id IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS commerce_subscriptions (
     id uuid PRIMARY KEY,
     tenant_id uuid NOT NULL REFERENCES tenants(id),

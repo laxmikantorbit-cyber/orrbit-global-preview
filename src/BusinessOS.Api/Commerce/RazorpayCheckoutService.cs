@@ -60,6 +60,11 @@ public sealed class RazorpayCheckoutService
                 receipt,
                 checkout.RazorpayNotes),
             cancellationToken);
+        await _store.RecordRazorpayOrderAsync(
+            checkout.TenantId,
+            checkout.CommerceOrderId,
+            provider.Id,
+            cancellationToken);
 
         return new RazorpayCheckoutOrderResponse(
             checkout.TenantId,

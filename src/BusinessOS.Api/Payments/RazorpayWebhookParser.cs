@@ -22,9 +22,12 @@ internal static class RazorpayWebhookParser
         var payment = PaymentEntity(root);
 
         var paymentId = RequiredString(payment, "id");
-        var internalOrderId = OptionalNote(payment, "commerceOrderId")
-            ?? OptionalNote(payment, "internalOrderId")
-            ?? RequiredString(payment, "order_id");
+        var providerOrderId = RequiredString(payment, "order_id");
+        var noteOrderId = OptionalNote(payment, "commerceOrderId")
+            ?? OptionalNote(payment, "internalOrderId");
+        var paymentOrderReference = IsInternalOrderId(noteOrderId)
+            ? noteOrderId!
+            : providerOrderId;
         var amount = RequiredInt64(payment, "amount");
         var currency = RequiredString(payment, "currency");
         var status = ResolveStatus(eventName, payment);
@@ -48,7 +51,7 @@ internal static class RazorpayWebhookParser
             new PaymentWebhookMessage(
                 eventId,
                 paymentId,
-                internalOrderId,
+                paymentOrderReference,
                 status,
                 amount,
                 currency,
@@ -156,6 +159,9 @@ internal static class RazorpayWebhookParser
             _ => null
         };
     }
+
+    private static bool IsInternalOrderId(string? value) =>
+        Guid.TryParse(value, out var id) && id != Guid.Empty;
 
     private static Guid? ParseOptionalGuid(string? value)
     {

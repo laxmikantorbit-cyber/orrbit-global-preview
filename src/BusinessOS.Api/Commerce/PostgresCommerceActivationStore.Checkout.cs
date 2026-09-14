@@ -114,6 +114,33 @@ public sealed partial class PostgresCommerceActivationStore
         }
     }
 
+    public async Task RecordRazorpayOrderAsync(
+        Guid tenantId,
+        Guid commerceOrderId,
+        string razorpayOrderId,
+        CancellationToken cancellationToken = default)
+    {
+        if (tenantId == Guid.Empty || commerceOrderId == Guid.Empty)
+            throw new ArgumentException("Tenant and commerce order ids are required.");
+        if (string.IsNullOrWhiteSpace(razorpayOrderId))
+            throw new ArgumentException("Razorpay order id is required.", nameof(razorpayOrderId));
+
+        try
+        {
+            await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+            await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
+            await UpdateRazorpayOrderIdAsync(
+                connection, transaction, tenantId, commerceOrderId,
+                razorpayOrderId.Trim(), cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (PostgresException ex)
+        {
+            throw ToInvalidOperation(ex);
+        }
+    }
+
     private static Order CreatePendingOrder(
         Guid tenantId,
         Guid organisationId,
@@ -176,6 +203,29 @@ public sealed partial class PostgresCommerceActivationStore
         command.Parameters.AddWithValue("currency_code", order.Snapshot.Billing.CurrencyCode);
         command.Parameters.AddWithValue("status", (int)OrderStatus.PendingPayment);
         await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task UpdateRazorpayOrderIdAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid tenantId,
+        Guid commerceOrderId,
+        string razorpayOrderId,
+        CancellationToken cancellationToken)
+    {
+        const string sql = """
+            UPDATE commerce_orders
+            SET razorpay_order_id=@razorpay_order_id
+            WHERE tenant_id=@tenant_id AND id=@id
+              AND (razorpay_order_id IS NULL OR razorpay_order_id=@razorpay_order_id)
+            """;
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("razorpay_order_id", razorpayOrderId);
+        command.Parameters.AddWithValue("tenant_id", tenantId);
+        command.Parameters.AddWithValue("id", commerceOrderId);
+        var rows = await command.ExecuteNonQueryAsync(cancellationToken);
+        if (rows != 1)
+            throw new InvalidOperationException("Commerce order could not be linked to Razorpay order id.");
     }
 
     private static CheckoutOrderResponse ToCheckoutResponse(

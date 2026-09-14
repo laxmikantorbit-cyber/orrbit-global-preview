@@ -150,6 +150,38 @@ public sealed class CommerceActivationStoreTests
         Assert.Equal(new DateOnly(2028, 9, 13), renewal.NewValidUntil);
     }
 
+    [Fact]
+    public async Task Captured_Webhook_Can_Resolve_Order_From_Razorpay_Order_Id()
+    {
+        using var signer = new LeaseSigner();
+        ICommerceActivationStore store = new InMemoryCommerceActivationStore(
+            new PaymentSubscriptionActivationService(),
+            signer);
+
+        var checkout = await store.CreateInitialCheckoutOrderAsync(
+            TenantA,
+            InitialCheckoutRequest());
+        await store.RecordRazorpayOrderAsync(
+            TenantA,
+            checkout.CommerceOrderId,
+            "order_rzp_resolve_1");
+        var payment = new PaymentRecord(
+            "pay_rzp_resolve_1",
+            "order_rzp_resolve_1",
+            PaymentStatus.Captured,
+            checked(decimal.ToInt64(checkout.Amount * 100m)),
+            checkout.CurrencyCode,
+            new DateTimeOffset(2026, 9, 14, 10, 0, 0, TimeSpan.Zero));
+
+        var activation = await store.ActivateCapturedInitialOrderAsync(
+            TenantA,
+            payment,
+            "ORRBIT-REPAIR");
+
+        Assert.NotNull(activation);
+        Assert.Equal(checkout.CommerceOrderId, activation!.OrderId);
+    }
+
     private static InitialActivationRequest InitialRequest(string paymentId) => new(
         OrgA,
         "ORRBIT-REPAIR",

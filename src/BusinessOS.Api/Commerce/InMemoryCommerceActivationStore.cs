@@ -12,6 +12,7 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
     private readonly object _gate = new();
     private readonly Dictionary<(Guid TenantId, Guid SubscriptionId), StoredActivation> _activations = [];
     private readonly Dictionary<(Guid TenantId, Guid OrderId), PendingCheckoutOrder> _pendingOrders = [];
+    private readonly Dictionary<(Guid TenantId, string RazorpayOrderId), Guid> _razorpayOrderIndex = [];
     private readonly Dictionary<(Guid TenantId, Guid OrderId), RenewalResponse> _renewalsByOrder = [];
 
     public InMemoryCommerceActivationStore(
@@ -111,6 +112,30 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
         return Task.FromResult<CheckoutOrderResponse?>(ToCheckoutResponse(tenantId, pending));
     }
 
+    public Task RecordRazorpayOrderAsync(
+        Guid tenantId,
+        Guid commerceOrderId,
+        string razorpayOrderId,
+        CancellationToken cancellationToken = default)
+    {
+        if (tenantId == Guid.Empty || commerceOrderId == Guid.Empty)
+            throw new ArgumentException("Tenant and commerce order ids are required.");
+        if (string.IsNullOrWhiteSpace(razorpayOrderId))
+            throw new ArgumentException("Razorpay order id is required.", nameof(razorpayOrderId));
+
+        lock (_gate)
+        {
+            if (!_pendingOrders.TryGetValue((tenantId, commerceOrderId), out var pending))
+                throw new InvalidOperationException("Pending checkout order was not found.");
+            _pendingOrders[(tenantId, commerceOrderId)] = pending with
+            {
+                RazorpayOrderId = razorpayOrderId.Trim()
+            };
+            _razorpayOrderIndex[(tenantId, razorpayOrderId.Trim())] = commerceOrderId;
+        }
+        return Task.CompletedTask;
+    }
+
     public Task<ActivationResponse> ActivateInitialPurchaseAsync(
         Guid tenantId,
         InitialActivationRequest request,
@@ -203,9 +228,12 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
         string productCode,
         CancellationToken cancellationToken = default)
     {
-        var orderId = ValidateCapturedOrderId(payment);
+        var orderReference = ValidateCapturedOrderReference(payment);
         lock (_gate)
         {
+            if (!TryResolveOrderId(tenantId, orderReference, out var orderId))
+                return Task.FromResult<ActivationResponse?>(null);
+            var normalizedPayment = payment with { OrderId = orderId.ToString() };
             var existing = _activations.Values.FirstOrDefault(x => x.Subscription.OrderId == orderId);
             if (existing is not null)
                 return Task.FromResult<ActivationResponse?>(ToResponse(tenantId, existing));
@@ -217,7 +245,7 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
                 throw new InvalidOperationException("Webhook product code does not match checkout order.");
 
             var activation = _activationService.ActivateInitialPurchase(
-                payment,
+                normalizedPayment,
                 pending.Order,
                 Guid.NewGuid(),
                 pending.ProductCode,
@@ -234,9 +262,12 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
         PaymentRecord payment,
         CancellationToken cancellationToken = default)
     {
-        var orderId = ValidateCapturedOrderId(payment);
+        var orderReference = ValidateCapturedOrderReference(payment);
         lock (_gate)
         {
+            if (!TryResolveOrderId(tenantId, orderReference, out var orderId))
+                return Task.FromResult<RenewalResponse?>(null);
+            var normalizedPayment = payment with { OrderId = orderId.ToString() };
             if (_renewalsByOrder.TryGetValue((tenantId, orderId), out var existing))
                 return Task.FromResult<RenewalResponse?>(existing);
             if (!_activations.TryGetValue((tenantId, subscriptionId), out var activation))
@@ -247,7 +278,7 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
                 throw new InvalidOperationException("Pending order does not match subscription.");
 
             var result = _activationService.ActivateRenewal(
-                payment,
+                normalizedPayment,
                 pending.Order,
                 Guid.NewGuid(),
                 activation.Subscription,
@@ -388,21 +419,35 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
             result.Renewal.NewValidUntil,
             result.Subscription.Entitlements);
 
-    private static Guid ValidateCapturedOrderId(PaymentRecord payment)
+    private static string ValidateCapturedOrderReference(PaymentRecord payment)
     {
         ArgumentNullException.ThrowIfNull(payment);
         if (payment.Status != PaymentStatus.Captured || payment.CapturedAtUtc is null)
             throw new InvalidOperationException("Only captured payment can activate commerce order.");
-        if (!Guid.TryParse(payment.OrderId, out var orderId) || orderId == Guid.Empty)
-            throw new InvalidOperationException("Payment order id must be the internal commerce order id.");
-        return orderId;
+        if (string.IsNullOrWhiteSpace(payment.OrderId))
+            throw new InvalidOperationException("Payment order id is required.");
+        return payment.OrderId.Trim();
+    }
+
+    private bool TryResolveOrderId(
+        Guid tenantId,
+        string orderReference,
+        out Guid orderId)
+    {
+        if (Guid.TryParse(orderReference, out orderId) && orderId != Guid.Empty)
+            return true;
+        if (_razorpayOrderIndex.TryGetValue((tenantId, orderReference), out orderId))
+            return true;
+        orderId = Guid.Empty;
+        return false;
     }
 
     private sealed record PendingCheckoutOrder(
         Order Order,
         string ProductCode,
         Guid? SubscriptionId,
-        DateTimeOffset ExpiresAtUtc);
+        DateTimeOffset ExpiresAtUtc,
+        string? RazorpayOrderId = null);
 
     private sealed record StoredActivation(
         SubscriptionEntitlement Subscription,
