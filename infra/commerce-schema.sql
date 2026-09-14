@@ -1,0 +1,112 @@
+CREATE UNIQUE INDEX IF NOT EXISTS uq_catalog_versions_tenant_id
+    ON catalog_plan_versions(tenant_id, id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_sales_opportunities_tenant_id
+    ON sales_opportunities(tenant_id, id);
+
+CREATE TABLE IF NOT EXISTS commerce_quotes (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES tenants(id),
+    organisation_id uuid NOT NULL,
+    opportunity_id uuid NULL,
+    plan_id uuid NOT NULL,
+    plan_version_id uuid NOT NULL,
+    plan_version_number integer NOT NULL CHECK (plan_version_number > 0),
+    amount numeric(18,2) NOT NULL CHECK (amount >= 0),
+    currency_code text NOT NULL CHECK (char_length(currency_code) = 3),
+    billing_cycle integer NOT NULL CHECK (billing_cycle IN (1,2,3)),
+    term_months integer NULL CHECK (term_months IS NULL OR term_months > 0),
+    entitlement_snapshot jsonb NOT NULL CHECK (jsonb_typeof(entitlement_snapshot) = 'object'),
+    created_at_utc timestamptz NOT NULL,
+    valid_until_utc timestamptz NOT NULL,
+    status integer NOT NULL CHECK (status IN (1,2,3)),
+    CHECK (valid_until_utc > created_at_utc),
+    UNIQUE (tenant_id, id),
+    UNIQUE (tenant_id, id, organisation_id)
+);
+ALTER TABLE commerce_quotes ADD CONSTRAINT fk_commerce_quote_org_tenant
+  FOREIGN KEY (tenant_id, organisation_id)
+  REFERENCES organisations(tenant_id, id);
+ALTER TABLE commerce_quotes ADD CONSTRAINT fk_commerce_quote_plan_version_tenant
+  FOREIGN KEY (tenant_id, plan_version_id)
+  REFERENCES catalog_plan_versions(tenant_id, id);
+ALTER TABLE commerce_quotes ADD CONSTRAINT fk_commerce_quote_opportunity_tenant
+  FOREIGN KEY (tenant_id, opportunity_id)
+  REFERENCES sales_opportunities(tenant_id, id);
+
+CREATE TABLE IF NOT EXISTS commerce_orders (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES tenants(id),
+    organisation_id uuid NOT NULL,
+    quote_id uuid NOT NULL,
+    opportunity_id uuid NULL,
+    plan_id uuid NOT NULL,
+    plan_version_id uuid NOT NULL,
+    amount numeric(18,2) NOT NULL CHECK (amount >= 0),
+    currency_code text NOT NULL CHECK (char_length(currency_code) = 3),
+    status integer NOT NULL CHECK (status IN (1,2,3,4)),
+    payment_id text NULL,
+    paid_at_utc timestamptz NULL,
+    UNIQUE (tenant_id, id),
+    UNIQUE (tenant_id, id, organisation_id)
+);
+ALTER TABLE commerce_orders ADD CONSTRAINT fk_commerce_order_quote_tenant
+  FOREIGN KEY (tenant_id, quote_id, organisation_id)
+  REFERENCES commerce_quotes(tenant_id, id, organisation_id);
+ALTER TABLE commerce_orders ADD CONSTRAINT fk_commerce_order_opportunity_tenant
+  FOREIGN KEY (tenant_id, opportunity_id)
+  REFERENCES sales_opportunities(tenant_id, id);
+ALTER TABLE commerce_orders ADD CONSTRAINT fk_commerce_order_plan_version_tenant
+  FOREIGN KEY (tenant_id, plan_version_id)
+  REFERENCES catalog_plan_versions(tenant_id, id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_commerce_order_payment
+  ON commerce_orders(tenant_id, payment_id) WHERE payment_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS commerce_subscriptions (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES tenants(id),
+    organisation_id uuid NOT NULL,
+    order_id uuid NOT NULL,
+    plan_id uuid NOT NULL,
+    plan_version_id uuid NOT NULL,
+    starts_on date NOT NULL,
+    valid_until date NULL,
+    entitlement_snapshot jsonb NOT NULL CHECK (jsonb_typeof(entitlement_snapshot) = 'object'),
+    status integer NOT NULL CHECK (status IN (1,2)),
+    CHECK (valid_until IS NULL OR valid_until >= starts_on),
+    UNIQUE (tenant_id, id)
+);
+ALTER TABLE commerce_subscriptions ADD CONSTRAINT fk_commerce_subscription_order_tenant
+  FOREIGN KEY (tenant_id, order_id, organisation_id)
+  REFERENCES commerce_orders(tenant_id, id, organisation_id);
+ALTER TABLE commerce_subscriptions ADD CONSTRAINT fk_commerce_subscription_plan_version_tenant
+  FOREIGN KEY (tenant_id, plan_version_id)
+  REFERENCES catalog_plan_versions(tenant_id, id);
+
+CREATE INDEX IF NOT EXISTS ix_commerce_quotes_tenant_status
+  ON commerce_quotes(tenant_id, status);
+CREATE INDEX IF NOT EXISTS ix_commerce_orders_tenant_status
+  ON commerce_orders(tenant_id, status);
+CREATE INDEX IF NOT EXISTS ix_commerce_subscriptions_tenant_status
+  ON commerce_subscriptions(tenant_id, status);
+
+ALTER TABLE commerce_quotes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commerce_quotes FORCE ROW LEVEL SECURITY;
+ALTER TABLE commerce_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commerce_orders FORCE ROW LEVEL SECURITY;
+ALTER TABLE commerce_subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commerce_subscriptions FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS commerce_quotes_tenant_policy ON commerce_quotes;
+CREATE POLICY commerce_quotes_tenant_policy ON commerce_quotes
+USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
+WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
+
+DROP POLICY IF EXISTS commerce_orders_tenant_policy ON commerce_orders;
+CREATE POLICY commerce_orders_tenant_policy ON commerce_orders
+USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
+WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
+
+DROP POLICY IF EXISTS commerce_subscriptions_tenant_policy ON commerce_subscriptions;
+CREATE POLICY commerce_subscriptions_tenant_policy ON commerce_subscriptions
+USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
+WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);

@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/BusinessOS.Api/BusinessOS.Api.csproj" />
     <Project Path="src/BusinessOS.Catalog/BusinessOS.Catalog.csproj" />
+    <Project Path="src/BusinessOS.Commerce/BusinessOS.Commerce.csproj" />
     <Project Path="src/BusinessOS.Crm/BusinessOS.Crm.csproj" />
     <Project Path="src/BusinessOS.Customers/BusinessOS.Customers.csproj" />
     <Project Path="src/BusinessOS.Identity/BusinessOS.Identity.csproj" />
@@ -11,6 +12,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/BusinessOS.Catalog.Tests/BusinessOS.Catalog.Tests.csproj" />
+    <Project Path="tests/BusinessOS.Commerce.Tests/BusinessOS.Commerce.Tests.csproj" />
     <Project Path="tests/BusinessOS.Crm.Tests/BusinessOS.Crm.Tests.csproj" />
     <Project Path="tests/BusinessOS.Customers.Tests/BusinessOS.Customers.Tests.csproj" />
     <Project Path="tests/BusinessOS.Identity.Tests/BusinessOS.Identity.Tests.csproj" />
