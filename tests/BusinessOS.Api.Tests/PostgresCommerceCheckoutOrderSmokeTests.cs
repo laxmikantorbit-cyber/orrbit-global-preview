@@ -35,7 +35,16 @@ public sealed class PostgresCommerceCheckoutOrderSmokeTests
         await store.RecordRazorpayOrderAsync(
             TenantA,
             checkout.CommerceOrderId,
+            razorpayOrderId,
+            checkout.ProductCode,
+            checkout.SubscriptionId);
+        var initialRoute = await store.FindProviderOrderRouteAsync(
+            "razorpay",
             razorpayOrderId);
+        Assert.NotNull(initialRoute);
+        Assert.Equal(TenantA, initialRoute!.TenantId);
+        Assert.Equal(checkout.CommerceOrderId, initialRoute.CommerceOrderId);
+        Assert.Null(initialRoute.SubscriptionId);
 
         var activation = await store.ActivateCapturedInitialOrderAsync(
             TenantA,
@@ -56,7 +65,14 @@ public sealed class PostgresCommerceCheckoutOrderSmokeTests
         await store.RecordRazorpayOrderAsync(
             TenantA,
             renewalCheckout.CommerceOrderId,
+            renewalRazorpayOrderId,
+            renewalCheckout.ProductCode,
+            renewalCheckout.SubscriptionId);
+        var renewalRoute = await store.FindProviderOrderRouteAsync(
+            "razorpay",
             renewalRazorpayOrderId);
+        Assert.NotNull(renewalRoute);
+        Assert.Equal(activation.SubscriptionId, renewalRoute!.SubscriptionId);
 
         var renewal = await store.ActivateCapturedRenewalOrderAsync(
             TenantA,

@@ -4,9 +4,10 @@ using BusinessOS.Payments;
 namespace BusinessOS.Api.Payments;
 
 internal sealed record RazorpayPaymentWebhook(
-    Guid TenantId,
+    Guid? TenantId,
     Guid? SubscriptionId,
     string? ProductCode,
+    string ProviderOrderId,
     PaymentWebhookMessage Message);
 
 internal static class RazorpayWebhookParser
@@ -36,18 +37,19 @@ internal static class RazorpayWebhookParser
             ?? OptionalString(root, "event_id")
             ?? $"{eventName}:{paymentId}:{status}";
 
-        var tenantIdText = OptionalNote(payment, "tenantId")
-            ?? throw new ArgumentException("Webhook payment notes must include tenantId.");
-        if (!Guid.TryParse(tenantIdText, out var tenantId) || tenantId == Guid.Empty)
-            throw new ArgumentException("Webhook tenantId note is invalid.");
-
-        var subscriptionId = ParseOptionalGuid(OptionalNote(payment, "subscriptionId"));
+        var tenantId = ParseOptionalGuid(
+            OptionalNote(payment, "tenantId"),
+            "Webhook tenantId note is invalid.");
+        var subscriptionId = ParseOptionalGuid(
+            OptionalNote(payment, "subscriptionId"),
+            "Webhook subscriptionId note is invalid.");
         var productCode = OptionalNote(payment, "productCode");
 
         return new RazorpayPaymentWebhook(
             tenantId,
             subscriptionId,
             productCode,
+            providerOrderId,
             new PaymentWebhookMessage(
                 eventId,
                 paymentId,
@@ -163,12 +165,12 @@ internal static class RazorpayWebhookParser
     private static bool IsInternalOrderId(string? value) =>
         Guid.TryParse(value, out var id) && id != Guid.Empty;
 
-    private static Guid? ParseOptionalGuid(string? value)
+    private static Guid? ParseOptionalGuid(string? value, string invalidMessage)
     {
         if (string.IsNullOrWhiteSpace(value))
             return null;
         return Guid.TryParse(value, out var id) && id != Guid.Empty
             ? id
-            : throw new ArgumentException("Webhook subscriptionId note is invalid.");
+            : throw new ArgumentException(invalidMessage);
     }
 }

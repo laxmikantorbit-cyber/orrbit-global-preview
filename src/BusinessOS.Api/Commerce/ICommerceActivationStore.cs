@@ -24,6 +24,13 @@ public interface ICommerceActivationStore
         Guid tenantId,
         Guid commerceOrderId,
         string razorpayOrderId,
+        string productCode,
+        Guid? subscriptionId,
+        CancellationToken cancellationToken = default);
+
+    Task<ProviderOrderRoute?> FindProviderOrderRouteAsync(
+        string provider,
+        string providerOrderId,
         CancellationToken cancellationToken = default);
 
     Task<ActivationResponse> ActivateInitialPurchaseAsync(

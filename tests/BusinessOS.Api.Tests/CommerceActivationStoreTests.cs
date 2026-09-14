@@ -164,7 +164,9 @@ public sealed class CommerceActivationStoreTests
         await store.RecordRazorpayOrderAsync(
             TenantA,
             checkout.CommerceOrderId,
-            "order_rzp_resolve_1");
+            "order_rzp_resolve_1",
+            checkout.ProductCode,
+            checkout.SubscriptionId);
         var payment = new PaymentRecord(
             "pay_rzp_resolve_1",
             "order_rzp_resolve_1",
@@ -180,6 +182,35 @@ public sealed class CommerceActivationStoreTests
 
         Assert.NotNull(activation);
         Assert.Equal(checkout.CommerceOrderId, activation!.OrderId);
+    }
+
+    [Fact]
+    public async Task Provider_Order_Route_Is_Available_Without_Tenant_Context()
+    {
+        using var signer = new LeaseSigner();
+        ICommerceActivationStore store = new InMemoryCommerceActivationStore(
+            new PaymentSubscriptionActivationService(),
+            signer);
+
+        var checkout = await store.CreateInitialCheckoutOrderAsync(
+            TenantA,
+            InitialCheckoutRequest());
+        await store.RecordRazorpayOrderAsync(
+            TenantA,
+            checkout.CommerceOrderId,
+            "order_route_initial",
+            checkout.ProductCode,
+            checkout.SubscriptionId);
+
+        var route = await store.FindProviderOrderRouteAsync(
+            "razorpay",
+            "order_route_initial");
+
+        Assert.NotNull(route);
+        Assert.Equal(TenantA, route!.TenantId);
+        Assert.Equal(checkout.CommerceOrderId, route.CommerceOrderId);
+        Assert.Equal("ORRBIT-REPAIR", route.ProductCode);
+        Assert.Null(route.SubscriptionId);
     }
 
     private static InitialActivationRequest InitialRequest(string paymentId) => new(

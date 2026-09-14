@@ -1,5 +1,6 @@
 using BusinessOS.Commerce;
 using Npgsql;
+using NpgsqlTypes;
 
 namespace BusinessOS.Api.Commerce;
 
@@ -118,27 +119,62 @@ public sealed partial class PostgresCommerceActivationStore
         Guid tenantId,
         Guid commerceOrderId,
         string razorpayOrderId,
+        string productCode,
+        Guid? subscriptionId,
         CancellationToken cancellationToken = default)
     {
         if (tenantId == Guid.Empty || commerceOrderId == Guid.Empty)
             throw new ArgumentException("Tenant and commerce order ids are required.");
         if (string.IsNullOrWhiteSpace(razorpayOrderId))
             throw new ArgumentException("Razorpay order id is required.", nameof(razorpayOrderId));
+        if (string.IsNullOrWhiteSpace(productCode))
+            throw new ArgumentException("Product code is required.", nameof(productCode));
 
         try
         {
             await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
             await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
             await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
+            var trimmedRazorpayOrderId = razorpayOrderId.Trim();
+            var trimmedProductCode = productCode.Trim();
             await UpdateRazorpayOrderIdAsync(
                 connection, transaction, tenantId, commerceOrderId,
-                razorpayOrderId.Trim(), cancellationToken);
+                trimmedRazorpayOrderId, cancellationToken);
+            await InsertProviderOrderRouteAsync(
+                connection, transaction, "razorpay", trimmedRazorpayOrderId,
+                tenantId, commerceOrderId, trimmedProductCode,
+                subscriptionId, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
         catch (PostgresException ex)
         {
             throw ToInvalidOperation(ex);
         }
+    }
+
+    public async Task<ProviderOrderRoute?> FindProviderOrderRouteAsync(
+        string provider,
+        string providerOrderId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(providerOrderId))
+            return null;
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        const string sql = """
+            SELECT provider,provider_order_id,tenant_id,commerce_order_id,product_code,subscription_id
+            FROM commerce_provider_order_routes
+            WHERE provider=@provider AND provider_order_id=@provider_order_id
+            """;
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("provider", NormalizeProvider(provider));
+        command.Parameters.AddWithValue("provider_order_id", providerOrderId.Trim());
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+            return null;
+        return new ProviderOrderRoute(
+            reader.GetString(0), reader.GetString(1), reader.GetGuid(2),
+            reader.GetGuid(3), reader.GetString(4),
+            reader.IsDBNull(5) ? null : reader.GetGuid(5));
     }
 
     private static Order CreatePendingOrder(
@@ -205,6 +241,46 @@ public sealed partial class PostgresCommerceActivationStore
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    private static async Task InsertProviderOrderRouteAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        string provider,
+        string providerOrderId,
+        Guid tenantId,
+        Guid commerceOrderId,
+        string productCode,
+        Guid? subscriptionId,
+        CancellationToken cancellationToken)
+    {
+        const string sql = """
+            INSERT INTO commerce_provider_order_routes(
+                provider,provider_order_id,tenant_id,commerce_order_id,
+                product_code,subscription_id,created_at_utc)
+            VALUES(
+                @provider,@provider_order_id,@tenant_id,@commerce_order_id,
+                @product_code,@subscription_id,@created_at_utc)
+            ON CONFLICT(provider, provider_order_id) DO UPDATE
+            SET provider_order_id=EXCLUDED.provider_order_id
+            WHERE commerce_provider_order_routes.tenant_id=EXCLUDED.tenant_id
+              AND commerce_provider_order_routes.commerce_order_id=EXCLUDED.commerce_order_id
+              AND commerce_provider_order_routes.product_code=EXCLUDED.product_code
+              AND commerce_provider_order_routes.subscription_id IS NOT DISTINCT FROM EXCLUDED.subscription_id
+            """;
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("provider", NormalizeProvider(provider));
+        command.Parameters.AddWithValue("provider_order_id", providerOrderId.Trim());
+        command.Parameters.AddWithValue("tenant_id", tenantId);
+        command.Parameters.AddWithValue("commerce_order_id", commerceOrderId);
+        command.Parameters.AddWithValue("product_code", productCode.Trim());
+        command.Parameters.Add("subscription_id", NpgsqlDbType.Uuid).Value = subscriptionId is null
+            ? DBNull.Value
+            : subscriptionId.Value;
+        command.Parameters.AddWithValue("created_at_utc", DateTimeOffset.UtcNow);
+        var rows = await command.ExecuteNonQueryAsync(cancellationToken);
+        if (rows != 1)
+            throw new InvalidOperationException("Provider order route conflicts with another commerce order.");
+    }
+
     private static async Task UpdateRazorpayOrderIdAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
@@ -227,6 +303,9 @@ public sealed partial class PostgresCommerceActivationStore
         if (rows != 1)
             throw new InvalidOperationException("Commerce order could not be linked to Razorpay order id.");
     }
+
+    private static string NormalizeProvider(string provider) =>
+        provider.Trim().ToLowerInvariant();
 
     private static CheckoutOrderResponse ToCheckoutResponse(
         Guid tenantId,
@@ -254,6 +333,8 @@ public sealed partial class PostgresCommerceActivationStore
             order.Snapshot.PlanVersionId,
             order.Snapshot.Billing.Amount,
             order.Snapshot.Billing.CurrencyCode,
+            productCode.Trim(),
+            subscriptionId,
             expiresAtUtc,
             notes);
     }

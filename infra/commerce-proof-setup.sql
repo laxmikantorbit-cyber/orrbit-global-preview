@@ -1,7 +1,9 @@
 ALTER TABLE commerce_quotes OWNER TO bos_owner;
 ALTER TABLE commerce_orders OWNER TO bos_owner;
 ALTER TABLE commerce_subscriptions OWNER TO bos_owner;
+ALTER TABLE commerce_provider_order_routes OWNER TO bos_owner;
 GRANT SELECT, INSERT, UPDATE, DELETE ON commerce_quotes, commerce_orders, commerce_subscriptions TO bos_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON commerce_provider_order_routes TO bos_app;
 
 INSERT INTO commerce_quotes(id,tenant_id,organisation_id,plan_id,plan_version_id,plan_version_number,amount,currency_code,billing_cycle,term_months,entitlement_snapshot,created_at_utc,valid_until_utc,status) VALUES
 ('81111111-1111-1111-1111-111111111111','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','11111111-1111-1111-1111-111111111111','73333333-3333-3333-3333-333333333331','74444444-4444-4444-4444-444444444441',1,100,'INR',3,12,'{"desktopSystems":1,"locations":1,"webAdminSeats":2,"fieldStaffSeats":2,"multiLocationCloud":false}',now(),now()+interval '30 days',2),

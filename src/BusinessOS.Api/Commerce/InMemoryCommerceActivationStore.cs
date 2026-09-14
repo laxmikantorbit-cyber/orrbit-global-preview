@@ -13,6 +13,7 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
     private readonly Dictionary<(Guid TenantId, Guid SubscriptionId), StoredActivation> _activations = [];
     private readonly Dictionary<(Guid TenantId, Guid OrderId), PendingCheckoutOrder> _pendingOrders = [];
     private readonly Dictionary<(Guid TenantId, string RazorpayOrderId), Guid> _razorpayOrderIndex = [];
+    private readonly Dictionary<(string Provider, string ProviderOrderId), ProviderOrderRoute> _providerRoutes = [];
     private readonly Dictionary<(Guid TenantId, Guid OrderId), RenewalResponse> _renewalsByOrder = [];
 
     public InMemoryCommerceActivationStore(
@@ -116,24 +117,58 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
         Guid tenantId,
         Guid commerceOrderId,
         string razorpayOrderId,
+        string productCode,
+        Guid? subscriptionId,
         CancellationToken cancellationToken = default)
     {
         if (tenantId == Guid.Empty || commerceOrderId == Guid.Empty)
             throw new ArgumentException("Tenant and commerce order ids are required.");
         if (string.IsNullOrWhiteSpace(razorpayOrderId))
             throw new ArgumentException("Razorpay order id is required.", nameof(razorpayOrderId));
+        if (string.IsNullOrWhiteSpace(productCode))
+            throw new ArgumentException("Product code is required.", nameof(productCode));
 
         lock (_gate)
         {
             if (!_pendingOrders.TryGetValue((tenantId, commerceOrderId), out var pending))
                 throw new InvalidOperationException("Pending checkout order was not found.");
+            var trimmedProductCode = productCode.Trim();
+            if (!string.Equals(pending.ProductCode, trimmedProductCode, StringComparison.Ordinal))
+                throw new InvalidOperationException("Provider route product code does not match checkout order.");
+            if (pending.SubscriptionId != subscriptionId)
+                throw new InvalidOperationException("Provider route subscription id does not match checkout order.");
+            var trimmedRazorpayOrderId = razorpayOrderId.Trim();
             _pendingOrders[(tenantId, commerceOrderId)] = pending with
             {
-                RazorpayOrderId = razorpayOrderId.Trim()
+                RazorpayOrderId = trimmedRazorpayOrderId
             };
-            _razorpayOrderIndex[(tenantId, razorpayOrderId.Trim())] = commerceOrderId;
+            _razorpayOrderIndex[(tenantId, trimmedRazorpayOrderId)] = commerceOrderId;
+            _providerRoutes[(NormalizeProvider("razorpay"), trimmedRazorpayOrderId)] = new ProviderOrderRoute(
+                "razorpay",
+                trimmedRazorpayOrderId,
+                tenantId,
+                commerceOrderId,
+                pending.ProductCode,
+                pending.SubscriptionId);
         }
         return Task.CompletedTask;
+    }
+
+    public Task<ProviderOrderRoute?> FindProviderOrderRouteAsync(
+        string provider,
+        string providerOrderId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(providerOrderId))
+            return Task.FromResult<ProviderOrderRoute?>(null);
+        lock (_gate)
+        {
+            return Task.FromResult(_providerRoutes.TryGetValue(
+                (NormalizeProvider(provider), providerOrderId.Trim()),
+                out var route)
+                    ? route
+                    : null);
+        }
     }
 
     public Task<ActivationResponse> ActivateInitialPurchaseAsync(
@@ -372,6 +407,8 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
             pending.Order.Snapshot.PlanVersionId,
             pending.Order.Snapshot.Billing.Amount,
             pending.Order.Snapshot.Billing.CurrencyCode,
+            pending.ProductCode,
+            pending.SubscriptionId,
             pending.ExpiresAtUtc,
             notes);
     }
@@ -441,6 +478,9 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
         orderId = Guid.Empty;
         return false;
     }
+
+    private static string NormalizeProvider(string provider) =>
+        provider.Trim().ToLowerInvariant();
 
     private sealed record PendingCheckoutOrder(
         Order Order,

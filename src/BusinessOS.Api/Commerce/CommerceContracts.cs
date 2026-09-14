@@ -68,8 +68,18 @@ public sealed record CheckoutOrderResponse(
     Guid PlanVersionId,
     decimal Amount,
     string CurrencyCode,
+    string ProductCode,
+    Guid? SubscriptionId,
     DateTimeOffset ExpiresAtUtc,
     IReadOnlyDictionary<string, string> RazorpayNotes);
+
+public sealed record ProviderOrderRoute(
+    string Provider,
+    string ProviderOrderId,
+    Guid TenantId,
+    Guid CommerceOrderId,
+    string ProductCode,
+    Guid? SubscriptionId);
 
 public sealed record RazorpayCheckoutOrderResponse(
     Guid TenantId,

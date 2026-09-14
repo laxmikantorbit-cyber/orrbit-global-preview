@@ -6,6 +6,8 @@ namespace BusinessOS.Api.Payments;
 
 public static class PaymentWebhookEndpoints
 {
+    private const string RazorpayProvider = "razorpay";
+
     public static IEndpointRouteBuilder MapPaymentWebhookEndpoints(
         this IEndpointRouteBuilder app)
     {
@@ -46,11 +48,30 @@ public static class PaymentWebhookEndpoints
                     null,
                     null));
 
-            if (webhook.SubscriptionId is Guid subscriptionId)
+            var route = await store.FindProviderOrderRouteAsync(
+                RazorpayProvider,
+                webhook.ProviderOrderId,
+                cancellationToken);
+
+            var routeError = ValidateRoute(webhook, route);
+            if (routeError is not null)
+                return Results.BadRequest(new ErrorResponse(routeError));
+
+            var tenantId = webhook.TenantId ?? route?.TenantId;
+            if (tenantId is null)
+                return Results.NotFound(new ErrorResponse(
+                    "Razorpay provider order route was not found."));
+
+            var subscriptionId = webhook.SubscriptionId ?? route?.SubscriptionId;
+            var productCode = string.IsNullOrWhiteSpace(webhook.ProductCode)
+                ? route?.ProductCode
+                : webhook.ProductCode.Trim();
+
+            if (subscriptionId is Guid renewalSubscriptionId)
             {
                 var renewal = await store.ActivateCapturedRenewalOrderAsync(
-                    webhook.TenantId,
-                    subscriptionId,
+                    tenantId.Value,
+                    renewalSubscriptionId,
                     paymentResult.Payment,
                     cancellationToken);
                 return renewal is null
@@ -62,13 +83,14 @@ public static class PaymentWebhookEndpoints
                         renewal));
             }
 
-            if (string.IsNullOrWhiteSpace(webhook.ProductCode))
-                return Results.BadRequest(new ErrorResponse("Initial purchase webhook requires productCode note."));
+            if (string.IsNullOrWhiteSpace(productCode))
+                return Results.BadRequest(new ErrorResponse(
+                    "Initial purchase webhook requires productCode note or provider route."));
 
             var activation = await store.ActivateCapturedInitialOrderAsync(
-                webhook.TenantId,
+                tenantId.Value,
                 paymentResult.Payment,
-                webhook.ProductCode,
+                productCode,
                 cancellationToken);
             return activation is null
                 ? Results.NotFound(new ErrorResponse("Initial commerce order was not found for this tenant."))
@@ -80,6 +102,28 @@ public static class PaymentWebhookEndpoints
         });
 
         return app;
+    }
+
+    private static string? ValidateRoute(
+        RazorpayPaymentWebhook webhook,
+        ProviderOrderRoute? route)
+    {
+        if (route is null)
+            return null;
+
+        if (webhook.TenantId is Guid noteTenant && noteTenant != route.TenantId)
+            return "Webhook tenantId note does not match provider order route.";
+        if (webhook.SubscriptionId is Guid noteSubscription &&
+            route.SubscriptionId != noteSubscription)
+            return "Webhook subscriptionId note does not match provider order route.";
+        if (!string.IsNullOrWhiteSpace(webhook.ProductCode) &&
+            !string.Equals(
+                webhook.ProductCode.Trim(),
+                route.ProductCode,
+                StringComparison.Ordinal))
+            return "Webhook productCode note does not match provider order route.";
+
+        return null;
     }
 }
 

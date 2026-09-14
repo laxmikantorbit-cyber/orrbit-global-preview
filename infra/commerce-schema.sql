@@ -126,6 +126,23 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_commerce_subscriptions_tenant_license
 CREATE UNIQUE INDEX IF NOT EXISTS ux_commerce_subscriptions_tenant_order
   ON commerce_subscriptions(tenant_id, order_id);
 
+CREATE TABLE IF NOT EXISTS commerce_provider_order_routes (
+    provider text NOT NULL CHECK (length(btrim(provider)) > 0),
+    provider_order_id text NOT NULL CHECK (length(btrim(provider_order_id)) > 0),
+    tenant_id uuid NOT NULL REFERENCES tenants(id),
+    commerce_order_id uuid NOT NULL,
+    product_code text NOT NULL CHECK (length(btrim(product_code)) > 0),
+    subscription_id uuid NULL,
+    created_at_utc timestamptz NOT NULL,
+    PRIMARY KEY (provider, provider_order_id),
+    FOREIGN KEY (tenant_id, commerce_order_id)
+      REFERENCES commerce_orders(tenant_id, id),
+    FOREIGN KEY (tenant_id, subscription_id)
+      REFERENCES commerce_subscriptions(tenant_id, id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_commerce_provider_routes_tenant_provider_order
+  ON commerce_provider_order_routes(tenant_id, provider, provider_order_id);
+
 ALTER TABLE commerce_quotes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE commerce_quotes FORCE ROW LEVEL SECURITY;
 ALTER TABLE commerce_orders ENABLE ROW LEVEL SECURITY;

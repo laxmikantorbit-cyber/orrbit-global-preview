@@ -11,10 +11,10 @@ Verified the Quote -> Order -> Subscription foundation and Subscription Renewal 
 
 ## Application verification
 
-- Full solution regression: 105/105 tests passed.
+- Full solution regression: 108/108 tests passed.
 - Commerce tests: 13/13 passed.
 - Application activation bridge tests: 3/3 passed.
-- API activation/checkout/webhook/Razorpay order tests: 12/12 passed.
+- API activation/checkout/webhook/Razorpay order/provider-route tests: 15/15 passed.
 - PostgreSQL API persistence smoke: initial activation, lookup, renewal extension and cross-tenant read block passed.
 - PostgreSQL checkout smoke: checkout order -> Razorpay order id persisted -> captured payment -> subscription/license activation passed.
 - PostgreSQL renewal checkout smoke: renewal checkout order -> Razorpay order id persisted -> captured payment -> same subscription extension passed.
@@ -124,4 +124,14 @@ Commerce orders now persist the provider order id after Razorpay order creation:
 - `commerce_orders.razorpay_order_id` stores the Razorpay order reference.
 - A tenant-scoped unique index prevents two Commerce orders from sharing the same Razorpay order id.
 - Webhook activation can resolve the internal Commerce order from the Razorpay payment `order_id` when the internal order note is absent or malformed.
-- With FORCE RLS, webhook processing still requires trusted tenant context from the signed payload; a separate provider-routing table would be needed for fully note-free tenant discovery.
+
+## Provider order route recovery verification
+
+A dedicated provider routing table now supports note-free Razorpay webhook recovery:
+- `commerce_provider_order_routes` maps provider + provider order id to tenant, Commerce order, product code and optional subscription id.
+- The table is intentionally outside tenant RLS so the signed webhook can discover the tenant before entering Commerce's FORCE RLS path.
+- The route table has owner/grant setup for `bos_owner` and `bos_app`.
+- Webhook parsing allows missing notes and keeps the provider Razorpay `order_id` as a recoverable order reference.
+- If webhook notes are present, conflicting tenant, subscription or product values are rejected.
+- After route recovery, activation still happens through the normal tenant-scoped Commerce store.
+- In-memory and PostgreSQL tests verify provider route lookup and note-free captured payment activation from Razorpay order id.

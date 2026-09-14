@@ -64,6 +64,8 @@ public sealed class RazorpayCheckoutService
             checkout.TenantId,
             checkout.CommerceOrderId,
             provider.Id,
+            checkout.ProductCode,
+            checkout.SubscriptionId,
             cancellationToken);
 
         return new RazorpayCheckoutOrderResponse(
