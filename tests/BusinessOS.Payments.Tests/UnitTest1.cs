@@ -100,7 +100,14 @@ public sealed class PaymentReliabilityTests
     private static PaymentWebhookMessage Captured(
         string eventId,
         string paymentId)
-        => Message(eventId, paymentId, PaymentStatus.Captured);
+        => new(
+            eventId,
+            paymentId,
+            "order-1",
+            PaymentStatus.Captured,
+            10000,
+            "INR",
+            DateTimeOffset.Parse("2026-09-14T00:00:00Z"));
 
     private static PaymentWebhookMessage Message(
         string eventId,

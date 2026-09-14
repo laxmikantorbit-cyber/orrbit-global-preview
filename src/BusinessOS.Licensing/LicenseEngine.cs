@@ -1,130 +1,180 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
 namespace BusinessOS.Licensing;
 
 public sealed class LicenseEngine
 {
-	private readonly LeaseSigner _signer;
+    private readonly LeaseSigner _signer;
+    private readonly List<DeviceActivation> _activations = [];
 
-	private readonly List<DeviceActivation> _activations = new List<DeviceActivation>();
+    public Guid LicenseId { get; }
+    public string ProductCode { get; }
+    public DateOnly StartsOn { get; private set; }
+    public DateOnly ValidUntil { get; private set; }
+    public EntitlementSnapshot Entitlements { get; private set; }
+    public IReadOnlyList<DeviceActivation> Activations => _activations.AsReadOnly();
 
-	public Guid LicenseId { get; }
+    private LicenseEngine(
+        string productCode,
+        DateOnly startsOn,
+        DateOnly validUntil,
+        EntitlementSnapshot entitlements,
+        LeaseSigner signer)
+    {
+        LicenseId = Guid.NewGuid();
+        ProductCode = productCode;
+        StartsOn = startsOn;
+        ValidUntil = validUntil;
+        Entitlements = entitlements;
+        _signer = signer;
+    }
 
-	public string ProductCode { get; }
+    public static LicenseEngine FromVerifiedPurchase(
+        string productCode,
+        DateOnly purchaseDate,
+        EntitlementSnapshot entitlements,
+        LeaseSigner signer)
+        => FromVerifiedSubscription(
+            productCode,
+            purchaseDate,
+            purchaseDate.AddYears(1).AddDays(-1),
+            entitlements,
+            signer);
 
-	public DateOnly StartsOn { get; private set; }
+    public static LicenseEngine FromVerifiedSubscription(
+        string productCode,
+        DateOnly startsOn,
+        DateOnly validUntil,
+        EntitlementSnapshot entitlements,
+        LeaseSigner signer)
+    {
+        if (string.IsNullOrWhiteSpace(productCode))
+            throw new ArgumentException("Product code is required.");
+        ValidateTerm(startsOn, validUntil);
+        ValidateEntitlements(entitlements);
+        ArgumentNullException.ThrowIfNull(signer);
 
-	public DateOnly ValidUntil { get; private set; }
+        return new LicenseEngine(
+            productCode.Trim(), startsOn, validUntil, entitlements, signer);
+    }
 
-	public EntitlementSnapshot Entitlements { get; private set; }
+    public SignedLicenseLease Activate(string deviceFingerprint, DateTimeOffset now)
+    {
+        EnsureActiveSubscription(now);
+        if (string.IsNullOrWhiteSpace(deviceFingerprint))
+            throw new ArgumentException("Device fingerprint is required.");
+        if (_activations.Any(x => x.Active && x.DeviceFingerprint == deviceFingerprint))
+            return CreateLease(deviceFingerprint, now);
+        if (_activations.Count(x => x.Active) >= Entitlements.DesktopSystems)
+            throw new InvalidOperationException("No desktop device entitlement is available.");
 
-	public IReadOnlyList<DeviceActivation> Activations => _activations.AsReadOnly();
+        _activations.Add(new DeviceActivation(
+            Guid.NewGuid(), deviceFingerprint, Active: true, now));
+        return CreateLease(deviceFingerprint, now);
+    }
 
-	private LicenseEngine(string productCode, DateOnly startsOn, EntitlementSnapshot entitlements, LeaseSigner signer)
-	{
-		LicenseId = Guid.NewGuid();
-		ProductCode = productCode;
-		StartsOn = startsOn;
-		ValidUntil = startsOn.AddYears(1).AddDays(-1);
-		Entitlements = entitlements;
-		_signer = signer;
-	}
+    public SignedLicenseLease ReplaceDevice(
+        string oldFingerprint,
+        string newFingerprint,
+        DateTimeOffset now)
+    {
+        EnsureActiveSubscription(now);
+        var index = _activations.FindLastIndex(
+            x => x.Active && x.DeviceFingerprint == oldFingerprint);
+        if (index < 0)
+            throw new InvalidOperationException("Old device is not active.");
 
-	public static LicenseEngine FromVerifiedPurchase(string productCode, DateOnly purchaseDate, EntitlementSnapshot entitlements, LeaseSigner signer)
-	{
-		if (string.IsNullOrWhiteSpace(productCode))
-		{
-			throw new ArgumentException("Product code is required.");
-		}
-		if (entitlements.DesktopSystems < 1)
-		{
-			throw new ArgumentOutOfRangeException("entitlements");
-		}
-		return new LicenseEngine(productCode, purchaseDate, entitlements, signer);
-	}
+        _activations[index] = _activations[index] with { Active = false };
+        return Activate(newFingerprint, now);
+    }
 
-	public SignedLicenseLease Activate(string deviceFingerprint, DateTimeOffset now)
-	{
-		EnsureActiveSubscription(now);
-		if (string.IsNullOrWhiteSpace(deviceFingerprint))
-		{
-			throw new ArgumentException("Device fingerprint is required.");
-		}
-		if (_activations.Any(x => x.Active && x.DeviceFingerprint == deviceFingerprint))
-		{
-			return CreateLease(deviceFingerprint, now);
-		}
-		if (_activations.Count((DeviceActivation x) => x.Active) >= Entitlements.DesktopSystems)
-		{
-			throw new InvalidOperationException("No desktop device entitlement is available.");
-		}
-		_activations.Add(new DeviceActivation(Guid.NewGuid(), deviceFingerprint, Active: true, now));
-		return CreateLease(deviceFingerprint, now);
-	}
+    public void AddDesktopSystems(int quantity)
+    {
+        if (quantity <= 0)
+            throw new ArgumentOutOfRangeException(nameof(quantity));
 
-	public SignedLicenseLease ReplaceDevice(string oldFingerprint, string newFingerprint, DateTimeOffset now)
-	{
-		EnsureActiveSubscription(now);
-		int num = _activations.FindLastIndex((DeviceActivation x) => x.Active && x.DeviceFingerprint == oldFingerprint);
-		if (num < 0)
-		{
-			throw new InvalidOperationException("Old device is not active.");
-		}
-		DeviceActivation deviceActivation = _activations[num];
-		_activations[num] = deviceActivation with
-		{
-			Active = false
-		};
-		return Activate(newFingerprint, now);
-	}
+        Entitlements = Entitlements with
+        {
+            DesktopSystems = Entitlements.DesktopSystems + quantity
+        };
+    }
 
-	public void AddDesktopSystems(int quantity)
-	{
-		if (quantity <= 0)
-		{
-			throw new ArgumentOutOfRangeException("quantity");
-		}
-		Entitlements = Entitlements with
-		{
-			DesktopSystems = Entitlements.DesktopSystems + quantity
-		};
-	}
+    public void EnsureEntitlementsCanBeApplied(EntitlementSnapshot entitlements)
+    {
+        ValidateEntitlements(entitlements);
+        var activeDesktopSystems = _activations.Count(x => x.Active);
+        if (activeDesktopSystems > entitlements.DesktopSystems)
+            throw new InvalidOperationException(
+                "Active desktop devices exceed the new entitlement limit.");
+    }
 
-	public void Renew(DateOnly paymentDate)
-	{
-		if (paymentDate <= ValidUntil)
-		{
-			ValidUntil = ValidUntil.AddYears(1);
-			return;
-		}
-		StartsOn = paymentDate;
-		ValidUntil = paymentDate.AddYears(1).AddDays(-1);
-	}
+    public void SynchronizeSubscription(
+        DateOnly startsOn,
+        DateOnly validUntil,
+        EntitlementSnapshot entitlements)
+    {
+        ValidateTerm(startsOn, validUntil);
+        EnsureEntitlementsCanBeApplied(entitlements);
+        StartsOn = startsOn;
+        ValidUntil = validUntil;
+        Entitlements = entitlements;
+    }
 
-	public byte[] ExportPublicKey()
-	{
-		return _signer.ExportPublicKey();
-	}
+    public void Renew(DateOnly paymentDate)
+    {
+        if (paymentDate <= ValidUntil)
+        {
+            ValidUntil = ValidUntil.AddYears(1);
+            return;
+        }
 
-	private SignedLicenseLease CreateLease(string deviceFingerprint, DateTimeOffset now)
-	{
-		DateTimeOffset dateTimeOffset = new DateTimeOffset(ValidUntil.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc));
-		DateTimeOffset dateTimeOffset2 = now.AddDays(7.0);
-		if (dateTimeOffset2 > dateTimeOffset)
-		{
-			dateTimeOffset2 = dateTimeOffset;
-		}
-		LicenseLeasePayload payload = new LicenseLeasePayload(LicenseId, ProductCode, deviceFingerprint, now, dateTimeOffset2, ValidUntil, Entitlements);
-		return _signer.Sign(payload);
-	}
+        StartsOn = paymentDate;
+        ValidUntil = paymentDate.AddYears(1).AddDays(-1);
+    }
 
-	private void EnsureActiveSubscription(DateTimeOffset now)
-	{
-		if (DateOnly.FromDateTime(now.UtcDateTime) > ValidUntil)
-		{
-			throw new InvalidOperationException("Subscription has expired.");
-		}
-	}
+    public byte[] ExportPublicKey()
+    {
+        return _signer.ExportPublicKey();
+    }
+
+    private SignedLicenseLease CreateLease(
+        string deviceFingerprint,
+        DateTimeOffset now)
+    {
+        var subscriptionEnd = new DateTimeOffset(
+            ValidUntil.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc));
+        var leaseEnd = now.AddDays(7);
+        if (leaseEnd > subscriptionEnd)
+            leaseEnd = subscriptionEnd;
+
+        var payload = new LicenseLeasePayload(
+            LicenseId,
+            ProductCode,
+            deviceFingerprint,
+            now,
+            leaseEnd,
+            ValidUntil,
+            Entitlements);
+        return _signer.Sign(payload);
+    }
+
+    private void EnsureActiveSubscription(DateTimeOffset now)
+    {
+        var today = DateOnly.FromDateTime(now.UtcDateTime);
+        if (today < StartsOn)
+            throw new InvalidOperationException("Subscription has not started.");
+        if (today > ValidUntil)
+            throw new InvalidOperationException("Subscription has expired.");
+    }
+
+    private static void ValidateTerm(DateOnly startsOn, DateOnly validUntil)
+    {
+        if (validUntil < startsOn)
+            throw new ArgumentException("Subscription expiry cannot precede its start date.");
+    }
+
+    private static void ValidateEntitlements(EntitlementSnapshot entitlements)
+    {
+        ArgumentNullException.ThrowIfNull(entitlements);
+        if (entitlements.DesktopSystems < 1)
+            throw new ArgumentOutOfRangeException(nameof(entitlements));
+    }
 }

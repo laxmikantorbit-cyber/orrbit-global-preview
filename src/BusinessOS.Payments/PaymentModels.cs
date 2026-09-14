@@ -13,14 +13,16 @@ public sealed record PaymentWebhookMessage(
     string OrderId,
     PaymentStatus Status,
     long AmountPaise,
-    string Currency);
+    string Currency,
+    DateTimeOffset? CapturedAtUtc = null);
 
 public sealed record PaymentRecord(
     string PaymentId,
     string OrderId,
     PaymentStatus Status,
     long AmountPaise,
-    string Currency);
+    string Currency,
+    DateTimeOffset? CapturedAtUtc = null);
 
 public sealed record PaymentProcessResult(
     bool Accepted,

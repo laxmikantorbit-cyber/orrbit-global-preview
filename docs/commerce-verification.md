@@ -3,7 +3,7 @@
 Date: 2026-09-14
 Machine: DESKTOP-FOFADB8
 Runtime: PostgreSQL 18.6, isolated user-space cluster on 127.0.0.1:55432
-Database: `businessos_commerce`
+Database: `businessos_commerce`; latest isolated proof database: `businessos_commerce_iso_20260914_1850`
 
 ## Scope
 
@@ -11,8 +11,9 @@ Verified the Quote -> Order -> Subscription foundation and Subscription Renewal 
 
 ## Application verification
 
-- Full solution regression: 90/90 tests passed.
+- Full solution regression: 93/93 tests passed.
 - Commerce tests: 13/13 passed.
+- Application activation bridge tests: 3/3 passed.
 - Release build: 0 warnings, 0 errors.
 - Validity starts from captured payment date, not activation date.
 - Quote commercial snapshot is carried into Order and Subscription without rereading mutable plan pricing.

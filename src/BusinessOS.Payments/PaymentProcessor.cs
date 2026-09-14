@@ -32,7 +32,8 @@ public sealed class PaymentProcessor
             message.OrderId,
             message.Status,
             message.AmountPaise,
-            message.Currency);
+            message.Currency,
+            message.CapturedAtUtc?.ToUniversalTime());
         _payments.Add(created.PaymentId, created);
         if (created.Status == PaymentStatus.Captured)
             EnqueueEntitlementUpdate(created);
@@ -48,7 +49,13 @@ public sealed class PaymentProcessor
         if (existing.Status == PaymentStatus.Captured)
             return new PaymentProcessResult(true, true, existing);
 
-        var updated = existing with { Status = message.Status };
+        var updated = existing with
+        {
+            Status = message.Status,
+            CapturedAtUtc = message.Status == PaymentStatus.Captured
+                ? message.CapturedAtUtc?.ToUniversalTime()
+                : existing.CapturedAtUtc
+        };
         _payments[existing.PaymentId] = updated;
 
         if (message.Status == PaymentStatus.Captured)
@@ -96,5 +103,7 @@ public sealed class PaymentProcessor
             throw new ArgumentOutOfRangeException(nameof(message.AmountPaise));
         if (string.IsNullOrWhiteSpace(message.Currency))
             throw new ArgumentException("Currency is required.");
+        if (message.Status == PaymentStatus.Captured && message.CapturedAtUtc is null)
+            throw new ArgumentException("Captured payment timestamp is required.");
     }
 }
