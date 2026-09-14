@@ -110,3 +110,33 @@ DROP POLICY IF EXISTS commerce_subscriptions_tenant_policy ON commerce_subscript
 CREATE POLICY commerce_subscriptions_tenant_policy ON commerce_subscriptions
 USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
 WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
+
+CREATE TABLE IF NOT EXISTS commerce_subscription_renewals (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES tenants(id),
+    subscription_id uuid NOT NULL,
+    order_id uuid NOT NULL,
+    paid_at_utc timestamptz NOT NULL,
+    previous_valid_until date NULL,
+    new_valid_until date NOT NULL,
+    term_months integer NOT NULL CHECK (term_months > 0),
+    plan_version_id uuid NOT NULL,
+    CHECK (previous_valid_until IS NULL OR new_valid_until > previous_valid_until),
+    UNIQUE (tenant_id, id),
+    UNIQUE (tenant_id, order_id),
+    FOREIGN KEY (tenant_id, subscription_id)
+      REFERENCES commerce_subscriptions(tenant_id, id),
+    FOREIGN KEY (tenant_id, order_id)
+      REFERENCES commerce_orders(tenant_id, id),
+    FOREIGN KEY (tenant_id, plan_version_id)
+      REFERENCES catalog_plan_versions(tenant_id, id)
+);
+
+CREATE INDEX IF NOT EXISTS ix_commerce_renewals_tenant_subscription
+  ON commerce_subscription_renewals(tenant_id, subscription_id);
+ALTER TABLE commerce_subscription_renewals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commerce_subscription_renewals FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS commerce_renewals_tenant_policy ON commerce_subscription_renewals;
+CREATE POLICY commerce_renewals_tenant_policy ON commerce_subscription_renewals
+USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
+WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
