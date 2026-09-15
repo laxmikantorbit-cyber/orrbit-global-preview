@@ -262,3 +262,40 @@ capture, subscription lookup, and admin status.
 
 Production returns 404 for this page, even if a free-testing payment mode value
 is accidentally configured.
+
+## Subscription entitlement status and period-end cancellation
+
+Secure entitlement status support is available at:
+- `GET /api/commerce/subscriptions/{subscriptionId}/entitlement`
+- `POST /api/commerce/subscriptions/{subscriptionId}/cancel-at-period-end`
+
+The entitlement response maps tenant, organisation, subscription, license, product,
+plan and plan-version identity together with the current entitlement snapshot.
+
+Status evaluation rules:
+- Paid term before `ValidUntil`: `Active`.
+- Uncancelled subscription after expiry: `Grace` for 7 days with renewal status `payment_pending`.
+- After the 7-day grace window: `Expired` with renewal status `renewal_required`.
+- Cancel-at-period-end disables auto-renewal but keeps the already-paid term `Active` through `ValidUntil`.
+- A cancelled subscription expires at term end without entering renewal grace.
+
+Cancellation is idempotent, tenant-scoped and restricted to Commerce admin roles.
+Cancelled subscriptions cannot create a renewal checkout order unless reactivation
+support is explicitly added later.
+
+Verification covers evaluator boundaries, tenant isolation, license mapping,
+in-memory persistence, PostgreSQL persistence path and authenticated API flow.
+
+## Website CORS for free staging
+
+The API uses a restricted CORS policy for browser/frontend integration.
+Default allowed production website origins:
+
+- `https://orrbitrepair.com`
+- `https://www.orrbitrepair.com`
+
+Non-production defaults also include the staging API origin and local dev ports for testing.
+The policy allows `GET`, `POST`, `OPTIONS`, and request headers including `Authorization` and `Content-Type`.
+It does not use wildcard origins and does not enable browser credentials.
+
+For custom origins, set `BusinessOS:Cors:AllowedOrigins` / `BusinessOS__Cors__AllowedOrigins__0` style configuration.

@@ -9,9 +9,21 @@ using BusinessOS.Identity;
 using BusinessOS.Licensing;
 using BusinessOS.Payments;
 
+const string BusinessOsCorsPolicy = "BusinessOSWebsite";
+
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddOpenApi();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(BusinessOsCorsPolicy, policy =>
+    {
+        policy.WithOrigins(ResolveAllowedCorsOrigins(builder.Configuration, builder.Environment))
+            .WithMethods("GET", "POST", "OPTIONS")
+            .AllowAnyHeader()
+            .SetPreflightMaxAge(TimeSpan.FromHours(1));
+    });
+});
 builder.Services.AddScoped<TenantContext>();
 builder.Services.AddScoped<CustomerStore>();
 builder.Services.AddSingleton<IOrganisationRepository>(_ => CustomerSeed.CreateRepository());
@@ -59,6 +71,7 @@ else
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
+app.UseCors(BusinessOsCorsPolicy);
 app.UseMiddleware<TenantAuthenticationMiddleware>();
 app.MapGet("/api/customers", async (
     CustomerStore store,
@@ -84,5 +97,32 @@ app.MapFreeTestingCheckoutPageEndpoints();
 app.MapPaymentWebhookEndpoints();
 
 app.Run();
+
+static string[] ResolveAllowedCorsOrigins(
+    IConfiguration configuration,
+    IWebHostEnvironment environment)
+{
+    var configured = configuration.GetSection("BusinessOS:Cors:AllowedOrigins")
+        .Get<string[]>()?
+        .Where(x => !string.IsNullOrWhiteSpace(x))
+        .Select(x => x.Trim().TrimEnd('/'))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+    if (configured is { Length: > 0 }) return configured;
+
+    var defaults = new List<string>
+    {
+        "https://orrbitrepair.com",
+        "https://www.orrbitrepair.com"
+    };
+    if (!environment.IsProduction())
+    {
+        defaults.Add("https://businessos-commerce-api-live.onrender.com");
+        defaults.Add("http://localhost:3000");
+        defaults.Add("http://localhost:5173");
+    }
+
+    return defaults.ToArray();
+}
 
 public partial class Program;

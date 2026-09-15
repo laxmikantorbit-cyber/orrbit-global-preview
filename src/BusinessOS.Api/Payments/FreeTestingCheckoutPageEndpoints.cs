@@ -61,6 +61,7 @@ public static class FreeTestingCheckoutPageEndpoints
               <input id="token" type="password" autocomplete="off" placeholder="Paste staging token from Render only for testing" />
               <button onclick="runHealth()">Check Health</button>
               <button onclick="runFullFlow()">Run Full Purchase Flow</button>
+              <button onclick="cancelLast()">Cancel Last Subscription at Period End</button>
             </div>
             <div class="grid">
               <div class="card"><b>Plan</b><br><span class="pill">AI_REPAIR</span></div>
@@ -75,6 +76,7 @@ public static class FreeTestingCheckoutPageEndpoints
               out.textContent += `\n\n${label}\n${JSON.stringify(data, null, 2)}`;
             };
             const token = () => document.getElementById('token').value.trim();
+            let lastSubscriptionId = null;
             async function request(path, options = {}) {
               const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
               if (token()) headers.Authorization = `Bearer ${token()}`;
@@ -110,11 +112,22 @@ public static class FreeTestingCheckoutPageEndpoints
               });
               write('POST /api/testing/payments/.../capture', capture);
               const subId = capture.initialActivation.subscriptionId;
+              lastSubscriptionId = subId;
               const subscription = await request(`/api/commerce/subscriptions/${subId}`);
               write('GET /api/commerce/subscriptions/{id}', subscription);
+              const entitlement = await request(`/api/commerce/subscriptions/${subId}/entitlement`);
+              write('GET /api/commerce/subscriptions/{id}/entitlement', entitlement);
               const admin = await request('/api/commerce/admin/status');
               write('GET /api/commerce/admin/status', admin);
               out.textContent += '\n\nFull free-staging purchase flow completed.';
+            }
+            async function cancelLast() {
+              if (!token()) { alert('Paste staging bearer token first.'); return; }
+              if (!lastSubscriptionId) { alert('Run the purchase flow first.'); return; }
+              const cancelled = await request(
+                `/api/commerce/subscriptions/${lastSubscriptionId}/cancel-at-period-end`,
+                { method: 'POST' });
+              write('POST /api/commerce/subscriptions/{id}/cancel-at-period-end', cancelled);
             }
           </script>
         </body>

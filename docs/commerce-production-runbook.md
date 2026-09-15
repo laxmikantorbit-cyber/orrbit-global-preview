@@ -65,3 +65,20 @@ Reference template: `src/BusinessOS.Api/appsettings.Production.example.json`.
 - Admin manual reconciliation can recover by Razorpay order id when frontend data is unavailable.
 - Payment processing is idempotent through the persistent payment ledger.
 - Commerce activations and renewals remain tenant-scoped behind FORCE RLS.
+
+## Entitlement status operations
+
+Current entitlement endpoint:
+- `GET /api/commerce/subscriptions/{subscriptionId}/entitlement`
+
+Period-end cancellation endpoint:
+- `POST /api/commerce/subscriptions/{subscriptionId}/cancel-at-period-end`
+
+Cancellation requires a Commerce admin role: Owner, Admin, FinanceAdmin or BillingAdmin.
+It must not terminate an already-paid term early. The subscription remains active through
+`ValidUntil`, auto-renewal is disabled, and the entitlement becomes expired at period end.
+
+For uncancelled subscriptions, the entitlement API exposes a 7-day grace window after
+`ValidUntil`. During grace the renewal status is `payment_pending`; after grace it becomes
+`renewal_required`. Razorpay AutoPay/failure event wiring can drive this state in the
+recurring-payment phase without changing the client entitlement contract.

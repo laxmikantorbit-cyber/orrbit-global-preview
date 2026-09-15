@@ -132,6 +132,37 @@ public sealed class FreeTestingCheckoutTests : IClassFixture<WebApplicationFacto
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Fact]
+    public async Task Staging_Cors_Allows_Orrbitrepair_Authorization_Preflight()
+    {
+        var client = FreeTestingFactory().CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Options, "/api/commerce/checkout/initial");
+        request.Headers.Add("Origin", "https://orrbitrepair.com");
+        request.Headers.Add("Access-Control-Request-Method", "POST");
+        request.Headers.Add("Access-Control-Request-Headers", "authorization,content-type");
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(
+            "https://orrbitrepair.com",
+            response.Headers.GetValues("Access-Control-Allow-Origin").Single());
+    }
+
+    [Fact]
+    public async Task Staging_Cors_Does_Not_Allow_Unapproved_Origin()
+    {
+        var client = FreeTestingFactory().CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Options, "/api/commerce/checkout/initial");
+        request.Headers.Add("Origin", "https://evil.example");
+        request.Headers.Add("Access-Control-Request-Method", "POST");
+        request.Headers.Add("Access-Control-Request-Headers", "authorization,content-type");
+
+        var response = await client.SendAsync(request);
+
+        Assert.False(response.Headers.Contains("Access-Control-Allow-Origin"));
+    }
+
     private WebApplicationFactory<Program> FreeTestingFactory() =>
         _factory.WithWebHostBuilder(builder =>
         {

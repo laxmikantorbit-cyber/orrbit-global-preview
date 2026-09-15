@@ -44,6 +44,9 @@ public static class CommerceEndpoints
             ICommerceActivationStore store,
             CancellationToken cancellationToken) =>
         {
+            if (TenantRoleAuthorization.ForbidUnlessCommerceAdmin(tenant) is { } forbidden)
+                return forbidden;
+
             var state = await store.CancelSubscriptionAtPeriodEndAsync(
                 tenant.TenantId, subscriptionId, cancellationToken);
             return state is null
