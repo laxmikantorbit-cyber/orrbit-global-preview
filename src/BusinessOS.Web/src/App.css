@@ -112,6 +112,17 @@ input {
   font: inherit;
 }
 
+.token-help {
+  margin: 10px 0 0;
+  color: #fde68a;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.token-help.ok {
+  color: #86efac;
+}
+
 button {
   border: 0;
   border-radius: 14px;

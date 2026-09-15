@@ -62,9 +62,34 @@ function App() {
     setSubscriptionId('')
     setEntitlement(null)
   }
+
+  async function runPublicChecks() {
+    reset()
+    try {
+      mark('health', 'running')
+      const healthResult = await health()
+      mark('health', 'done', healthResult.status)
+
+      mark('ready', 'running')
+      const readyResult = await readiness()
+      mark('ready', 'done', String(readyResult.environment ?? 'ready'))
+      setOutput(json({ healthResult, readyResult }))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setOutput(message)
+      setSteps((items) =>
+        items.map((item) =>
+          item.status === 'running' ? { ...item, status: 'error', detail: message } : item,
+        ),
+      )
+    }
+  }
+
   async function runFullFlow() {
     if (!canRunProtected) {
-      setOutput('Paste staging bearer token first. No token is stored in code.')
+      reset()
+      mark('checkout', 'error', 'Token required')
+      setOutput('Buy Now test requires staging bearer token. Paste token first, then click again.')
       return
     }
 
@@ -163,7 +188,15 @@ function App() {
             onChange={(event) => setToken(event.target.value)}
             placeholder="Paste staging token only while testing"
           />
+          <p className={canRunProtected ? 'token-help ok' : 'token-help'}>
+            {canRunProtected
+              ? 'Token entered. Full Buy Now test is enabled.'
+              : 'Token required for Buy Now test. Use Check API First for public health/readiness.'}
+          </p>
           <div className="button-row">
+            <button type="button" className="ghost" onClick={runPublicChecks}>
+              Check API First
+            </button>
             <button type="button" onClick={runFullFlow}>
               Buy Now — Test Full Flow
             </button>
