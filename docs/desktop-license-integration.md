@@ -87,3 +87,25 @@ Recommended desktop behavior:
 
 The public website demo purchase endpoint is staging-only and non-production.
 Production checkout must use real Razorpay payment confirmation and persistent DB.
+
+## Ready-to-copy desktop client kit
+
+A buildable sample client is available at:
+
+```text
+samples/repair-desktop-license-client/Orrbit.RepairDesktopLicenseClient
+```
+
+Use it as the source reference for the actual Repair WinForms/WPF app startup gate.
+It includes:
+
+```text
+OrrbitLicenseClient.cs
+MachineFingerprint.cs
+OfflineLeaseCache.cs
+DesktopLicenseModels.cs
+DesktopLicenseSettings.cs
+Program.cs smoke runner
+```
+
+Important: the actual Repair source was not found on DESKTOP-FOFADB8, so the desktop app itself was not patched in this step. Copy these files into the actual Repair project when that source is available.
