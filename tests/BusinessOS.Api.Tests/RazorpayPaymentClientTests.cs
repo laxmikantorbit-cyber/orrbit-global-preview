@@ -65,6 +65,34 @@ public sealed class RazorpayPaymentClientTests
         Assert.NotNull(message.CapturedAtUtc);
     }
 
+    [Fact]
+    public async Task Razorpay_Payment_Client_Fetches_Order_Payments()
+    {
+        var handler = new CapturingHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("""
+                    {
+                      "count":2,
+                      "items":[
+                        {"id":"pay_pending_1","order_id":"order_test_456","amount":10000,"currency":"INR","status":"authorized","captured":false,"created_at":1789413500},
+                        {"id":"pay_captured_1","order_id":"order_test_456","amount":10000,"currency":"INR","status":"captured","captured":true,"captured_at":1789413600}
+                      ]
+                    }
+                    """, Encoding.UTF8, "application/json")
+            });
+        var client = new RazorpayHttpPaymentClient(
+            new HttpClient(handler) { BaseAddress = new Uri("https://api.razorpay.com") },
+            Config());
+
+        var result = await client.FetchOrderPaymentsAsync("order_test_456");
+
+        Assert.Equal(2, result.Count);
+        Assert.Contains(result, x => x.Id == "pay_captured_1" && x.Captured);
+        Assert.Equal("/v1/orders/order_test_456/payments", handler.Request!.RequestUri!.PathAndQuery);
+        AssertAuth(handler.Request.Headers.Authorization);
+    }
+
     private static void AssertAuth(AuthenticationHeaderValue? auth)
     {
         Assert.NotNull(auth);

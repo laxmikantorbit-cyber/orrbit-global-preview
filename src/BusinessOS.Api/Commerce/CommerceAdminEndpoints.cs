@@ -1,5 +1,6 @@
 using BusinessOS.Api.Payments;
 using BusinessOS.Api.Tenancy;
+using BusinessOS.Payments;
 
 namespace BusinessOS.Api.Commerce;
 
@@ -22,14 +23,7 @@ public static class CommerceAdminEndpoints
             var limit = Math.Clamp(take ?? 50, 1, 200);
             var snapshot = await commerceStore.GetAdminSnapshotAsync(
                 tenant.TenantId, limit, cancellationToken);
-            var providerOrderIds = snapshot.Orders
-                .Select(x => x.ProviderOrderId ?? x.RazorpayOrderId)
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Select(x => x!.Trim())
-                .Distinct(StringComparer.Ordinal)
-                .ToArray();
-            var payments = await paymentStore.ListPaymentsForProviderOrdersAsync(
-                RazorpayProvider, providerOrderIds, limit, cancellationToken);
+            var payments = await LoadPaymentsAsync(paymentStore, snapshot, limit, cancellationToken);
             var latestByOrder = payments
                 .GroupBy(x => x.ProviderOrderId, StringComparer.Ordinal)
                 .ToDictionary(
@@ -51,17 +45,141 @@ public static class CommerceAdminEndpoints
                     "checkout_created_without_provider_order"));
 
             return Results.Ok(new CommerceAdminStatusResponse(
-                snapshot.TenantId,
-                snapshot.GeneratedAtUtc,
-                counts,
-                orders,
-                payments,
-                snapshot.Activations,
-                snapshot.Renewals));
+                snapshot.TenantId, snapshot.GeneratedAtUtc, counts,
+                orders, payments, snapshot.Activations, snapshot.Renewals));
+        });
+
+        group.MapPost("/razorpay/orders/{razorpayOrderId}/reconcile", async (
+            string razorpayOrderId,
+            TenantContext tenant,
+            ICommerceActivationStore commerceStore,
+            IPaymentEventStore paymentStore,
+            IRazorpayPaymentClient paymentClient,
+            CancellationToken cancellationToken) =>
+        {
+            if (string.IsNullOrWhiteSpace(razorpayOrderId))
+                return Results.BadRequest(new ErrorResponse("razorpay_order_id is required."));
+
+            var status = await commerceStore.FindProviderOrderStatusAsync(
+                RazorpayProvider, razorpayOrderId, cancellationToken);
+            if (status is null)
+                return Results.NotFound(new ErrorResponse(
+                    "Razorpay provider order route was not found."));
+            if (status.Route.TenantId != tenant.TenantId)
+                return Results.NotFound(new ErrorResponse(
+                    "Razorpay order was not found for this tenant."));
+
+            return await ExecuteManualReconcileAsync(
+                razorpayOrderId.Trim(), status, commerceStore,
+                paymentStore, paymentClient, cancellationToken);
         });
 
         return app;
     }
+
+    private static async Task<IResult> ExecuteManualReconcileAsync(
+        string razorpayOrderId,
+        ProviderOrderStatus currentStatus,
+        ICommerceActivationStore commerceStore,
+        IPaymentEventStore paymentStore,
+        IRazorpayPaymentClient paymentClient,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<RazorpayPaymentResult> providerPayments;
+        try
+        {
+            providerPayments = await paymentClient.FetchOrderPaymentsAsync(
+                razorpayOrderId, cancellationToken);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(new ErrorResponse(ex.Message));
+        }
+
+        if (providerPayments.Count == 0)
+            return Results.Ok(ToManualResponse(
+                "no_provider_payments_found", false, currentStatus, null,
+                0, currentStatus.InitialActivation, currentStatus.RenewalActivation));
+
+        var selected = SelectBestPayment(providerPayments);
+        if (!string.Equals(selected.OrderId, razorpayOrderId, StringComparison.Ordinal))
+            return Results.BadRequest(new ErrorResponse(
+                "Fetched Razorpay payment order id does not match requested order."));
+
+        var processed = await paymentStore.ProcessAsync(
+            RazorpayProvider,
+            RazorpayHttpPaymentClient.ToWebhookMessage(selected),
+            cancellationToken);
+        if (processed.Payment.Status != PaymentStatus.Captured)
+            return Results.Ok(ToManualResponse(
+                PaymentOutcome(processed.Payment.Status),
+                processed.Duplicate,
+                currentStatus,
+                processed.Payment,
+                providerPayments.Count,
+                currentStatus.InitialActivation,
+                currentStatus.RenewalActivation));
+
+        return await ActivateFromManualPaymentAsync(
+            currentStatus.Route,
+            processed,
+            providerPayments.Count,
+            commerceStore,
+            cancellationToken);
+    }
+
+    private static async Task<IResult> ActivateFromManualPaymentAsync(
+        ProviderOrderRoute route,
+        PaymentProcessResult processed,
+        int providerPaymentCount,
+        ICommerceActivationStore commerceStore,
+        CancellationToken cancellationToken)
+    {
+        if (route.SubscriptionId is Guid subscriptionId)
+        {
+            var renewal = await commerceStore.ActivateCapturedRenewalOrderAsync(
+                route.TenantId, subscriptionId, processed.Payment, cancellationToken);
+            return renewal is null
+                ? Results.NotFound(new ErrorResponse(
+                    "Renewal order or subscription was not found for this tenant."))
+                : Results.Ok(ToManualResponse(
+                    "provider_payment_captured", processed.Duplicate,
+                    new ProviderOrderStatus(route, "activated", null, renewal),
+                    processed.Payment, providerPaymentCount, null, renewal));
+        }
+
+        var activation = await commerceStore.ActivateCapturedInitialOrderAsync(
+            route.TenantId, processed.Payment, route.ProductCode, cancellationToken);
+        return activation is null
+            ? Results.NotFound(new ErrorResponse("Initial commerce order was not found for this tenant."))
+            : Results.Ok(ToManualResponse(
+                "provider_payment_captured", processed.Duplicate,
+                new ProviderOrderStatus(route, "activated", activation, null),
+                processed.Payment, providerPaymentCount, activation, null));
+    }
+
+    private static async Task<IReadOnlyList<CommerceAdminPaymentItem>> LoadPaymentsAsync(
+        IPaymentEventStore paymentStore,
+        CommerceAdminSnapshot snapshot,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        var providerOrderIds = snapshot.Orders
+            .Select(x => x.ProviderOrderId ?? x.RazorpayOrderId)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x!.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        return await paymentStore.ListPaymentsForProviderOrdersAsync(
+            RazorpayProvider, providerOrderIds, limit, cancellationToken);
+    }
+
+    private static RazorpayPaymentResult SelectBestPayment(
+        IReadOnlyList<RazorpayPaymentResult> payments) =>
+        payments
+            .OrderByDescending(x => x.Captured || x.Status.Equals("captured", StringComparison.OrdinalIgnoreCase))
+            .ThenByDescending(x => x.CreatedAtUtc)
+            .First();
 
     private static CommerceAdminOrderStatusItem ToStatusItem(
         CommerceAdminOrderSnapshot order,
@@ -74,9 +192,7 @@ public static class CommerceAdminEndpoints
         var renewed = snapshot.Renewals.Any(x => x.OrderId == order.CommerceOrderId);
         var reconciliation = ReconciliationStatus(order, payment, activated, renewed);
         return new CommerceAdminOrderStatusItem(
-            order,
-            payment?.Status,
-            reconciliation);
+            order, payment?.Status, reconciliation);
     }
 
     private static string ReconciliationStatus(
@@ -100,4 +216,50 @@ public static class CommerceAdminEndpoints
             return "checkout_created_without_provider_order";
         return "awaiting_payment";
     }
+
+    private static string PaymentOutcome(PaymentStatus status) =>
+        status switch
+        {
+            PaymentStatus.Captured => "provider_payment_captured",
+            PaymentStatus.Failed => "provider_payment_failed",
+            _ => "provider_payment_pending"
+        };
+
+    private static CommerceAdminManualReconciliationResponse ToManualResponse(
+        string paymentOutcome,
+        bool duplicatePaymentEvent,
+        ProviderOrderStatus status,
+        PaymentRecord? selectedPayment,
+        int providerPaymentCount,
+        ActivationResponse? activation,
+        RenewalResponse? renewal) =>
+        new(
+            paymentOutcome,
+            status.Outcome,
+            duplicatePaymentEvent,
+            providerPaymentCount,
+            selectedPayment?.PaymentId,
+            selectedPayment?.Status.ToString(),
+            status.Route.TenantId,
+            status.Route.CommerceOrderId,
+            status.Route.ProviderOrderId,
+            status.Route.ProductCode,
+            status.Route.SubscriptionId,
+            activation,
+            renewal);
 }
+
+public sealed record CommerceAdminManualReconciliationResponse(
+    string PaymentOutcome,
+    string ActivationOutcome,
+    bool DuplicatePaymentEvent,
+    int ProviderPaymentCount,
+    string? SelectedPaymentId,
+    string? SelectedPaymentStatus,
+    Guid TenantId,
+    Guid CommerceOrderId,
+    string ProviderOrderId,
+    string ProductCode,
+    Guid? SubscriptionId,
+    ActivationResponse? InitialActivation,
+    RenewalResponse? RenewalActivation);

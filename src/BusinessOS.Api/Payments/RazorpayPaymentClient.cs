@@ -19,6 +19,10 @@ public interface IRazorpayPaymentClient
     Task<RazorpayPaymentResult> FetchPaymentAsync(
         string paymentId,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<RazorpayPaymentResult>> FetchOrderPaymentsAsync(
+        string orderId,
+        CancellationToken cancellationToken = default);
 }
 public sealed class RazorpayHttpPaymentClient : IRazorpayPaymentClient
 {
@@ -39,15 +43,8 @@ public sealed class RazorpayHttpPaymentClient : IRazorpayPaymentClient
     {
         if (string.IsNullOrWhiteSpace(paymentId))
             throw new ArgumentException("Razorpay payment id is required.");
-        var keyId = RequiredConfig("Payments:RazorpayKeyId");
-        var keySecret = RequiredConfig("Payments:RazorpayKeySecret");
-        using var request = new HttpRequestMessage(
-            HttpMethod.Get,
+        using var request = CreateAuthorizedGet(
             $"/v1/payments/{Uri.EscapeDataString(paymentId.Trim())}");
-        request.Headers.Authorization = new AuthenticationHeaderValue(
-            "Basic",
-            Convert.ToBase64String(Encoding.ASCII.GetBytes($"{keyId}:{keySecret}")));
-
         using var response = await _httpClient.SendAsync(request, cancellationToken);
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
         if (!response.IsSuccessStatusCode)
@@ -55,7 +52,36 @@ public sealed class RazorpayHttpPaymentClient : IRazorpayPaymentClient
                 $"Razorpay payment fetch failed with {(int)response.StatusCode}: {body}");
 
         using var document = JsonDocument.Parse(body);
-        return Parse(document.RootElement);
+        return ParsePayment(document.RootElement);
+    }
+
+    public async Task<IReadOnlyList<RazorpayPaymentResult>> FetchOrderPaymentsAsync(
+        string orderId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(orderId))
+            throw new ArgumentException("Razorpay order id is required.");
+        using var request = CreateAuthorizedGet(
+            $"/v1/orders/{Uri.EscapeDataString(orderId.Trim())}/payments");
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException(
+                $"Razorpay order payments fetch failed with {(int)response.StatusCode}: {body}");
+
+        using var document = JsonDocument.Parse(body);
+        return ParsePaymentCollection(document.RootElement, orderId.Trim());
+    }
+
+    private HttpRequestMessage CreateAuthorizedGet(string path)
+    {
+        var keyId = RequiredConfig("Payments:RazorpayKeyId");
+        var keySecret = RequiredConfig("Payments:RazorpayKeySecret");
+        var request = new HttpRequestMessage(HttpMethod.Get, path);
+        request.Headers.Authorization = new AuthenticationHeaderValue(
+            "Basic",
+            Convert.ToBase64String(Encoding.ASCII.GetBytes($"{keyId}:{keySecret}")));
+        return request;
     }
 
     private string RequiredConfig(string key) =>
@@ -63,10 +89,32 @@ public sealed class RazorpayHttpPaymentClient : IRazorpayPaymentClient
             ? throw new InvalidOperationException($"Configuration '{key}' is missing.")
             : _configuration[key]!;
 
-    private static RazorpayPaymentResult Parse(JsonElement root)
+    private static IReadOnlyList<RazorpayPaymentResult> ParsePaymentCollection(
+        JsonElement root,
+        string fallbackOrderId)
+    {
+        var items = root.ValueKind == JsonValueKind.Array
+            ? root
+            : root.TryGetProperty("items", out var itemArray)
+                ? itemArray
+                : default;
+        if (items.ValueKind != JsonValueKind.Array)
+            throw new ArgumentException("Razorpay order payments response field 'items' is missing.");
+
+        var parsed = new List<RazorpayPaymentResult>();
+        foreach (var item in items.EnumerateArray())
+            parsed.Add(ParsePayment(item, fallbackOrderId));
+        return parsed;
+    }
+
+    private static RazorpayPaymentResult ParsePayment(
+        JsonElement root,
+        string? fallbackOrderId = null)
     {
         var id = RequiredString(root, "id");
-        var orderId = RequiredString(root, "order_id");
+        var orderId = OptionalString(root, "order_id") ?? fallbackOrderId;
+        if (string.IsNullOrWhiteSpace(orderId))
+            throw new ArgumentException("Razorpay payment response field 'order_id' is missing.");
         var amount = RequiredInt64(root, "amount");
         var currency = RequiredString(root, "currency");
         var status = RequiredString(root, "status");

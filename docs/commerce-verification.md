@@ -11,10 +11,10 @@ Verified the Quote -> Order -> Subscription foundation and Subscription Renewal 
 
 ## Application verification
 
-- Full solution regression: 120/120 tests passed.
+- Full solution regression: 122/122 tests passed.
 - Commerce tests: 13/13 passed.
 - Application activation bridge tests: 3/3 passed.
-- API activation/checkout/webhook/Razorpay order/provider-route/checkout-success/reconciliation/payment-ledger/admin-status tests: 27/27 passed.
+- API activation/checkout/webhook/Razorpay order/provider-route/checkout-success/reconciliation/payment-ledger/admin-status/manual-reconcile tests: 29/29 passed.
 - PostgreSQL API persistence smoke: initial activation, lookup, renewal extension and cross-tenant read block passed.
 - PostgreSQL checkout smoke: checkout order -> Razorpay order id persisted -> captured payment -> subscription/license activation passed.
 - PostgreSQL renewal checkout smoke: renewal checkout order -> Razorpay order id persisted -> captured payment -> same subscription extension passed.
@@ -178,3 +178,18 @@ Verification completed:
 - Reconciliation status identifies awaiting payment, payment pending, payment failed, captured pending activation, initial activation completed and renewal completed.
 - In-memory tests verify pending order plus payment ledger visibility and post-activation dashboard state.
 - PostgreSQL smoke verifies tenant-scoped admin order snapshot plus linked payment ledger lookup.
+
+## Admin manual reconciliation verification
+
+Admin endpoint added under `/api/commerce/admin`:
+- `POST /api/commerce/admin/razorpay/orders/{razorpayOrderId}/reconcile`
+
+Verification completed:
+- Endpoint is tenant-protected through the existing admin/tenant middleware.
+- Admin reconciliation resolves the existing provider order route before any activation.
+- Cross-tenant Razorpay order routes are hidden from the requesting tenant.
+- Server-side Razorpay order-payment fetch uses `GET /v1/orders/{orderId}/payments`.
+- Captured payment is preferred when multiple provider payments are returned.
+- Pending/failed provider payments are recorded in the payment ledger without activation.
+- Captured provider payment activates the initial or renewal order through the existing idempotent Commerce path.
+- API and PostgreSQL smoke tests verify the order-payment fetch and manual reconciliation support path.

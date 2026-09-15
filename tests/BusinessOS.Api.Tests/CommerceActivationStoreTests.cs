@@ -363,6 +363,37 @@ public sealed class CommerceActivationStoreTests
         Assert.Equal(activation!.SubscriptionId, snapshot.Activations[0].SubscriptionId);
     }
 
+    [Fact]
+    public async Task Admin_Manual_Reconcile_Can_Use_Captured_Order_Payment()
+    {
+        using var signer = new LeaseSigner();
+        ICommerceActivationStore store = new InMemoryCommerceActivationStore(
+            new PaymentSubscriptionActivationService(), signer);
+        var paymentEvents = new InMemoryPaymentEventStore(new PaymentProcessor());
+        var checkout = await store.CreateInitialCheckoutOrderAsync(
+            TenantA, InitialCheckoutRequest());
+        await store.RecordRazorpayOrderAsync(TenantA, checkout.CommerceOrderId,
+            "order_admin_manual_1", checkout.ProductCode, checkout.SubscriptionId);
+        var payments = new[]
+        {
+            new RazorpayPaymentResult("pay_admin_manual_pending", "order_admin_manual_1",
+                10000, checkout.CurrencyCode, "authorized", false,
+                new DateTimeOffset(2026, 9, 14, 9, 0, 0, TimeSpan.Zero)),
+            new RazorpayPaymentResult("pay_admin_manual_captured", "order_admin_manual_1",
+                10000, checkout.CurrencyCode, "captured", true,
+                new DateTimeOffset(2026, 9, 14, 10, 0, 0, TimeSpan.Zero))
+        };
+        var selected = payments.OrderByDescending(x => x.Captured).ThenByDescending(x => x.CreatedAtUtc).First();
+        var processed = await paymentEvents.ProcessAsync("razorpay",
+            RazorpayHttpPaymentClient.ToWebhookMessage(selected));
+        var activation = await store.ActivateCapturedInitialOrderAsync(
+            TenantA, processed.Payment, checkout.ProductCode);
+
+        Assert.Equal("pay_admin_manual_captured", processed.Payment.PaymentId);
+        Assert.NotNull(activation);
+        Assert.Equal(checkout.CommerceOrderId, activation!.OrderId);
+    }
+
     private static InitialActivationRequest InitialRequest(string paymentId) => new(
         OrgA,
         "ORRBIT-REPAIR",
