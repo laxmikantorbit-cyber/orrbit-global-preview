@@ -11,3 +11,4 @@
 *.suo
 TestResults/
 coverage/
+artifacts/
