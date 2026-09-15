@@ -237,3 +237,15 @@ FreeTesting checkout support added for staging development without live Razorpay
 - Production never uses this simulator, even if the payment mode flag is accidentally set.
 - Regression tests verify both staging simulator behavior and production strictness.
 - The free-staging smoke script now checks health, readiness, simulated checkout, activation, subscription lookup and admin status.
+
+## FreeTesting payment capture simulator verification
+
+A staging-only capture endpoint is now available for full free-platform checkout testing:
+- `POST /api/testing/payments/razorpay/orders/{razorpayOrderId}/capture`
+
+Verification completed:
+- Endpoint is enabled only outside Production when `BusinessOS:DeploymentMode=FreeTesting` and `BusinessOS:Payments:Mode=RazorpayTestPending`.
+- Production returns not found for the simulator endpoint even if the FreeTesting payment mode flag is set.
+- The simulator records a captured payment through the same `IPaymentEventStore` boundary used by webhook/reconciliation flows.
+- Captured initial checkout orders activate through the existing tenant-scoped Commerce activation path.
+- The reusable `scripts/free-staging-smoke.ps1` now verifies checkout, simulated capture, subscription lookup and admin status end-to-end.

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using BusinessOS.Api.Commerce;
+using BusinessOS.Api.Payments;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -52,6 +53,49 @@ public sealed class FreeTestingCheckoutTests : IClassFixture<WebApplicationFacto
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("Payments:RazorpayKeyId", body);
     }
+    [Fact]
+    public async Task Staging_FreeTesting_Capture_Activates_Simulated_Razorpay_Order()
+    {
+        var client = FreeTestingFactory().CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", "tenant-a-staging-token");
+
+        var checkoutResponse = await client.PostAsJsonAsync(
+            "/api/commerce/checkout/initial",
+            InitialCheckoutRequest());
+        var checkout = await checkoutResponse.Content
+            .ReadFromJsonAsync<RazorpayCheckoutOrderResponse>();
+        Assert.Equal(HttpStatusCode.OK, checkoutResponse.StatusCode);
+        Assert.NotNull(checkout);
+
+        var captureResponse = await client.PostAsJsonAsync(
+            $"/api/testing/payments/razorpay/orders/{checkout!.RazorpayOrderId}/capture",
+            new FreeTestingCaptureRequest("pay_unit_free_capture", null));
+
+        var capture = await captureResponse.Content
+            .ReadFromJsonAsync<FreeTestingCaptureResponse>();
+        Assert.Equal(HttpStatusCode.OK, captureResponse.StatusCode);
+        Assert.NotNull(capture);
+        Assert.Equal("provider_payment_captured", capture!.PaymentOutcome);
+        Assert.Equal("activated", capture.ActivationOutcome);
+        Assert.Equal("pay_unit_free_capture", capture.PaymentId);
+        Assert.NotNull(capture.InitialActivation);
+    }
+
+    [Fact]
+    public async Task Production_Does_Not_Expose_FreeTesting_Capture_Endpoint()
+    {
+        var client = ProductionFactoryWithFreeTestingMode().CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", "tenant-a-prod-token");
+
+        var response = await client.PostAsJsonAsync(
+            "/api/testing/payments/razorpay/orders/order_free_test_blocked/capture",
+            new FreeTestingCaptureRequest(null, null));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     private WebApplicationFactory<Program> FreeTestingFactory() =>
         _factory.WithWebHostBuilder(builder =>
         {

@@ -79,6 +79,7 @@ app.MapDeploymentReadinessEndpoints();
 app.MapCommerceActivationEndpoints();
 app.MapCommerceAdminEndpoints();
 app.MapPaymentCheckoutEndpoints();
+app.MapFreeTestingPaymentEndpoints();
 app.MapPaymentWebhookEndpoints();
 
 app.Run();
