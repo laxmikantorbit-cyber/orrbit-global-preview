@@ -1,0 +1,10 @@
+.git
+.vs
+.vscode
+artifacts
+**/bin
+**/obj
+TestResults
+coverage
+.env
+.env.*
