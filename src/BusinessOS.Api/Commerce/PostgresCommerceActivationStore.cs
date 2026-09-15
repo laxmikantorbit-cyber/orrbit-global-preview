@@ -50,6 +50,44 @@ public sealed partial class PostgresCommerceActivationStore : ICommerceActivatio
         return persisted is null ? null : ToResponse(persisted);
     }
 
+    public async Task<SubscriptionStateSnapshot?> FindSubscriptionStateAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
+        var persisted = await LoadSubscriptionAsync(
+            connection, transaction, tenantId, subscriptionId,
+            forUpdate: false, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return persisted is null ? null : ToStateSnapshot(persisted);
+    }
+
+    public async Task<SubscriptionStateSnapshot?> CancelSubscriptionAtPeriodEndAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
+        var persisted = await LoadSubscriptionAsync(
+            connection, transaction, tenantId, subscriptionId,
+            forUpdate: true, cancellationToken);
+        if (persisted is null)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return null;
+        }
+        persisted.Subscription.Cancel();
+        await UpdateSubscriptionStatusAsync(
+            connection, transaction, persisted.Subscription, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return ToStateSnapshot(persisted);
+    }
+
     public async Task<ActivationResponse> ActivateInitialPurchaseAsync(
         Guid tenantId,
         InitialActivationRequest request,
@@ -357,6 +395,24 @@ public sealed partial class PostgresCommerceActivationStore : ICommerceActivatio
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    private static async Task UpdateSubscriptionStatusAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        SubscriptionEntitlement subscription,
+        CancellationToken cancellationToken)
+    {
+        const string sql = """
+            UPDATE commerce_subscriptions
+            SET status=@status
+            WHERE tenant_id=@tenant_id AND id=@id
+            """;
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("status", (int)subscription.Status);
+        command.Parameters.AddWithValue("tenant_id", subscription.TenantId);
+        command.Parameters.AddWithValue("id", subscription.Id);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     private static async Task<PersistedActivation?> LoadSubscriptionAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
@@ -451,6 +507,23 @@ public sealed partial class PostgresCommerceActivationStore : ICommerceActivatio
             subscription.StartsOn,
             subscription.ValidUntil!.Value,
             subscription.Entitlements);
+    }
+
+    private static SubscriptionStateSnapshot ToStateSnapshot(PersistedActivation persisted)
+    {
+        var subscription = persisted.Subscription;
+        return new SubscriptionStateSnapshot(
+            subscription.TenantId,
+            subscription.OrganisationId,
+            subscription.Id,
+            persisted.LicenseId,
+            persisted.ProductCode,
+            subscription.PlanId,
+            subscription.PlanVersionId,
+            subscription.StartsOn,
+            subscription.ValidUntil!.Value,
+            subscription.Entitlements,
+            subscription.Status);
     }
 
     private sealed record PersistedActivation(

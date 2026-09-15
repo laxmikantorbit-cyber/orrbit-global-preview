@@ -67,6 +67,33 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
         }
     }
 
+    public Task<SubscriptionStateSnapshot?> FindSubscriptionStateAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            return Task.FromResult(_activations.TryGetValue((tenantId, subscriptionId), out var stored)
+                ? ToStateSnapshot(tenantId, stored)
+                : null);
+        }
+    }
+
+    public Task<SubscriptionStateSnapshot?> CancelSubscriptionAtPeriodEndAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            if (!_activations.TryGetValue((tenantId, subscriptionId), out var stored))
+                return Task.FromResult<SubscriptionStateSnapshot?>(null);
+            stored.Subscription.Cancel();
+            return Task.FromResult<SubscriptionStateSnapshot?>(ToStateSnapshot(tenantId, stored));
+        }
+    }
+
     public Task<CheckoutOrderResponse> CreateInitialCheckoutOrderAsync(
         Guid tenantId,
         CreateInitialCheckoutOrderRequest request,
@@ -114,6 +141,8 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
 
         var activation = stored
             ?? throw new InvalidOperationException("Subscription disappeared during checkout creation.");
+        if (activation.Subscription.Status == BusinessOS.Commerce.SubscriptionStatus.Cancelled)
+            throw new InvalidOperationException("Cancelled subscription cannot be renewed from checkout.");
         var createdAtUtc = DateTimeOffset.UtcNow;
         var order = CreatePendingOrder(
             tenantId,
@@ -541,6 +570,26 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
             result.Renewal.PreviousValidUntil ?? result.Subscription.StartsOn,
             result.Renewal.NewValidUntil,
             result.Subscription.Entitlements);
+
+    private static SubscriptionStateSnapshot ToStateSnapshot(
+        Guid tenantId,
+        StoredActivation stored)
+    {
+        var validUntil = stored.Subscription.ValidUntil
+            ?? throw new InvalidOperationException("Activated subscription must have a finite term.");
+        return new SubscriptionStateSnapshot(
+            tenantId,
+            stored.Subscription.OrganisationId,
+            stored.Subscription.Id,
+            stored.License.LicenseId,
+            stored.ProductCode,
+            stored.Subscription.PlanId,
+            stored.Subscription.PlanVersionId,
+            stored.Subscription.StartsOn,
+            validUntil,
+            stored.Subscription.Entitlements,
+            stored.Subscription.Status);
+    }
 
     private static string ValidateCapturedOrderReference(PaymentRecord payment)
     {

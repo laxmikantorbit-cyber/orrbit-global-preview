@@ -31,10 +31,14 @@ public sealed class PostgresCommerceActivationStoreSmokeTests
             InitialRequest($"pay_pg_initial_{suffix}"));
 
         var persisted = await store.FindActivationAsync(TenantA, activation.SubscriptionId);
+        var state = await store.FindSubscriptionStateAsync(TenantA, activation.SubscriptionId);
         var otherTenant = await store.FindActivationAsync(TenantB, activation.SubscriptionId);
 
         Assert.NotNull(persisted);
+        Assert.NotNull(state);
         Assert.Null(otherTenant);
+        Assert.Equal(activation.LicenseId, state!.LicenseId);
+        Assert.Equal(BusinessOS.Commerce.SubscriptionStatus.Active, state.SubscriptionStatus);
         Assert.Equal(new DateOnly(2027, 9, 13), persisted!.ValidUntil);
         Assert.Equal(10, persisted.Entitlements.WebAdminSeats);
 
@@ -49,6 +53,20 @@ public sealed class PostgresCommerceActivationStoreSmokeTests
         Assert.Equal(new DateOnly(2028, 9, 13), renewal!.NewValidUntil);
         Assert.Equal(new DateOnly(2028, 9, 13), current!.ValidUntil);
         Assert.Equal(20, current.Entitlements.WebAdminSeats);
+
+        var cancelled = await store.CancelSubscriptionAtPeriodEndAsync(
+            TenantA, activation.SubscriptionId);
+        var persistedCancelled = await store.FindSubscriptionStateAsync(
+            TenantA, activation.SubscriptionId);
+
+        Assert.NotNull(cancelled);
+        Assert.NotNull(persistedCancelled);
+        Assert.Equal(BusinessOS.Commerce.SubscriptionStatus.Cancelled,
+            cancelled!.SubscriptionStatus);
+        Assert.Equal(BusinessOS.Commerce.SubscriptionStatus.Cancelled,
+            persistedCancelled!.SubscriptionStatus);
+        Assert.Null(await store.CancelSubscriptionAtPeriodEndAsync(
+            TenantB, activation.SubscriptionId));
     }
 
     private static InitialActivationRequest InitialRequest(string paymentId) => new(

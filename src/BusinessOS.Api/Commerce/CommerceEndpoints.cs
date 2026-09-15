@@ -24,6 +24,34 @@ public static class CommerceEndpoints
                 : Results.Ok(activation);
         });
 
+        group.MapGet("/subscriptions/{subscriptionId:guid}/entitlement", async (
+            Guid subscriptionId,
+            TenantContext tenant,
+            ICommerceActivationStore store,
+            CancellationToken cancellationToken) =>
+        {
+            var state = await store.FindSubscriptionStateAsync(
+                tenant.TenantId, subscriptionId, cancellationToken);
+            return state is null
+                ? Results.NotFound(new ErrorResponse("Subscription was not found for this tenant."))
+                : Results.Ok(EntitlementStatusEvaluator.Evaluate(
+                    state, DateOnly.FromDateTime(DateTime.UtcNow)));
+        });
+
+        group.MapPost("/subscriptions/{subscriptionId:guid}/cancel-at-period-end", async (
+            Guid subscriptionId,
+            TenantContext tenant,
+            ICommerceActivationStore store,
+            CancellationToken cancellationToken) =>
+        {
+            var state = await store.CancelSubscriptionAtPeriodEndAsync(
+                tenant.TenantId, subscriptionId, cancellationToken);
+            return state is null
+                ? Results.NotFound(new ErrorResponse("Subscription was not found for this tenant."))
+                : Results.Ok(EntitlementStatusEvaluator.Evaluate(
+                    state, DateOnly.FromDateTime(DateTime.UtcNow)));
+        });
+
         group.MapPost("/checkout/initial", async (
             CreateInitialCheckoutOrderRequest request,
             TenantContext tenant,

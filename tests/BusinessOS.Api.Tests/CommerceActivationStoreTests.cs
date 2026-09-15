@@ -1,6 +1,7 @@
 using BusinessOS.Api.Commerce;
 using BusinessOS.Api.Payments;
 using BusinessOS.Application;
+using BusinessOS.Commerce;
 using BusinessOS.Licensing;
 using BusinessOS.Payments;
 
@@ -149,6 +150,51 @@ public sealed class CommerceActivationStoreTests
         Assert.Equal(renewal!.RenewalId, duplicate!.RenewalId);
         Assert.Equal(activation.SubscriptionId.ToString(), checkout.RazorpayNotes["subscriptionId"]);
         Assert.Equal(new DateOnly(2028, 9, 13), renewal.NewValidUntil);
+    }
+
+    [Fact]
+    public async Task Subscription_State_Is_Tenant_Scoped_And_Includes_License_Mapping()
+    {
+        using var signer = new LeaseSigner();
+        ICommerceActivationStore store = new InMemoryCommerceActivationStore(
+            new PaymentSubscriptionActivationService(), signer);
+        var activation = await store.ActivateInitialPurchaseAsync(
+            TenantA, InitialRequest("pay_state"));
+
+        var state = await store.FindSubscriptionStateAsync(
+            TenantA, activation.SubscriptionId);
+
+        Assert.NotNull(state);
+        Assert.Equal(activation.LicenseId, state!.LicenseId);
+        Assert.Equal(activation.ProductCode, state.ProductCode);
+        Assert.Equal(SubscriptionStatus.Active, state.SubscriptionStatus);
+        Assert.Null(await store.FindSubscriptionStateAsync(
+            TenantB, activation.SubscriptionId));
+    }
+
+    [Fact]
+    public async Task Cancel_At_Period_End_Is_Idempotent_And_Blocks_Renewal_Checkout()
+    {
+        using var signer = new LeaseSigner();
+        ICommerceActivationStore store = new InMemoryCommerceActivationStore(
+            new PaymentSubscriptionActivationService(), signer);
+        var activation = await store.ActivateInitialPurchaseAsync(
+            TenantA, InitialRequest("pay_cancel"));
+
+        var first = await store.CancelSubscriptionAtPeriodEndAsync(
+            TenantA, activation.SubscriptionId);
+        var second = await store.CancelSubscriptionAtPeriodEndAsync(
+            TenantA, activation.SubscriptionId);
+
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+        Assert.Equal(SubscriptionStatus.Cancelled, first!.SubscriptionStatus);
+        Assert.Equal(first, second);
+        Assert.NotNull(await store.FindActivationAsync(
+            TenantA, activation.SubscriptionId));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            store.CreateRenewalCheckoutOrderAsync(
+                TenantA, activation.SubscriptionId, RenewalCheckoutRequest()));
     }
 
     [Fact]

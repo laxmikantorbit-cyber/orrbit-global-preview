@@ -14,6 +14,16 @@ public interface ICommerceActivationStore
         Guid subscriptionId,
         CancellationToken cancellationToken = default);
 
+    Task<SubscriptionStateSnapshot?> FindSubscriptionStateAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        CancellationToken cancellationToken = default);
+
+    Task<SubscriptionStateSnapshot?> CancelSubscriptionAtPeriodEndAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        CancellationToken cancellationToken = default);
+
     Task<CheckoutOrderResponse> CreateInitialCheckoutOrderAsync(
         Guid tenantId,
         CreateInitialCheckoutOrderRequest request,

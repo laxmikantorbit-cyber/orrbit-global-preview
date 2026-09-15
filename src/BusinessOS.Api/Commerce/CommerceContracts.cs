@@ -1,3 +1,4 @@
+using BusinessOS.Commerce;
 using BusinessOS.Licensing;
 
 namespace BusinessOS.Api.Commerce;
@@ -185,3 +186,33 @@ public sealed record CommerceAdminPaymentItem(
     DateTimeOffset UpdatedAtUtc);
 
 public sealed record ErrorResponse(string Error);
+
+public sealed record SubscriptionStateSnapshot(
+    Guid TenantId,
+    Guid OrganisationId,
+    Guid SubscriptionId,
+    Guid LicenseId,
+    string ProductCode,
+    Guid PlanId,
+    Guid PlanVersionId,
+    DateOnly StartsOn,
+    DateOnly ValidUntil,
+    EntitlementSnapshot Entitlements,
+    SubscriptionStatus SubscriptionStatus);
+
+public sealed record EntitlementStatusResponse(
+    Guid TenantId,
+    Guid OrganisationId,
+    Guid SubscriptionId,
+    Guid LicenseId,
+    string ProductCode,
+    Guid PlanId,
+    Guid PlanVersionId,
+    DateOnly StartsOn,
+    DateOnly ValidUntil,
+    EntitlementSnapshot Entitlements,
+    string Status,
+    string RenewalStatus,
+    bool AutoRenewEnabled,
+    bool CancelAtPeriodEnd,
+    DateOnly? GraceEndsOn);

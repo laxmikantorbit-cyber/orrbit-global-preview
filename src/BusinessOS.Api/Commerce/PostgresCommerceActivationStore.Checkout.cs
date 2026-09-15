@@ -80,6 +80,9 @@ public sealed partial class PostgresCommerceActivationStore
                 await transaction.RollbackAsync(cancellationToken);
                 return null;
             }
+            if (persisted.Subscription.Status != SubscriptionStatus.Active)
+                throw new InvalidOperationException(
+                    "Cancelled subscription cannot create a renewal checkout order.");
 
             var createdAtUtc = DateTimeOffset.UtcNow;
             var order = CreatePendingOrder(
