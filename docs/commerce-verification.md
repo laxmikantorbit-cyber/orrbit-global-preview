@@ -11,11 +11,11 @@ Verified the Quote -> Order -> Subscription foundation and Subscription Renewal 
 
 ## Application verification
 
-- Full solution regression: 126/126 tests passed.
+- Full solution regression: 129/129 tests passed.
 - Commerce tests: 13/13 passed.
 - Application activation bridge tests: 3/3 passed.
 - API activation/checkout/webhook/Razorpay order/provider-route/checkout-success/reconciliation/payment-ledger/admin-status/manual-reconcile tests: 29/29 passed.
-- Tenancy/authentication/role-authorization tests: 9/9 passed.
+- Tenancy/authentication/role-authorization/readiness tests: 12/12 passed.
 - PostgreSQL API persistence smoke: initial activation, lookup, renewal extension and cross-tenant read block passed.
 - PostgreSQL checkout smoke: checkout order -> Razorpay order id persisted -> captured payment -> subscription/license activation passed.
 - PostgreSQL renewal checkout smoke: renewal checkout order -> Razorpay order id persisted -> captured payment -> same subscription extension passed.
@@ -205,3 +205,14 @@ Authentication/authorization checkpoint completed:
 - Commerce admin endpoints now require one of: Owner, Admin, FinanceAdmin or BillingAdmin.
 - Non-admin tenant roles are rejected with HTTP 403 for Commerce admin status and reconciliation routes.
 - `infra/identity-proof-setup.sql` grants only required identity SELECT access to `bos_app` for PostgreSQL identity lookup.
+
+## Production readiness verification
+
+Readiness endpoint added:
+- `GET /health/ready`
+
+Verification completed:
+- The endpoint is anonymous and returns no secret values.
+- Production readiness fails with HTTP 503 when required Commerce, Identity, Razorpay or Bearer-token configuration is missing.
+- Production readiness fails when POC API keys are explicitly enabled.
+- Production readiness returns HTTP 200 only when all required external configuration is present and no unsafe production auth flags are enabled.

@@ -1,3 +1,4 @@
+using BusinessOS.Api;
 using BusinessOS.Api.Commerce;
 using BusinessOS.Api.Customers;
 using BusinessOS.Api.Payments;
@@ -74,6 +75,7 @@ app.MapGet("/api/customers/{id:guid}", async (
 });
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapDeploymentReadinessEndpoints();
 app.MapCommerceActivationEndpoints();
 app.MapCommerceAdminEndpoints();
 app.MapPaymentCheckoutEndpoints();
