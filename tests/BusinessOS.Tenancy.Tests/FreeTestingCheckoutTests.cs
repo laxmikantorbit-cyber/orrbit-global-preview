@@ -80,6 +80,18 @@ public sealed class FreeTestingCheckoutTests : IClassFixture<WebApplicationFacto
         Assert.Equal("activated", capture.ActivationOutcome);
         Assert.Equal("pay_unit_free_capture", capture.PaymentId);
         Assert.NotNull(capture.InitialActivation);
+
+        var repeatResponse = await client.PostAsJsonAsync(
+            $"/api/testing/payments/razorpay/orders/{checkout.RazorpayOrderId}/capture",
+            new FreeTestingCaptureRequest("pay_unit_repeat", null));
+        var repeat = await repeatResponse.Content
+            .ReadFromJsonAsync<FreeTestingCaptureResponse>();
+        Assert.Equal(HttpStatusCode.OK, repeatResponse.StatusCode);
+        Assert.NotNull(repeat);
+        Assert.Equal("already_activated", repeat!.PaymentOutcome);
+        Assert.Equal("activated", repeat.ActivationOutcome);
+        Assert.True(repeat.DuplicatePaymentEvent);
+        Assert.NotNull(repeat.InitialActivation);
     }
 
     [Fact]
