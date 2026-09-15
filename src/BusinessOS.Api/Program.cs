@@ -34,16 +34,11 @@ builder.Services.AddHttpClient<IRazorpayOrderClient, FreeTestingAwareRazorpayOrd
 {
     client.BaseAddress = new Uri("https://api.razorpay.com");
 });
-builder.Services.AddHttpClient<IRazorpaySubscriptionClient, FreeTestingAwareRazorpaySubscriptionClient>(client =>
-{
-    client.BaseAddress = new Uri("https://api.razorpay.com");
-});
 builder.Services.AddHttpClient<IRazorpayPaymentClient, RazorpayHttpPaymentClient>(client =>
 {
     client.BaseAddress = new Uri("https://api.razorpay.com");
 });
 builder.Services.AddScoped<RazorpayCheckoutService>();
-builder.Services.AddScoped<RazorpayAutoPayService>();
 var commerceConnection = builder.Configuration.GetConnectionString("Commerce");
 if (string.IsNullOrWhiteSpace(commerceConnection))
 {
