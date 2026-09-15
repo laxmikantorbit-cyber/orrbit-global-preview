@@ -1,0 +1,147 @@
+const DEFAULT_API_BASE = 'https://businessos-commerce-api-live.onrender.com'
+
+export const apiBase =
+  (import.meta.env.VITE_BUSINESSOS_API_BASE as string | undefined)?.replace(/\/$/, '') ||
+  DEFAULT_API_BASE
+
+export type ApiError = {
+  error?: string
+  title?: string
+  detail?: string
+  status?: number
+}
+
+async function parseResponse<T>(response: Response): Promise<T> {
+  const text = await response.text()
+  const data = text ? JSON.parse(text) : null
+  if (!response.ok) {
+    const message =
+      data?.error || data?.detail || data?.title || `HTTP ${response.status}`
+    throw new Error(message)
+  }
+  return data as T
+}
+export type CheckoutOrder = {
+  commerceOrderId: string
+  productCode: string
+  razorpayOrderId: string
+  razorpayKeyId: string
+  razorpayAmount: number
+  razorpayCurrency: string
+  razorpayStatus: string
+}
+
+export type ActivationResponse = {
+  tenantId: string
+  organisationId: string
+  commerceOrderId: string
+  subscriptionId: string
+  licenseId: string
+  productCode: string
+  startsOn: string
+  validUntil: string
+}
+export type CaptureResponse = {
+  paymentOutcome: string
+  activationOutcome: string
+  duplicatePaymentEvent: boolean
+  paymentId?: string
+  providerOrderId: string
+  initialActivation?: ActivationResponse
+}
+
+export type EntitlementResponse = {
+  status: string
+  renewalStatus: string
+  autoRenewEnabled: boolean
+  cancelAtPeriodEnd: boolean
+  graceEndsOn?: string | null
+  validUntil: string
+}
+
+export type AdminSnapshot = {
+  tenantId: string
+  generatedAtUtc: string
+  pendingOrders: unknown[]
+  activations: unknown[]
+  renewals: unknown[]
+}
+function authHeaders(token: string): HeadersInit {
+  return {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  }
+}
+
+export async function health() {
+  const response = await fetch(`${apiBase}/health`)
+  return parseResponse<{ status: string }>(response)
+}
+
+export async function readiness() {
+  const response = await fetch(`${apiBase}/health/ready`)
+  return parseResponse<Record<string, unknown>>(response)
+}
+export async function createInitialCheckout(token: string) {
+  const response = await fetch(`${apiBase}/api/commerce/checkout/initial`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({
+      organisationId: '11111111-1111-1111-1111-111111111111',
+      productCode: 'AI_REPAIR',
+      planId: crypto.randomUUID(),
+      planVersionId: crypto.randomUUID(),
+      planVersionNumber: 1,
+      amount: 29999,
+      currencyCode: 'INR',
+      termMonths: 12,
+      desktopDeviceLimit: 1,
+      locationLimit: 1,
+      webAdminSeats: 10,
+      fieldStaffSeats: 10,
+      multiLocationCloud: true,
+    }),
+  })
+  return parseResponse<CheckoutOrder>(response)
+}
+
+export async function captureFreePayment(token: string, razorpayOrderId: string) {
+  const response = await fetch(
+    `${apiBase}/api/testing/payments/razorpay/orders/${razorpayOrderId}/capture`,
+    {
+      method: 'POST',
+      headers: authHeaders(token),
+      body: JSON.stringify({ paymentId: null, capturedAtUtc: null }),
+    },
+  )
+  return parseResponse<CaptureResponse>(response)
+}
+export async function getSubscription(token: string, subscriptionId: string) {
+  const response = await fetch(
+    `${apiBase}/api/commerce/subscriptions/${subscriptionId}`,
+    { headers: authHeaders(token) },
+  )
+  return parseResponse<ActivationResponse>(response)
+}
+
+export async function getEntitlement(token: string, subscriptionId: string) {
+  const response = await fetch(
+    `${apiBase}/api/commerce/subscriptions/${subscriptionId}/entitlement`,
+    { headers: authHeaders(token) },
+  )
+  return parseResponse<EntitlementResponse>(response)
+}
+export async function cancelAtPeriodEnd(token: string, subscriptionId: string) {
+  const response = await fetch(
+    `${apiBase}/api/commerce/subscriptions/${subscriptionId}/cancel-at-period-end`,
+    { method: 'POST', headers: authHeaders(token) },
+  )
+  return parseResponse<EntitlementResponse>(response)
+}
+
+export async function getAdminStatus(token: string) {
+  const response = await fetch(`${apiBase}/api/commerce/admin/status`, {
+    headers: authHeaders(token),
+  })
+  return parseResponse<AdminSnapshot>(response)
+}

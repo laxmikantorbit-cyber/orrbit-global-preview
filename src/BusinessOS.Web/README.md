@@ -1,32 +1,33 @@
-# React + TypeScript + Vite
+# BusinessOS Web Staging Checkout
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React + Vite frontend for testing the oRRbit AI Repair checkout flow against the free staging API.
 
-Currently, two official plugins are available:
+## Current mode
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- API: `https://businessos-commerce-api-live.onrender.com`
+- Environment: Staging / FreeTesting
+- Storage: InMemory
+- Payments: Razorpay simulator only
+- Paid DB/live Razorpay: not used
 
-## React Compiler
+## Run locally
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```powershell
+cd src/BusinessOS.Web
+npm install
+npm run dev
+```
+## Build
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```powershell
+npm run build
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Test flow
+
+1. Open the frontend.
+2. Paste the staging bearer token manually.
+3. Click **Buy Now — Test Full Flow**.
+4. Verify health, readiness, checkout, simulated capture, subscription, entitlement and admin status.
+
+No token is committed in source code. Public website integration must never expose owner/admin tokens in production.
