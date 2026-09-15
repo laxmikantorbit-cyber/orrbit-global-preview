@@ -249,3 +249,16 @@ Verification completed:
 - The simulator records a captured payment through the same `IPaymentEventStore` boundary used by webhook/reconciliation flows.
 - Captured initial checkout orders activate through the existing tenant-scoped Commerce activation path.
 - The reusable `scripts/free-staging-smoke.ps1` now verifies checkout, simulated capture, subscription lookup and admin status end-to-end.
+
+## Free Staging Browser Checkout Test Page
+
+A staging-only browser test page is available at `/testing/free-checkout` when
+`ASPNETCORE_ENVIRONMENT=Staging`, `BusinessOS:DeploymentMode=FreeTesting`, and
+`BusinessOS:Payments:Mode=RazorpayTestPending`.
+
+The page contains no bearer token or server secret. Testers must paste a staging
+bearer token manually. The page then calls protected APIs for checkout, simulated
+capture, subscription lookup, and admin status.
+
+Production returns 404 for this page, even if a free-testing payment mode value
+is accidentally configured.
