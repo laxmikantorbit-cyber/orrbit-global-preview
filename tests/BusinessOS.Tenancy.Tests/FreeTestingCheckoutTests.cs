@@ -150,6 +150,23 @@ public sealed class FreeTestingCheckoutTests : IClassFixture<WebApplicationFacto
     }
 
     [Fact]
+    public async Task Staging_Cors_Allows_Businessos_Web_Staging_Origin()
+    {
+        var client = FreeTestingFactory().CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Options, "/api/commerce/checkout/initial");
+        request.Headers.Add("Origin", "https://businessos-web-staging-checkout.onrender.com");
+        request.Headers.Add("Access-Control-Request-Method", "POST");
+        request.Headers.Add("Access-Control-Request-Headers", "authorization,content-type");
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(
+            "https://businessos-web-staging-checkout.onrender.com",
+            response.Headers.GetValues("Access-Control-Allow-Origin").Single());
+    }
+
+    [Fact]
     public async Task Staging_Cors_Does_Not_Allow_Unapproved_Origin()
     {
         var client = FreeTestingFactory().CreateClient();

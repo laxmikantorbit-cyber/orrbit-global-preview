@@ -34,11 +34,16 @@ builder.Services.AddHttpClient<IRazorpayOrderClient, FreeTestingAwareRazorpayOrd
 {
     client.BaseAddress = new Uri("https://api.razorpay.com");
 });
+builder.Services.AddHttpClient<IRazorpaySubscriptionClient, FreeTestingAwareRazorpaySubscriptionClient>(client =>
+{
+    client.BaseAddress = new Uri("https://api.razorpay.com");
+});
 builder.Services.AddHttpClient<IRazorpayPaymentClient, RazorpayHttpPaymentClient>(client =>
 {
     client.BaseAddress = new Uri("https://api.razorpay.com");
 });
 builder.Services.AddScoped<RazorpayCheckoutService>();
+builder.Services.AddScoped<RazorpayAutoPayService>();
 var commerceConnection = builder.Configuration.GetConnectionString("Commerce");
 if (string.IsNullOrWhiteSpace(commerceConnection))
 {
@@ -118,6 +123,7 @@ static string[] ResolveAllowedCorsOrigins(
     if (!environment.IsProduction())
     {
         defaults.Add("https://businessos-commerce-api-live.onrender.com");
+        defaults.Add("https://businessos-web-staging-checkout.onrender.com");
         defaults.Add("http://localhost:3000");
         defaults.Add("http://localhost:5173");
     }
