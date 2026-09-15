@@ -20,6 +20,9 @@ public static class CommerceAdminEndpoints
             IPaymentEventStore paymentStore,
             CancellationToken cancellationToken) =>
         {
+            if (TenantRoleAuthorization.ForbidUnlessCommerceAdmin(tenant) is { } forbidden)
+                return forbidden;
+
             var limit = Math.Clamp(take ?? 50, 1, 200);
             var snapshot = await commerceStore.GetAdminSnapshotAsync(
                 tenant.TenantId, limit, cancellationToken);
@@ -57,6 +60,9 @@ public static class CommerceAdminEndpoints
             IRazorpayPaymentClient paymentClient,
             CancellationToken cancellationToken) =>
         {
+            if (TenantRoleAuthorization.ForbidUnlessCommerceAdmin(tenant) is { } forbidden)
+                return forbidden;
+
             if (string.IsNullOrWhiteSpace(razorpayOrderId))
                 return Results.BadRequest(new ErrorResponse("razorpay_order_id is required."));
 

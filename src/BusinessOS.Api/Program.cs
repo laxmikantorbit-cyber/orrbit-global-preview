@@ -58,7 +58,7 @@ else
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
-app.UseMiddleware<PocApiKeyTenantMiddleware>();
+app.UseMiddleware<TenantAuthenticationMiddleware>();
 app.MapGet("/api/customers", async (
     CustomerStore store,
     CancellationToken cancellationToken) =>

@@ -1,6 +1,6 @@
 # Commerce Foundation Verification
 
-Date: 2026-09-14
+Date: 2026-09-15
 Machine: DESKTOP-FOFADB8
 Runtime: PostgreSQL 18.6, isolated user-space cluster on 127.0.0.1:55432
 Database: `businessos_commerce`; latest isolated proof database: `businessos_commerce_iso_20260914_1850`; latest API persistence smoke database: `businessos_commerce_api_pg_20260914_2226`
@@ -11,10 +11,11 @@ Verified the Quote -> Order -> Subscription foundation and Subscription Renewal 
 
 ## Application verification
 
-- Full solution regression: 122/122 tests passed.
+- Full solution regression: 126/126 tests passed.
 - Commerce tests: 13/13 passed.
 - Application activation bridge tests: 3/3 passed.
 - API activation/checkout/webhook/Razorpay order/provider-route/checkout-success/reconciliation/payment-ledger/admin-status/manual-reconcile tests: 29/29 passed.
+- Tenancy/authentication/role-authorization tests: 9/9 passed.
 - PostgreSQL API persistence smoke: initial activation, lookup, renewal extension and cross-tenant read block passed.
 - PostgreSQL checkout smoke: checkout order -> Razorpay order id persisted -> captured payment -> subscription/license activation passed.
 - PostgreSQL renewal checkout smoke: renewal checkout order -> Razorpay order id persisted -> captured payment -> same subscription extension passed.
@@ -90,7 +91,7 @@ Webhook endpoint added under `/api/payments`:
 
 Verification completed:
 - Razorpay signature verification is required through `X-Razorpay-Signature`.
-- Webhook route is excluded from POC API-key middleware because Razorpay will not send tenant API headers.
+- Webhook route is excluded from tenant authentication middleware because Razorpay will not send tenant API headers.
 - Tenant, commerce order, product and subscription routing are read from signed webhook notes.
 - Captured payment can activate a previously pending Commerce order.
 - Captured renewal payment can extend the same existing subscription.
@@ -193,3 +194,14 @@ Verification completed:
 - Pending/failed provider payments are recorded in the payment ledger without activation.
 - Captured provider payment activates the initial or renewal order through the existing idempotent Commerce path.
 - API and PostgreSQL smoke tests verify the order-payment fetch and manual reconciliation support path.
+
+## Production authentication and admin role verification
+
+Authentication/authorization checkpoint completed:
+- Production mode can authenticate using configured Bearer tokens under `BusinessOS:Auth:BearerTokens`.
+- POC API keys remain available only in Development, or when explicitly enabled by `BusinessOS:Auth:AllowPocApiKeys=true`.
+- Production tests verify POC keys are rejected outside Development.
+- Configured Bearer token tests verify tenant resolution without hard-coded source-code credentials.
+- Commerce admin endpoints now require one of: Owner, Admin, FinanceAdmin or BillingAdmin.
+- Non-admin tenant roles are rejected with HTTP 403 for Commerce admin status and reconciliation routes.
+- `infra/identity-proof-setup.sql` grants only required identity SELECT access to `bos_app` for PostgreSQL identity lookup.
