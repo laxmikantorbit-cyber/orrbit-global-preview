@@ -80,6 +80,7 @@ app.MapCommerceActivationEndpoints();
 app.MapCommerceAdminEndpoints();
 app.MapPaymentCheckoutEndpoints();
 app.MapFreeTestingPaymentEndpoints();
+app.MapFreeTestingCheckoutPageEndpoints();
 app.MapPaymentWebhookEndpoints();
 
 app.Run();

@@ -54,6 +54,30 @@ public sealed class FreeTestingCheckoutTests : IClassFixture<WebApplicationFacto
         Assert.Contains("Payments:RazorpayKeyId", body);
     }
     [Fact]
+    public async Task Staging_FreeTesting_Checkout_Page_Loads_Without_Secret()
+    {
+        var client = FreeTestingFactory().CreateClient();
+
+        var response = await client.GetAsync("/testing/free-checkout");
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("BusinessOS Free Staging Checkout Test", body);
+        Assert.Contains("Run Full Purchase Flow", body);
+        Assert.DoesNotContain("tenant-a-staging-token", body);
+    }
+
+    [Fact]
+    public async Task Production_Does_Not_Expose_FreeTesting_Checkout_Page()
+    {
+        var client = ProductionFactoryWithFreeTestingMode().CreateClient();
+
+        var response = await client.GetAsync("/testing/free-checkout");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Staging_FreeTesting_Capture_Activates_Simulated_Razorpay_Order()
     {
         var client = FreeTestingFactory().CreateClient();
