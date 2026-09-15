@@ -43,7 +43,7 @@ public sealed class RazorpayHttpOrderClient : IRazorpayOrderClient
         RazorpayOrderRequest request,
         CancellationToken cancellationToken = default)
     {
-        Validate(request);
+        ValidateOrderRequest(request);
         var keyId = RequiredConfig("Payments:RazorpayKeyId");
         var keySecret = RequiredConfig("Payments:RazorpayKeySecret");
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/v1/orders");
@@ -89,7 +89,7 @@ public sealed class RazorpayHttpOrderClient : IRazorpayOrderClient
             ? throw new InvalidOperationException($"Configuration '{key}' is missing.")
             : _configuration[key]!;
 
-    private static void Validate(RazorpayOrderRequest request)
+    internal static void ValidateOrderRequest(RazorpayOrderRequest request)
     {
         if (request.Amount <= 0)
             throw new ArgumentOutOfRangeException(nameof(request.Amount));
@@ -151,4 +151,57 @@ public sealed class RazorpayHttpOrderClient : IRazorpayOrderClient
         }
         return parsed.Count == 0 ? fallback : parsed;
     }
+}
+
+public sealed class FreeTestingRazorpayOrderClient : IRazorpayOrderClient
+{
+    public Task<RazorpayOrderResult> CreateOrderAsync(
+        RazorpayOrderRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        RazorpayHttpOrderClient.ValidateOrderRequest(request);
+        var suffix = Guid.NewGuid().ToString("N")[..24];
+        return Task.FromResult(new RazorpayOrderResult(
+            $"order_free_test_{suffix}",
+            request.Amount,
+            request.Currency,
+            request.Receipt,
+            "created",
+            request.Notes));
+    }
+}
+
+public sealed class FreeTestingAwareRazorpayOrderClient : IRazorpayOrderClient
+{
+    private readonly RazorpayHttpOrderClient _liveClient;
+    private readonly IConfiguration _configuration;
+    private readonly IHostEnvironment _environment;
+
+    public FreeTestingAwareRazorpayOrderClient(
+        HttpClient httpClient,
+        IConfiguration configuration,
+        IHostEnvironment environment)
+    {
+        _liveClient = new RazorpayHttpOrderClient(httpClient, configuration);
+        _configuration = configuration;
+        _environment = environment;
+    }
+
+    public Task<RazorpayOrderResult> CreateOrderAsync(
+        RazorpayOrderRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (UseFreeTestingOrderSimulator())
+            return new FreeTestingRazorpayOrderClient()
+                .CreateOrderAsync(request, cancellationToken);
+
+        return _liveClient.CreateOrderAsync(request, cancellationToken);
+    }
+
+    private bool UseFreeTestingOrderSimulator() =>
+        !_environment.IsProduction() &&
+        string.Equals(
+            _configuration["BusinessOS:Payments:Mode"],
+            "RazorpayTestPending",
+            StringComparison.OrdinalIgnoreCase);
 }

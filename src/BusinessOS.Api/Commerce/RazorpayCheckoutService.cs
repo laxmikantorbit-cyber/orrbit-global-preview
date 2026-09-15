@@ -89,10 +89,17 @@ public sealed class RazorpayCheckoutService
     private string ProviderPublicId()
     {
         var value = _configuration["Payments:RazorpayKeyId"];
-        return string.IsNullOrWhiteSpace(value)
-            ? throw new InvalidOperationException("Razorpay key id is not configured.")
-            : value;
+        if (!string.IsNullOrWhiteSpace(value)) return value;
+        return IsFreeTestingPaymentMode()
+            ? "rzp_test_free_testing"
+            : throw new InvalidOperationException("Razorpay key id is not configured.");
     }
+
+    private bool IsFreeTestingPaymentMode() =>
+        string.Equals(
+            _configuration["BusinessOS:Payments:Mode"],
+            "RazorpayTestPending",
+            StringComparison.OrdinalIgnoreCase);
 
     private static string CreateReceipt(Guid commerceOrderId) =>
         $"bos_{commerceOrderId:N}";

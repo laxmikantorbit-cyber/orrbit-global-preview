@@ -227,3 +227,13 @@ It does not require paid PostgreSQL or live Razorpay secrets, and `/health/ready
 Production readiness remains strict: when hosted as `Production`, the API still requires Commerce and Identity connection strings, Razorpay key id, Razorpay key secret, Razorpay webhook secret, and configured bearer tokens.
 
 Verified by `Staging_FreeTesting_Readiness_Returns_Ok_Without_Paid_Db_Or_Live_Razorpay` plus the existing production missing-config and unsafe-POC checks.
+
+## Free staging Razorpay order simulation
+
+FreeTesting checkout support added for staging development without live Razorpay keys:
+- When `BusinessOS:Payments:Mode=RazorpayTestPending` and the environment is not Production, checkout order creation uses an in-process Razorpay order simulator.
+- The simulator returns `order_free_test_*` provider order ids and keeps the same note contract used by live Razorpay orders.
+- The checkout response uses public key id `rzp_test_free_testing` only when no configured Razorpay key id exists.
+- Production never uses this simulator, even if the payment mode flag is accidentally set.
+- Regression tests verify both staging simulator behavior and production strictness.
+- The free-staging smoke script now checks health, readiness, simulated checkout, activation, subscription lookup and admin status.

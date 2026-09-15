@@ -18,7 +18,7 @@ builder.Services.AddSingleton<IOrganisationRepository>(_ => CustomerSeed.CreateR
 builder.Services.AddSingleton<LeaseSigner>();
 builder.Services.AddSingleton<PaymentProcessor>();
 builder.Services.AddSingleton<PaymentSubscriptionActivationService>();
-builder.Services.AddHttpClient<IRazorpayOrderClient, RazorpayHttpOrderClient>(client =>
+builder.Services.AddHttpClient<IRazorpayOrderClient, FreeTestingAwareRazorpayOrderClient>(client =>
 {
     client.BaseAddress = new Uri("https://api.razorpay.com");
 });

@@ -32,6 +32,34 @@ if ($readyJson.ready -ne $true) { throw "Readiness is not true: $($ready.Content
 if ($readyJson.deploymentMode -ne "FreeTesting") { throw "Unexpected deployment mode: $($ready.Content)" }
 if ($readyJson.storageMode -ne "InMemory") { throw "Unexpected storage mode: $($ready.Content)" }
 Write-Host "PASS readiness"
+
+$checkoutPayload = @{
+    organisationId = "11111111-1111-1111-1111-111111111111"
+    productCode = "AI_REPAIR"
+    planId = $null
+    planVersionId = $null
+    planVersionNumber = 1
+    amount = 29999
+    currencyCode = "INR"
+    termMonths = 12
+    desktopDeviceLimit = 1
+    locationLimit = 1
+    webAdminSeats = 10
+    fieldStaffSeats = 10
+    multiLocationCloud = $true
+} | ConvertTo-Json
+$checkout = Invoke-WebRequest `
+    -Uri "$base/api/commerce/checkout/initial" `
+    -Method POST `
+    -Headers $headers `
+    -Body $checkoutPayload `
+    -UseBasicParsing
+Assert-StatusCode $checkout 200 "Initial checkout"
+$checkoutJson = $checkout.Content | ConvertFrom-Json
+if (-not $checkoutJson.razorpayOrderId.StartsWith("order_free_test_")) { throw "Unexpected simulated order id: $($checkout.Content)" }
+if ($checkoutJson.razorpayKeyId -ne "rzp_test_free_testing") { throw "Unexpected test key id: $($checkout.Content)" }
+Write-Host "PASS initial checkout"
+
 $paymentId = "stg_pay_" + [Guid]::NewGuid().ToString("N")
 $activationPayload = @{
     organisationId = "11111111-1111-1111-1111-111111111111"
