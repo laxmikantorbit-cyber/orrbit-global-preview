@@ -216,3 +216,14 @@ Verification completed:
 - Production readiness fails with HTTP 503 when required Commerce, Identity, Razorpay or Bearer-token configuration is missing.
 - Production readiness fails when POC API keys are explicitly enabled.
 - Production readiness returns HTTP 200 only when all required external configuration is present and no unsafe production auth flags are enabled.
+
+## Free staging readiness mode
+
+The Render-hosted testing deployment can run as `Staging` with `BusinessOS:DeploymentMode=FreeTesting`, `BusinessOS:StorageMode=InMemory`, and `BusinessOS:Payments:Mode=RazorpayTestPending`.
+
+This mode is intentionally for development and final testing before paid production migration.
+It does not require paid PostgreSQL or live Razorpay secrets, and `/health/ready` returns OK only for the current non-production testing mode.
+
+Production readiness remains strict: when hosted as `Production`, the API still requires Commerce and Identity connection strings, Razorpay key id, Razorpay key secret, Razorpay webhook secret, and configured bearer tokens.
+
+Verified by `Staging_FreeTesting_Readiness_Returns_Ok_Without_Paid_Db_Or_Live_Razorpay` plus the existing production missing-config and unsafe-POC checks.
