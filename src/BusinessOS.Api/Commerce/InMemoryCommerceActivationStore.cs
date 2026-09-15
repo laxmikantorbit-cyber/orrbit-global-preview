@@ -15,6 +15,7 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
     private readonly Dictionary<(Guid TenantId, string RazorpayOrderId), Guid> _razorpayOrderIndex = [];
     private readonly Dictionary<(string Provider, string ProviderOrderId), ProviderOrderRoute> _providerRoutes = [];
     private readonly Dictionary<(Guid TenantId, Guid OrderId), RenewalResponse> _renewalsByOrder = [];
+    private readonly Dictionary<(Guid TenantId, Guid SubscriptionId, string DeviceFingerprint), DeviceMetadata> _deviceMetadata = [];
 
     public InMemoryCommerceActivationStore(
         PaymentSubscriptionActivationService activationService,
@@ -91,6 +92,54 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
                 return Task.FromResult<SubscriptionStateSnapshot?>(null);
             stored.Subscription.Cancel();
             return Task.FromResult<SubscriptionStateSnapshot?>(ToStateSnapshot(tenantId, stored));
+        }
+    }
+
+    public Task<DesktopDeviceLicenseResponse?> ActivateDesktopDeviceAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        DesktopDeviceActivationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var fingerprint = NormalizeDeviceFingerprint(request.DeviceFingerprint);
+        lock (_gate)
+        {
+            if (!_activations.TryGetValue((tenantId, subscriptionId), out var stored))
+                return Task.FromResult<DesktopDeviceLicenseResponse?>(null);
+            var now = DateTimeOffset.UtcNow;
+            var lease = stored.License.Activate(fingerprint, now);
+            var metadata = new DeviceMetadata(
+                request.DeviceName?.Trim(), request.AppVersion?.Trim(), now);
+            _deviceMetadata[(tenantId, subscriptionId, fingerprint)] = metadata;
+            return Task.FromResult<DesktopDeviceLicenseResponse?>(ToDesktopResponse(
+                tenantId, stored, fingerprint, metadata, lease, now, true, "device_activated"));
+        }
+    }
+
+    public Task<DesktopDeviceLicenseResponse?> ValidateDesktopDeviceAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        DesktopDeviceValidationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var fingerprint = NormalizeDeviceFingerprint(request.DeviceFingerprint);
+        lock (_gate)
+        {
+            if (!_activations.TryGetValue((tenantId, subscriptionId), out var stored))
+                return Task.FromResult<DesktopDeviceLicenseResponse?>(null);
+            var now = DateTimeOffset.UtcNow;
+            if (!stored.License.Activations.Any(x => x.Active && x.DeviceFingerprint == fingerprint))
+                return Task.FromResult<DesktopDeviceLicenseResponse?>(ToDesktopResponse(
+                    tenantId, stored, fingerprint, DeviceMetadata.Empty, null,
+                    now, false, "device_not_activated"));
+            var lease = stored.License.Activate(fingerprint, now);
+            _deviceMetadata.TryGetValue((tenantId, subscriptionId, fingerprint), out var metadata);
+            var refreshed = (metadata ?? DeviceMetadata.Empty) with { LastValidatedAtUtc = now };
+            _deviceMetadata[(tenantId, subscriptionId, fingerprint)] = refreshed;
+            return Task.FromResult<DesktopDeviceLicenseResponse?>(ToDesktopResponse(
+                tenantId, stored, fingerprint, refreshed, lease, now, true, "license_valid"));
         }
     }
 
@@ -591,6 +640,46 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
             stored.Subscription.Status);
     }
 
+    private DesktopDeviceLicenseResponse ToDesktopResponse(
+        Guid tenantId,
+        StoredActivation stored,
+        string deviceFingerprint,
+        DeviceMetadata metadata,
+        SignedLicenseLease? lease,
+        DateTimeOffset now,
+        bool allowed,
+        string reason)
+    {
+        var state = ToStateSnapshot(tenantId, stored);
+        var entitlement = EntitlementStatusEvaluator.Evaluate(
+            state,
+            DateOnly.FromDateTime(now.UtcDateTime));
+        var activeDevices = stored.License.Activations.Count(x => x.Active);
+        var leasePayload = lease is null
+            ? null
+            : LeaseSigner.Verify(lease, stored.License.ExportPublicKey(), deviceFingerprint, now);
+        return new DesktopDeviceLicenseResponse(
+            state.TenantId,
+            state.OrganisationId,
+            state.SubscriptionId,
+            state.LicenseId,
+            state.ProductCode,
+            deviceFingerprint,
+            metadata.DeviceName,
+            entitlement.Status,
+            entitlement.RenewalStatus,
+            allowed,
+            reason,
+            activeDevices,
+            state.Entitlements.DesktopSystems,
+            state.StartsOn,
+            state.ValidUntil,
+            leasePayload?.LeaseValidUntil,
+            lease,
+            Convert.ToBase64String(stored.License.ExportPublicKey()),
+            state.Entitlements);
+    }
+
     private static string ValidateCapturedOrderReference(PaymentRecord payment)
     {
         ArgumentNullException.ThrowIfNull(payment);
@@ -625,6 +714,16 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
     private static string NormalizeProvider(string provider) =>
         provider.Trim().ToLowerInvariant();
 
+    private static string NormalizeDeviceFingerprint(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw new ArgumentException("Device fingerprint is required.");
+        var normalized = value.Trim();
+        if (normalized.Length > 256)
+            throw new ArgumentException("Device fingerprint must be 256 characters or fewer.");
+        return normalized;
+    }
+
     private sealed record PendingCheckoutOrder(
         Order Order,
         string ProductCode,
@@ -636,4 +735,12 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
         SubscriptionEntitlement Subscription,
         LicenseEngine License,
         string ProductCode);
+
+    private sealed record DeviceMetadata(
+        string? DeviceName,
+        string? AppVersion,
+        DateTimeOffset LastValidatedAtUtc)
+    {
+        public static readonly DeviceMetadata Empty = new(null, null, DateTimeOffset.MinValue);
+    }
 }

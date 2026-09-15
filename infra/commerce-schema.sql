@@ -224,3 +224,29 @@ DROP POLICY IF EXISTS commerce_renewals_tenant_policy ON commerce_subscription_r
 CREATE POLICY commerce_renewals_tenant_policy ON commerce_subscription_renewals
 USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
 WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
+
+CREATE TABLE IF NOT EXISTS commerce_desktop_device_activations (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES tenants(id),
+    subscription_id uuid NOT NULL,
+    device_fingerprint text NOT NULL CHECK (length(btrim(device_fingerprint)) > 0),
+    device_name text NULL,
+    app_version text NULL,
+    active boolean NOT NULL DEFAULT true,
+    activated_at_utc timestamptz NOT NULL,
+    last_validated_at_utc timestamptz NULL,
+    UNIQUE (tenant_id, subscription_id, device_fingerprint),
+    FOREIGN KEY (tenant_id, subscription_id)
+      REFERENCES commerce_subscriptions(tenant_id, id)
+);
+CREATE INDEX IF NOT EXISTS ix_commerce_desktop_devices_tenant_subscription
+  ON commerce_desktop_device_activations(tenant_id, subscription_id)
+  WHERE active=true;
+ALTER TABLE commerce_desktop_device_activations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commerce_desktop_device_activations FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS commerce_desktop_devices_tenant_policy
+  ON commerce_desktop_device_activations;
+CREATE POLICY commerce_desktop_devices_tenant_policy
+  ON commerce_desktop_device_activations
+USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
+WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);

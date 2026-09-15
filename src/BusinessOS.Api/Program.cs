@@ -91,6 +91,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapDeploymentReadinessEndpoints();
 app.MapCommerceActivationEndpoints();
 app.MapCommerceAdminEndpoints();
+app.MapDesktopLicenseEndpoints();
 app.MapPaymentCheckoutEndpoints();
 app.MapFreeTestingPaymentEndpoints();
 app.MapFreeTestingPublicCheckoutEndpoints();

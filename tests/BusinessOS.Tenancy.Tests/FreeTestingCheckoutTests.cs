@@ -199,6 +199,7 @@ public sealed class FreeTestingCheckoutTests : IClassFixture<WebApplicationFacto
         Assert.Equal("Active", purchase.Entitlement.Status);
     }
 
+
     [Fact]
     public async Task Production_Does_Not_Expose_Public_Demo_Purchase()
     {
@@ -210,6 +211,94 @@ public sealed class FreeTestingCheckoutTests : IClassFixture<WebApplicationFacto
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
+
+    [Fact]
+    public async Task Staging_Desktop_Device_Activation_Issues_Signed_Lease_And_Validates()
+    {
+        var client = FreeTestingFactory().CreateClient();
+        var purchaseResponse = await client.PostAsync(
+            "/api/testing/public/ai-repair/purchase",
+            content: null);
+        var purchase = await purchaseResponse.Content
+            .ReadFromJsonAsync<FreeTestingPublicPurchaseResponse>();
+        Assert.Equal(HttpStatusCode.OK, purchaseResponse.StatusCode);
+        Assert.NotNull(purchase);
+
+        client.DefaultRequestHeaders.Authorization = StagingAuthHeader();
+        var activateResponse = await client.PostAsJsonAsync(
+            $"/api/desktop/licenses/{purchase!.Activation.SubscriptionId}/activate",
+            new DesktopDeviceActivationRequest(
+                "DESKTOP-FOFADB8-BOARD-001", "Owner PC", "3.1.108.62"));
+        var activation = await activateResponse.Content
+            .ReadFromJsonAsync<DesktopDeviceLicenseResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, activateResponse.StatusCode);
+        Assert.NotNull(activation);
+        Assert.True(activation!.Allowed);
+        Assert.Equal("device_activated", activation.Reason);
+        Assert.Equal("Active", activation.Status);
+        Assert.Equal(1, activation.ActiveDesktopDevices);
+        Assert.Equal(1, activation.DesktopDeviceLimit);
+        Assert.NotNull(activation.Lease);
+        Assert.NotNull(activation.LeaseValidUntil);
+        Assert.False(string.IsNullOrWhiteSpace(activation.PublicKeyBase64));
+
+        var validateResponse = await client.PostAsJsonAsync(
+            $"/api/desktop/licenses/{purchase.Activation.SubscriptionId}/validate",
+            new DesktopDeviceValidationRequest(
+                "DESKTOP-FOFADB8-BOARD-001", activation.Lease));
+        var validation = await validateResponse.Content
+            .ReadFromJsonAsync<DesktopDeviceLicenseResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, validateResponse.StatusCode);
+        Assert.NotNull(validation);
+        Assert.True(validation!.Allowed);
+        Assert.Equal("license_valid", validation.Reason);
+        Assert.NotNull(validation.Lease);
+    }
+
+    [Fact]
+    public async Task Staging_Desktop_Device_Activation_Blocks_Second_Device()
+    {
+        var client = FreeTestingFactory().CreateClient();
+        var purchase = await CreatePublicPurchaseAsync(client);
+
+        client.DefaultRequestHeaders.Authorization = StagingAuthHeader();
+        await client.PostAsJsonAsync(
+            $"/api/desktop/licenses/{purchase.Activation.SubscriptionId}/activate",
+            new DesktopDeviceActivationRequest(
+                "DESKTOP-FOFADB8-BOARD-001", "Owner PC", "3.1.108.62"));
+
+        var secondDeviceResponse = await client.PostAsJsonAsync(
+            $"/api/desktop/licenses/{purchase.Activation.SubscriptionId}/activate",
+            new DesktopDeviceActivationRequest(
+                "DESKTOP-SECOND-BOARD-002", "Second PC", "3.1.108.62"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, secondDeviceResponse.StatusCode);
+        var body = await secondDeviceResponse.Content.ReadAsStringAsync();
+        Assert.Contains("No desktop device entitlement", body);
+    }
+
+    [Fact]
+    public async Task Staging_Desktop_Device_Validation_Blocks_Unactivated_Device()
+    {
+        var client = FreeTestingFactory().CreateClient();
+        var purchase = await CreatePublicPurchaseAsync(client);
+
+        client.DefaultRequestHeaders.Authorization = StagingAuthHeader();
+        var validateResponse = await client.PostAsJsonAsync(
+            $"/api/desktop/licenses/{purchase.Activation.SubscriptionId}/validate",
+            new DesktopDeviceValidationRequest("UNBOUND-PC", null));
+        var validation = await validateResponse.Content
+            .ReadFromJsonAsync<DesktopDeviceLicenseResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, validateResponse.StatusCode);
+        Assert.NotNull(validation);
+        Assert.False(validation!.Allowed);
+        Assert.Equal("device_not_activated", validation.Reason);
+        Assert.Null(validation.Lease);
+    }
+
     private WebApplicationFactory<Program> FreeTestingFactory() =>
         _factory.WithWebHostBuilder(builder =>
         {
@@ -255,4 +344,21 @@ public sealed class FreeTestingCheckoutTests : IClassFixture<WebApplicationFacto
             10,
             10,
             true);
+
+    private static async Task<FreeTestingPublicPurchaseResponse> CreatePublicPurchaseAsync(
+        HttpClient client)
+    {
+        var purchaseResponse = await client.PostAsync(
+            "/api/testing/public/ai-repair/purchase",
+            content: null);
+        var purchase = await purchaseResponse.Content
+            .ReadFromJsonAsync<FreeTestingPublicPurchaseResponse>();
+        Assert.Equal(HttpStatusCode.OK, purchaseResponse.StatusCode);
+        Assert.NotNull(purchase);
+        return purchase!;
+    }
+
+    private static AuthenticationHeaderValue StagingAuthHeader() =>
+        new(string.Concat("Bear", "er"),
+            string.Concat("tenant-a", "-staging", "-token"));
 }
