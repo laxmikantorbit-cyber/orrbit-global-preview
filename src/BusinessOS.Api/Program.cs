@@ -93,6 +93,7 @@ app.MapCommerceActivationEndpoints();
 app.MapCommerceAdminEndpoints();
 app.MapPaymentCheckoutEndpoints();
 app.MapFreeTestingPaymentEndpoints();
+app.MapFreeTestingPublicCheckoutEndpoints();
 app.MapFreeTestingCheckoutPageEndpoints();
 app.MapPaymentWebhookEndpoints();
 

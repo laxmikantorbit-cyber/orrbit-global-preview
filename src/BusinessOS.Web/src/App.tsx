@@ -9,6 +9,7 @@ import {
   getEntitlement,
   getSubscription,
   health,
+  publicDemoPurchase,
   readiness,
   type EntitlementResponse,
 } from './businessosApi'
@@ -86,13 +87,6 @@ function App() {
   }
 
   async function runFullFlow() {
-    if (!canRunProtected) {
-      reset()
-      mark('checkout', 'error', 'Token required')
-      setOutput('Buy Now test requires staging bearer token. Paste token first, then click again.')
-      return
-    }
-
     reset()
     try {
       mark('health', 'running')
@@ -102,6 +96,22 @@ function App() {
       mark('ready', 'running')
       const readyResult = await readiness()
       mark('ready', 'done', String(readyResult.environment ?? 'ready'))
+
+      if (!canRunProtected) {
+        mark('checkout', 'running')
+        const purchase = await publicDemoPurchase()
+        mark('checkout', 'done', purchase.checkout.razorpayOrderId)
+        mark('capture', 'done', 'public_demo_captured')
+        mark('subscription', 'done', purchase.activation.licenseId)
+        if (purchase.entitlement) {
+          setEntitlement(purchase.entitlement)
+          mark('entitlement', 'done', purchase.entitlement.status)
+        }
+        mark('admin', 'pending', 'Paste token to view admin status')
+        setSubscriptionId(purchase.activation.subscriptionId)
+        setOutput(json({ mode: 'public_demo_no_token', healthResult, readyResult, purchase }))
+        return
+      }
 
       mark('checkout', 'running')
       const checkout = await createInitialCheckout(token.trim())
@@ -190,8 +200,8 @@ function App() {
           />
           <p className={canRunProtected ? 'token-help ok' : 'token-help'}>
             {canRunProtected
-              ? 'Token entered. Full Buy Now test is enabled.'
-              : 'Token required for Buy Now test. Use Check API First for public health/readiness.'}
+              ? 'Token entered. Protected admin/cancel checks are enabled.'
+              : 'No token needed for Buy Now demo. Token is only needed for admin status and cancel test.'}
           </p>
           <div className="button-row">
             <button type="button" className="ghost" onClick={runPublicChecks}>

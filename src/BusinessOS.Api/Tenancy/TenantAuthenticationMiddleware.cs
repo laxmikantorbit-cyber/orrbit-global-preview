@@ -74,6 +74,7 @@ public sealed class TenantAuthenticationMiddleware
         path.StartsWithSegments("/health") ||
         path.StartsWithSegments("/api/payments/webhooks") ||
         path.StartsWithSegments("/api/payments/checkout") ||
+        path.StartsWithSegments("/api/testing/public") ||
         string.Equals(
             path.Value,
             "/testing/free-checkout",

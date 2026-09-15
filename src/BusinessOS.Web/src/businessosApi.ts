@@ -145,3 +145,18 @@ export async function getAdminStatus(token: string) {
   })
   return parseResponse<AdminSnapshot>(response)
 }
+
+export type PublicDemoPurchaseResponse = {
+  checkout: CheckoutOrder
+  duplicatePaymentEvent: boolean
+  activation: ActivationResponse
+  entitlement?: EntitlementResponse | null
+}
+
+export async function publicDemoPurchase() {
+  const response = await fetch(`${apiBase}/api/testing/public/ai-repair/purchase`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  return parseResponse<PublicDemoPurchaseResponse>(response)
+}

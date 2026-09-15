@@ -180,6 +180,36 @@ public sealed class FreeTestingCheckoutTests : IClassFixture<WebApplicationFacto
         Assert.False(response.Headers.Contains("Access-Control-Allow-Origin"));
     }
 
+    [Fact]
+    public async Task Staging_Public_Demo_Purchase_Runs_Without_Bearer_Token()
+    {
+        var client = FreeTestingFactory().CreateClient();
+
+        var response = await client.PostAsync(
+            "/api/testing/public/ai-repair/purchase",
+            content: null);
+        var purchase = await response.Content
+            .ReadFromJsonAsync<FreeTestingPublicPurchaseResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(purchase);
+        Assert.StartsWith("order_free_test_", purchase!.Checkout.RazorpayOrderId);
+        Assert.Equal("AI_REPAIR", purchase.Activation.ProductCode);
+        Assert.Equal(purchase.Activation.SubscriptionId, purchase.Entitlement!.SubscriptionId);
+        Assert.Equal("Active", purchase.Entitlement.Status);
+    }
+
+    [Fact]
+    public async Task Production_Does_Not_Expose_Public_Demo_Purchase()
+    {
+        var client = ProductionFactoryWithFreeTestingMode().CreateClient();
+
+        var response = await client.PostAsync(
+            "/api/testing/public/ai-repair/purchase",
+            content: null);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
     private WebApplicationFactory<Program> FreeTestingFactory() =>
         _factory.WithWebHostBuilder(builder =>
         {
