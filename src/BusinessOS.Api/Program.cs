@@ -34,6 +34,11 @@ var crmConnection = builder.Configuration.GetConnectionString("Crm");
 var useFreeTestingPostgres = string.Equals(
     builder.Configuration["BusinessOS:DeploymentMode"], "FreeTesting", StringComparison.OrdinalIgnoreCase) &&
     string.Equals(builder.Configuration["BusinessOS:StorageMode"], "Postgres", StringComparison.OrdinalIgnoreCase);
+var allowCrmSchemaBootstrap = !builder.Environment.IsProduction() &&
+    (builder.Environment.IsDevelopment() || string.Equals(
+        builder.Configuration["BusinessOS:Testing:EnableCrmSchemaBootstrap"],
+        "true",
+        StringComparison.OrdinalIgnoreCase));
 if (string.IsNullOrWhiteSpace(crmConnection) && useFreeTestingPostgres)
     crmConnection = builder.Configuration.GetConnectionString("Commerce");
 if (string.IsNullOrWhiteSpace(crmConnection))
@@ -49,7 +54,7 @@ else
     builder.Services.AddSingleton(new CrmPostgresDatabase(
         crmConnection,
         postgresRuntimeRole,
-        useFreeTestingPostgres));
+        allowCrmSchemaBootstrap));
     builder.Services.AddSingleton<ILeadRepository, PostgresCrmLeadRepository>();
     builder.Services.AddSingleton<ICrmWorkRepository, PostgresCrmWorkRepository>();
     builder.Services.AddSingleton<ICrmAccountStore, PostgresCrmAccountStore>();

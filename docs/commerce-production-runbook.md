@@ -31,14 +31,15 @@ Reference template: `src/BusinessOS.Api/appsettings.Production.example.json`.
 2. Apply Commerce schema from `infra/commerce-schema.sql`.
 3. Apply Commerce owner/grant proof setup from `infra/commerce-proof-setup.sql`.
 4. Apply Identity owner/grant setup from `infra/identity-proof-setup.sql`.
-5. Seed active tenants, users and tenant memberships before issuing Bearer tokens.
-6. Use only active memberships with one of these Commerce admin roles:
+5. Provision CRM schema and restricted runtime grants with `infra/businessos-crm-runtime-schema.sql` using the database owner. Do not grant schema CREATE or ownership to the application/runtime role.
+6. Seed active tenants, users and tenant memberships before issuing Bearer tokens.
+7. Use only active memberships with one of these Commerce admin roles:
    - `Owner`
    - `Admin`
    - `FinanceAdmin`
    - `BillingAdmin`
-7. Verify the runtime database identity cannot bypass RLS. If `BusinessOS__Storage__RuntimeRole` is used, verify `current_user` becomes that restricted role after `SET ROLE` and `rolbypassrls=false`.
-8. Verify Tenant A/Tenant B read isolation with the same runtime identity used by the API before enabling production traffic.
+8. Verify the runtime database identity cannot bypass RLS. If `BusinessOS__Storage__RuntimeRole` is used, verify `current_user` becomes that restricted role after `SET ROLE` and `rolbypassrls=false`.
+9. Verify Tenant A/Tenant B read isolation with the same runtime identity used by the API before enabling production traffic.
 
 ## Razorpay setup
 

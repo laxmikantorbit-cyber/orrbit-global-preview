@@ -24,6 +24,7 @@ Verified the Quote -> Order -> Subscription foundation and Subscription Renewal 
 - PostgreSQL webhook renewal smoke: pending renewal order -> captured payment -> same subscription extension passed.
 - Neon free-staging smoke: subscription, renewal, provider route, payment and payment-event rows persisted and survived redeploy.
 - Restricted runtime-role proof: effective database role `businessos_rls`, `BYPASSRLS=false`, with Tenant A/Tenant B isolation verified.
+- CRM runtime schema proof: `businessos_crm` stays owner-provisioned; `businessos_rls` has USAGE + table DML but no schema CREATE, and staging runtime validates instead of attempting DDL. Owner provisioning is captured in `infra/businessos-crm-runtime-schema.sql`.
 - Provider-order concurrency proof: simultaneous recurring webhook, ordinary payment webhook, webhook-vs-checkout-reconcile, and webhook-vs-admin-reconcile paths converge on one activation/renewal and one payment event.
 - Release build: 0 warnings, 0 errors.
 - Validity starts from captured payment date, not activation date.
