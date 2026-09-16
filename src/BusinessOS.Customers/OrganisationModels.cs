@@ -19,7 +19,8 @@ public sealed record ContactPerson(
     string Name,
     string? Email,
     string? Phone,
-    bool IsPrimary);
+    bool IsPrimary,
+    string? Designation = null);
 
 public sealed record OrganisationAddress(
     Guid Id,
