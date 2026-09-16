@@ -39,7 +39,7 @@ public sealed class CrmPostgresDatabase : IAsyncDisposable
                 await ValidateRuntimeAccessAsync(cancellationToken);
             }
             catch (PostgresException ex) when (
-                _allowSchemaBootstrap && ex.SqlState is "42P01" or "3F000")
+                _allowSchemaBootstrap && ex.SqlState is "42P01" or "3F000" or "42501")
             {
                 await BootstrapAsync(cancellationToken);
                 await ValidateRuntimeAccessAsync(cancellationToken);
@@ -62,6 +62,7 @@ public sealed class CrmPostgresDatabase : IAsyncDisposable
     {
         await using var connection = await _bootstrapDataSource.OpenConnectionAsync(cancellationToken);
         await BusinessOS.Api.PostgresRuntimeRole.ResetAsync(connection, cancellationToken);
+        await AssumeExistingSchemaOwnerRoleAsync(connection, cancellationToken);
         await using (var command = new NpgsqlCommand(SchemaSql, connection))
             await command.ExecuteNonQueryAsync(cancellationToken);
 
@@ -70,6 +71,36 @@ public sealed class CrmPostgresDatabase : IAsyncDisposable
         var grants = RuntimeGrantSql.Replace("__RUNTIME_ROLE__", role, StringComparison.Ordinal);
         await using var grantCommand = new NpgsqlCommand(grants, connection);
         await grantCommand.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task AssumeExistingSchemaOwnerRoleAsync(
+        NpgsqlConnection connection,
+        CancellationToken cancellationToken)
+    {
+        const string sql = """
+SELECT owner_role.rolname,
+       owner_role.rolname = current_user,
+       pg_has_role(session_user, owner_role.oid, 'SET')
+FROM pg_namespace schema_info
+JOIN pg_roles owner_role ON owner_role.oid = schema_info.nspowner
+WHERE schema_info.nspname = 'businessos_crm';
+""";
+        await using var probe = new NpgsqlCommand(sql, connection);
+        await using var reader = await probe.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken)) return;
+        var ownerRole = reader.GetString(0);
+        var alreadyOwner = reader.GetBoolean(1);
+        var canSetOwnerRole = reader.GetBoolean(2);
+        await reader.DisposeAsync();
+
+        if (alreadyOwner) return;
+        if (!canSetOwnerRole)
+            throw new InvalidOperationException(
+                $"CRM schema is owned by '{ownerRole}' and the bootstrap login cannot assume that role.");
+
+        await using var setRole = new NpgsqlCommand(
+            "SET ROLE " + BusinessOS.Api.PostgresRuntimeRole.QuoteIdentifier(ownerRole), connection);
+        await setRole.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private async Task ValidateRuntimeAccessAsync(CancellationToken cancellationToken)
