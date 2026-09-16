@@ -72,11 +72,12 @@ public sealed class Organisation
         {
             Name = contact.Name.Trim(),
             Email = Clean(contact.Email),
-            Phone = Clean(contact.Phone)
+            Phone = Clean(contact.Phone),
+            Designation = Clean(contact.Designation)
         });
     }
 
-    public void UpdateContact(Guid contactId, string name, string? email, string? phone, bool isPrimary)
+    public void UpdateContact(Guid contactId, string name, string? email, string? phone, bool isPrimary, string? designation = null)
     {
         if (contactId == Guid.Empty) throw new ArgumentException("Contact id is required.", nameof(contactId));
         if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Contact name is required.", nameof(name));
@@ -92,7 +93,8 @@ public sealed class Organisation
             Name = name.Trim(),
             Email = Clean(email),
             Phone = Clean(phone),
-            IsPrimary = isPrimary
+            IsPrimary = isPrimary,
+            Designation = Clean(designation)
         };
     }
 
