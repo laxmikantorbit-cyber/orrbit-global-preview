@@ -157,6 +157,7 @@ app.MapFreeTestingPublicCrmAddressEndpoints();
 app.MapFreeTestingPublicCrmAdvancedEndpoints();
 app.MapFreeTestingPublicCrmNotificationEndpoints();
 app.MapFreeTestingPublicCrmEntityActivityEndpoints();
+app.MapFreeTestingPublicCrmIntelligenceEndpoints();
 app.MapFreeTestingPublicCrmQueryEndpoints();
 app.MapFreeTestingPublicCrmAnalyticsEndpoints();
 app.MapFreeTestingPublicCrmCommerceEndpoints();
