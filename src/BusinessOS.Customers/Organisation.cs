@@ -76,6 +76,37 @@ public sealed class Organisation
         });
     }
 
+    public void UpdateContact(Guid contactId, string name, string? email, string? phone, bool isPrimary)
+    {
+        if (contactId == Guid.Empty) throw new ArgumentException("Contact id is required.", nameof(contactId));
+        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Contact name is required.", nameof(name));
+        var index = _contacts.FindIndex(x => x.Id == contactId);
+        if (index < 0) throw new InvalidOperationException("Contact does not exist.");
+        if (isPrimary)
+        {
+            for (var i = 0; i < _contacts.Count; i++)
+                _contacts[i] = _contacts[i] with { IsPrimary = false };
+        }
+        _contacts[index] = _contacts[index] with
+        {
+            Name = name.Trim(),
+            Email = Clean(email),
+            Phone = Clean(phone),
+            IsPrimary = isPrimary
+        };
+    }
+
+    public void RemoveContact(Guid contactId)
+    {
+        if (contactId == Guid.Empty) throw new ArgumentException("Contact id is required.", nameof(contactId));
+        var index = _contacts.FindIndex(x => x.Id == contactId);
+        if (index < 0) throw new InvalidOperationException("Contact does not exist.");
+        var wasPrimary = _contacts[index].IsPrimary;
+        _contacts.RemoveAt(index);
+        if (wasPrimary && _contacts.Count > 0 && _contacts.All(x => !x.IsPrimary))
+            _contacts[0] = _contacts[0] with { IsPrimary = true };
+    }
+
     public void AddAddress(OrganisationAddress address)
     {
         if (address.Id == Guid.Empty) throw new ArgumentException("Address id is required.", nameof(address));
@@ -108,6 +139,8 @@ public sealed class Organisation
         LegalName = Clean(legalName);
         Gstin = Clean(gstin)?.ToUpperInvariant();
     }
+
+    public void SetDisplayCode(string? displayCode) => DisplayCode = Clean(displayCode);
 
     private static string? Clean(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
