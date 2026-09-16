@@ -255,3 +255,19 @@ public sealed record DesktopDeviceActivationSnapshot(
     bool Active,
     DateTimeOffset ActivatedAtUtc,
     DateTimeOffset? LastValidatedAtUtc);
+
+public sealed record LicenseActivationCodeResponse(
+    Guid TenantId,
+    Guid OrganisationId,
+    Guid SubscriptionId,
+    Guid LicenseId,
+    string ProductCode,
+    string ActivationCode,
+    DateTimeOffset CreatedAtUtc);
+
+public sealed record DesktopActivationCodeRequest(
+    string ActivationCode,
+    string DeviceFingerprint,
+    string? DeviceName,
+    string? AppVersion,
+    SignedLicenseLease? CurrentLease);

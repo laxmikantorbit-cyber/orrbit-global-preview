@@ -1,7 +1,7 @@
-﻿# oRRbit Repair Desktop License Client Kit
+# oRRbit Repair Desktop License Client Kit
 
 This sample is the copy/paste integration layer for the Repair Windows software.
-It calls the BusinessOS desktop license API and stores a short offline lease locally.
+It uses a customer activation code, binds the current machine fingerprint, and stores a short offline lease locally.
 
 ## Current staging API
 
@@ -9,22 +9,26 @@ It calls the BusinessOS desktop license API and stores a short offline lease loc
 https://businessos-commerce-api-live.onrender.com
 ```
 
-## API endpoints used
+## Customer-safe API endpoints used
 
 ```text
-POST /api/desktop/licenses/{subscriptionId}/activate
-POST /api/desktop/licenses/{subscriptionId}/validate
+POST /api/desktop/licenses/activate
+POST /api/desktop/licenses/validate
 ```
+
+No master bearer token or admin token is required inside the desktop EXE.
 
 ## Required values during staging
 
-Do not hardcode real secrets inside the desktop EXE.
-For staging smoke testing, set these environment variables or store them in an encrypted local config:
-
 ```text
 ORRBIT_LICENSE_API=https://businessos-commerce-api-live.onrender.com
-ORRBIT_SUBSCRIPTION_ID=<subscription-id-from-buy-now-flow>
-ORRBIT_LICENSE_TOKEN=<staging-token-from-secure-config>
+ORRBIT_ACTIVATION_CODE=<code-shown-after-buy-now>
+```
+
+Activation code format:
+
+```text
+ORR-XXXX-XXXX-XXXX-XXXX
 ```
 
 ## WinForms startup wiring
@@ -62,11 +66,11 @@ else
 ## Result handling rules
 
 ```text
-Allowed=true, Reason=license_valid       -> Open software
-Allowed=true, Reason=device_activated    -> Save lease and open software
+Allowed=true, Reason=license_valid         -> Open software
+Allowed=true, Reason=device_activated      -> Save lease and open software
 Allowed=false, Reason=device_not_activated -> Show activation screen
-HTTP 400 No desktop device entitlement   -> Show device limit/reset message
-HTTP 401                                 -> Secure API token/config issue
+HTTP 400 No desktop device entitlement     -> Show device limit/reset message
+HTTP 404 Activation code not found         -> Ask customer to re-check activation code
 ```
 
 ## Offline behavior
@@ -75,8 +79,16 @@ After a successful online activation or validation, the API returns a signed lea
 This sample caches it under:
 
 ```text
-%LOCALAPPDATA%\oRRbit\AI_REPAIR\License\lease.json
+C:\Users\Dell\AppData\Local\oRRbit\AI_REPAIR\License\lease.json
 ```
 
-When internet/API is unavailable, `EnsureLicenseOrGraceAsync()` allows the app only if the cached lease is still valid.
+When internet/API is unavailable, EnsureLicenseOrGraceAsync() allows the app only if the cached lease is still valid.
 Current lease window: 7 days or subscription expiry, whichever is earlier.
+
+## Smoke test
+
+```powershell
+$env:ORRBIT_ACTIVATION_CODE="ORR-XXXX-XXXX-XXXX-XXXX"
+dotnet run --project .\Orrbit.RepairDesktopLicenseClient -- --activate
+dotnet run --project .\Orrbit.RepairDesktopLicenseClient
+```

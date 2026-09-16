@@ -1,13 +1,11 @@
-﻿namespace Orrbit.RepairDesktopLicenseClient;
+namespace Orrbit.RepairDesktopLicenseClient;
 
-public sealed record DesktopDeviceActivationRequest(
+public sealed record DesktopActivationCodeRequest(
+    string ActivationCode,
     string DeviceFingerprint,
     string? DeviceName,
-    string? AppVersion);
-
-public sealed record DesktopDeviceValidationRequest(
-    string DeviceFingerprint,
-    SignedLicenseLease? CachedLease);
+    string? AppVersion,
+    SignedLicenseLease? CurrentLease);
 
 public sealed record DesktopDeviceLicenseResponse(
     Guid TenantId,

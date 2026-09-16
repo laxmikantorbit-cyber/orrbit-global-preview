@@ -1,4 +1,3 @@
-﻿using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 
@@ -25,12 +24,9 @@ public sealed class OrrbitLicenseClient
         CancellationToken cancellationToken = default)
     {
         _settings.ValidateForOnlineCall();
-        var body = new DesktopDeviceActivationRequest(
-            MachineFingerprint.Create(),
-            deviceName ?? Environment.MachineName,
-            appVersion);
+        var body = BuildRequest(deviceName ?? Environment.MachineName, appVersion, null);
         var response = await PostAsync<DesktopDeviceLicenseResponse>(
-            $"api/desktop/licenses/{_settings.SubscriptionId}/activate",
+            "api/desktop/licenses/activate",
             body,
             cancellationToken);
         if (response.Allowed)
@@ -43,11 +39,12 @@ public sealed class OrrbitLicenseClient
     {
         _settings.ValidateForOnlineCall();
         var cached = await _cache.LoadAsync(cancellationToken);
-        var body = new DesktopDeviceValidationRequest(
-            MachineFingerprint.Create(),
+        var body = BuildRequest(
+            Environment.MachineName,
+            appVersion: null,
             cached?.Lease);
         var response = await PostAsync<DesktopDeviceLicenseResponse>(
-            $"api/desktop/licenses/{_settings.SubscriptionId}/validate",
+            "api/desktop/licenses/validate",
             body,
             cancellationToken);
         if (response.Allowed)
@@ -68,20 +65,32 @@ public sealed class OrrbitLicenseClient
             return _cache.HasUsableOfflineLease(DateTimeOffset.UtcNow);
         }
     }
+
+    private DesktopActivationCodeRequest BuildRequest(
+        string? deviceName,
+        string? appVersion,
+        SignedLicenseLease? currentLease) =>
+        new(
+            _settings.ActivationCode,
+            MachineFingerprint.Create(),
+            deviceName,
+            appVersion,
+            currentLease);
+
     private async Task<T> PostAsync<T>(
         string path,
         object body,
         CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, path);
-        request.Headers.Authorization = new AuthenticationHeaderValue(
-            "Bearer", _settings.ApiBearerToken);
-        request.Content = JsonContent.Create(body, options: JsonOptions);
-
-        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        using var response = await _httpClient.PostAsJsonAsync(
+            path,
+            body,
+            JsonOptions,
+            cancellationToken);
         var text = await response.Content.ReadAsStringAsync(cancellationToken);
         if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException($"License API returned {(int)response.StatusCode}: {text}");
+            throw new InvalidOperationException(
+                $"License API returned {(int)response.StatusCode}: {text}");
         return JsonSerializer.Deserialize<T>(text, JsonOptions)
             ?? throw new InvalidOperationException("License API returned empty response.");
     }

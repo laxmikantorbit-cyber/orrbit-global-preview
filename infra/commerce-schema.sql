@@ -250,3 +250,21 @@ CREATE POLICY commerce_desktop_devices_tenant_policy
   ON commerce_desktop_device_activations
 USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
 WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
+
+CREATE TABLE IF NOT EXISTS commerce_license_activation_codes (
+    tenant_id uuid NOT NULL REFERENCES tenants(id),
+    organisation_id uuid NOT NULL,
+    subscription_id uuid NOT NULL,
+    license_id uuid NOT NULL,
+    product_code text NOT NULL CHECK (length(btrim(product_code)) > 0),
+    activation_code text NOT NULL CHECK (length(btrim(activation_code)) > 0),
+    created_at_utc timestamptz NOT NULL,
+    PRIMARY KEY (tenant_id, subscription_id),
+    UNIQUE (activation_code),
+    FOREIGN KEY (tenant_id, subscription_id)
+      REFERENCES commerce_subscriptions(tenant_id, id),
+    FOREIGN KEY (tenant_id, organisation_id)
+      REFERENCES organisations(tenant_id, id)
+);
+CREATE INDEX IF NOT EXISTS ix_commerce_activation_codes_license
+  ON commerce_license_activation_codes(tenant_id, license_id);

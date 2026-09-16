@@ -233,3 +233,32 @@ button.danger {
     padding: 20px;
   }
 }
+
+.activation-code-box {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 16px;
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  border-radius: 16px;
+  background: rgba(14, 165, 233, 0.12);
+}
+
+.activation-code-box span {
+  color: #7dd3fc;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.activation-code-box strong {
+  color: #ffffff;
+  font-size: 24px;
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
+}
+
+.activation-code-box small {
+  color: #cbd5e1;
+}

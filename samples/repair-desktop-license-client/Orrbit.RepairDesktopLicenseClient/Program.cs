@@ -1,9 +1,9 @@
-﻿using Orrbit.RepairDesktopLicenseClient;
+using Orrbit.RepairDesktopLicenseClient;
 
 var settings = DesktopLicenseSettings.FromEnvironment();
 Console.WriteLine("oRRbit Desktop License Client Smoke");
 Console.WriteLine($"API: {settings.ApiBaseUrl}");
-Console.WriteLine($"Subscription: {(string.IsNullOrWhiteSpace(settings.SubscriptionId) ? "not set" : settings.SubscriptionId)}");
+Console.WriteLine($"Activation Code: {(string.IsNullOrWhiteSpace(settings.ActivationCode) ? "not set" : "set")}");
 Console.WriteLine($"Fingerprint: {MachineFingerprint.Create()}");
 
 if (args.Contains("--offline-check"))
@@ -20,7 +20,6 @@ var client = new OrrbitLicenseClient(settings);
 var result = args.Contains("--activate")
     ? await client.ActivateAsync(Environment.MachineName, "3.1.108.62")
     : await client.ValidateAsync();
-
 Console.WriteLine($"Allowed: {result.Allowed}");
 Console.WriteLine($"Reason: {result.Reason}");
 Console.WriteLine($"Status: {result.Status}");

@@ -197,8 +197,45 @@ public sealed class FreeTestingCheckoutTests : IClassFixture<WebApplicationFacto
         Assert.Equal("AI_REPAIR", purchase.Activation.ProductCode);
         Assert.Equal(purchase.Activation.SubscriptionId, purchase.Entitlement!.SubscriptionId);
         Assert.Equal("Active", purchase.Entitlement.Status);
+        Assert.NotNull(purchase.ActivationCode);
+        Assert.StartsWith("ORR-", purchase.ActivationCode.ActivationCode);
     }
 
+    [Fact]
+    public async Task Staging_Public_Activation_Code_Activates_And_Validates_Without_Bearer_Token()
+    {
+        var client = FreeTestingFactory().CreateClient();
+        var purchase = await CreatePublicPurchaseAsync(client);
+        var request = new DesktopActivationCodeRequest(
+            purchase.ActivationCode!.ActivationCode,
+            "PUBLIC-DESKTOP-001",
+            "Public Test PC",
+            "3.1.108.62",
+            null);
+
+        var activateResponse = await client.PostAsJsonAsync(
+            "/api/desktop/licenses/activate",
+            request);
+        var activation = await activateResponse.Content
+            .ReadFromJsonAsync<DesktopDeviceLicenseResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, activateResponse.StatusCode);
+        Assert.NotNull(activation);
+        Assert.True(activation!.Allowed);
+        Assert.Equal("device_activated", activation.Reason);
+        Assert.NotNull(activation.Lease);
+
+        var validateResponse = await client.PostAsJsonAsync(
+            "/api/desktop/licenses/validate",
+            request with { CurrentLease = activation.Lease });
+        var validation = await validateResponse.Content
+            .ReadFromJsonAsync<DesktopDeviceLicenseResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, validateResponse.StatusCode);
+        Assert.NotNull(validation);
+        Assert.True(validation!.Allowed);
+        Assert.Equal("license_valid", validation.Reason);
+    }
 
     [Fact]
     public async Task Production_Does_Not_Expose_Public_Demo_Purchase()

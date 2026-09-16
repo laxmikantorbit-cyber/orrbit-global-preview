@@ -15,6 +15,8 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
     private readonly Dictionary<(Guid TenantId, string RazorpayOrderId), Guid> _razorpayOrderIndex = [];
     private readonly Dictionary<(string Provider, string ProviderOrderId), ProviderOrderRoute> _providerRoutes = [];
     private readonly Dictionary<(Guid TenantId, Guid OrderId), RenewalResponse> _renewalsByOrder = [];
+    private readonly Dictionary<(Guid TenantId, Guid SubscriptionId), LicenseActivationCodeResponse> _activationCodes = [];
+    private readonly Dictionary<string, DesktopActivationRoute> _activationCodeIndex = [];
     private readonly Dictionary<(Guid TenantId, Guid SubscriptionId, string DeviceFingerprint), DeviceMetadata> _deviceMetadata = [];
 
     public InMemoryCommerceActivationStore(
@@ -141,6 +143,49 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
             return Task.FromResult<DesktopDeviceLicenseResponse?>(ToDesktopResponse(
                 tenantId, stored, fingerprint, refreshed, lease, now, true, "license_valid"));
         }
+    }
+
+    public Task<LicenseActivationCodeResponse?> GetOrCreateDesktopActivationCodeAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            if (!_activations.TryGetValue((tenantId, subscriptionId), out var stored))
+                return Task.FromResult<LicenseActivationCodeResponse?>(null);
+            if (_activationCodes.TryGetValue((tenantId, subscriptionId), out var existing))
+                return Task.FromResult<LicenseActivationCodeResponse?>(existing);
+            var code = GenerateActivationCodeUnsafe();
+            var response = ToActivationCodeResponse(tenantId, stored, code, DateTimeOffset.UtcNow);
+            _activationCodes[(tenantId, subscriptionId)] = response;
+            _activationCodeIndex[NormalizeActivationCode(code)] = new DesktopActivationRoute(tenantId, subscriptionId);
+            return Task.FromResult<LicenseActivationCodeResponse?>(response);
+        }
+    }
+
+    public Task<DesktopDeviceLicenseResponse?> ActivateDesktopDeviceWithCodeAsync(
+        DesktopActivationCodeRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (!TryResolveActivationCode(request.ActivationCode, out var route))
+            return Task.FromResult<DesktopDeviceLicenseResponse?>(null);
+        return ActivateDesktopDeviceAsync(route.TenantId, route.SubscriptionId,
+            new DesktopDeviceActivationRequest(request.DeviceFingerprint, request.DeviceName, request.AppVersion),
+            cancellationToken);
+    }
+
+    public Task<DesktopDeviceLicenseResponse?> ValidateDesktopDeviceWithCodeAsync(
+        DesktopActivationCodeRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (!TryResolveActivationCode(request.ActivationCode, out var route))
+            return Task.FromResult<DesktopDeviceLicenseResponse?>(null);
+        return ValidateDesktopDeviceAsync(route.TenantId, route.SubscriptionId,
+            new DesktopDeviceValidationRequest(request.DeviceFingerprint, request.CurrentLease),
+            cancellationToken);
     }
 
     public Task<CheckoutOrderResponse> CreateInitialCheckoutOrderAsync(
@@ -714,6 +759,41 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
     private static string NormalizeProvider(string provider) =>
         provider.Trim().ToLowerInvariant();
 
+    private bool TryResolveActivationCode(string value, out DesktopActivationRoute route)
+    {
+        var code = NormalizeActivationCode(value);
+        lock (_gate)
+        {
+            return _activationCodeIndex.TryGetValue(code, out route!);
+        }
+    }
+
+    private string GenerateActivationCodeUnsafe()
+    {
+        string code;
+        do
+        {
+            var raw = Guid.NewGuid().ToString("N").ToUpperInvariant();
+            code = $"ORR-{raw[..4]}-{raw[4..8]}-{raw[8..12]}-{raw[12..16]}";
+        } while (_activationCodeIndex.ContainsKey(NormalizeActivationCode(code)));
+        return code;
+    }
+
+    private static string NormalizeActivationCode(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw new ArgumentException("Activation code is required.");
+        return value.Trim().Replace(" ", "").ToUpperInvariant();
+    }
+
+    private static LicenseActivationCodeResponse ToActivationCodeResponse(
+        Guid tenantId,
+        StoredActivation stored,
+        string code,
+        DateTimeOffset createdAtUtc) =>
+        new(tenantId, stored.Subscription.OrganisationId, stored.Subscription.Id,
+            stored.License.LicenseId, stored.ProductCode, code, createdAtUtc);
+
     private static string NormalizeDeviceFingerprint(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -735,6 +815,8 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
         SubscriptionEntitlement Subscription,
         LicenseEngine License,
         string ProductCode);
+
+    private sealed record DesktopActivationRoute(Guid TenantId, Guid SubscriptionId);
 
     private sealed record DeviceMetadata(
         string? DeviceName,

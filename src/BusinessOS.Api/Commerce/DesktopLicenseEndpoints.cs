@@ -9,6 +9,31 @@ public static class DesktopLicenseEndpoints
     {
         var group = app.MapGroup("/api/desktop/licenses");
 
+        group.MapPost("/activate", async (
+            DesktopActivationCodeRequest request,
+            ICommerceActivationStore store,
+            CancellationToken cancellationToken) => await ExecuteNullableAsync(() =>
+                store.ActivateDesktopDeviceWithCodeAsync(request, cancellationToken),
+                "Activation code was not found."));
+
+        group.MapPost("/validate", async (
+            DesktopActivationCodeRequest request,
+            ICommerceActivationStore store,
+            CancellationToken cancellationToken) => await ExecuteNullableAsync(() =>
+                store.ValidateDesktopDeviceWithCodeAsync(request, cancellationToken),
+                "Activation code was not found."));
+
+        group.MapPost("/{subscriptionId:guid}/activation-code", async (
+            Guid subscriptionId,
+            TenantContext tenant,
+            ICommerceActivationStore store,
+            CancellationToken cancellationToken) => await ExecuteNullableAsync(() =>
+                store.GetOrCreateDesktopActivationCodeAsync(
+                    tenant.TenantId,
+                    subscriptionId,
+                    cancellationToken),
+                "Subscription was not found for this tenant."));
+
         group.MapPost("/{subscriptionId:guid}/activate", async (
             Guid subscriptionId,
             DesktopDeviceActivationRequest request,

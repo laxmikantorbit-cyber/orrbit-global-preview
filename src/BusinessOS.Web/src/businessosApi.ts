@@ -146,11 +146,22 @@ export async function getAdminStatus(token: string) {
   return parseResponse<AdminSnapshot>(response)
 }
 
+export type LicenseActivationCodeResponse = {
+  tenantId: string
+  organisationId: string
+  subscriptionId: string
+  licenseId: string
+  productCode: string
+  activationCode: string
+  createdAtUtc: string
+}
+
 export type PublicDemoPurchaseResponse = {
   checkout: CheckoutOrder
   duplicatePaymentEvent: boolean
   activation: ActivationResponse
   entitlement?: EntitlementResponse | null
+  activationCode?: LicenseActivationCodeResponse | null
 }
 
 export async function publicDemoPurchase() {

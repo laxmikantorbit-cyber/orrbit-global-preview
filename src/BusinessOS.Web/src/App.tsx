@@ -47,6 +47,7 @@ function App() {
   const [steps, setSteps] = useState<Step[]>(initialSteps)
   const [output, setOutput] = useState('Ready for staging checkout test.')
   const [subscriptionId, setSubscriptionId] = useState('')
+  const [activationCode, setActivationCode] = useState('')
   const [entitlement, setEntitlement] = useState<EntitlementResponse | null>(null)
 
   const canRunProtected = useMemo(() => token.trim().length > 0, [token])
@@ -61,6 +62,7 @@ function App() {
     setSteps(initialSteps)
     setOutput('Ready for staging checkout test.')
     setSubscriptionId('')
+    setActivationCode('')
     setEntitlement(null)
   }
 
@@ -109,6 +111,7 @@ function App() {
         }
         mark('admin', 'pending', 'Paste token to view admin status')
         setSubscriptionId(purchase.activation.subscriptionId)
+        setActivationCode(purchase.activationCode?.activationCode ?? '')
         setOutput(json({ mode: 'public_demo_no_token', healthResult, readyResult, purchase }))
         return
       }
@@ -240,6 +243,13 @@ function App() {
       <section className="result-grid">
         <div className="panel">
           <h2>Latest entitlement</h2>
+          {activationCode ? (
+            <div className="activation-code-box">
+              <span>Desktop Activation Code</span>
+              <strong>{activationCode}</strong>
+              <small>Use this code in Repair desktop software activation screen.</small>
+            </div>
+          ) : null}
           {entitlement ? (
             <dl className="summary-list">
               <div><dt>Status</dt><dd>{entitlement.status}</dd></div>

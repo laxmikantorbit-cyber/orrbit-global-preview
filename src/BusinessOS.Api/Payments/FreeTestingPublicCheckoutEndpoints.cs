@@ -1,4 +1,4 @@
-﻿using BusinessOS.Api.Commerce;
+using BusinessOS.Api.Commerce;
 using BusinessOS.Api.Tenancy;
 using BusinessOS.Payments;
 
@@ -61,11 +61,20 @@ public static class FreeTestingPublicCheckoutEndpoints
                         state,
                         DateOnly.FromDateTime(DateTime.UtcNow));
 
+                var activationCode = await commerceStore.GetOrCreateDesktopActivationCodeAsync(
+                    activation.TenantId,
+                    activation.SubscriptionId,
+                    cancellationToken);
+                if (activationCode is null)
+                    return Results.NotFound(new ErrorResponse(
+                        "License activation code could not be generated."));
+
                 return Results.Ok(new FreeTestingPublicPurchaseResponse(
                     checkout,
                     payment.Duplicate,
                     activation,
-                    entitlement));
+                    entitlement,
+                    activationCode));
             }
             catch (ArgumentException ex)
             {
@@ -128,5 +137,5 @@ public sealed record FreeTestingPublicPurchaseResponse(
     RazorpayCheckoutOrderResponse Checkout,
     bool DuplicatePaymentEvent,
     ActivationResponse Activation,
-    EntitlementStatusResponse? Entitlement);
-
+    EntitlementStatusResponse? Entitlement,
+    LicenseActivationCodeResponse ActivationCode);

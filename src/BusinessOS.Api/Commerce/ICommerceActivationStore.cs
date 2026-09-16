@@ -36,6 +36,19 @@ public interface ICommerceActivationStore
         DesktopDeviceValidationRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<LicenseActivationCodeResponse?> GetOrCreateDesktopActivationCodeAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        CancellationToken cancellationToken = default);
+
+    Task<DesktopDeviceLicenseResponse?> ActivateDesktopDeviceWithCodeAsync(
+        DesktopActivationCodeRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<DesktopDeviceLicenseResponse?> ValidateDesktopDeviceWithCodeAsync(
+        DesktopActivationCodeRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<CheckoutOrderResponse> CreateInitialCheckoutOrderAsync(
         Guid tenantId,
         CreateInitialCheckoutOrderRequest request,

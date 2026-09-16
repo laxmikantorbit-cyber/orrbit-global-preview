@@ -1,111 +1,99 @@
-# Desktop License Integration
+# Desktop License Integration - AI Repair
 
-This document describes the free-staging desktop license API flow for oRRbit AI Repair.
+This document describes the customer-safe desktop licensing flow for oRRbit AI Repair.
 
-## Scope
-
-The desktop app should use these APIs after a website purchase has produced a subscription id.
-
-- Bind a subscription/license to a desktop device fingerprint.
-- Receive a signed offline lease for short offline use.
-- Validate an already activated device.
-- Block unactivated devices.
-- Enforce purchased desktop device limit.
-
-## Staging API base
+## Final customer flow
 
 ```text
-https://businessos-commerce-api-live.onrender.com
+Website Buy Now
+-> Payment captured
+-> Subscription and license created
+-> Activation code generated
+-> Customer enters activation code in Repair desktop software
+-> Desktop sends activation code + machine fingerprint
+-> API binds device and returns signed offline lease
+-> Desktop stores lease locally and starts software
 ```
 
-## Authentication
+The desktop EXE must not contain a master/admin bearer token.
 
-Desktop activation and validation are protected endpoints.
-The desktop app must send the tenant bearer token through a secure backend/channel in production.
-Do not hardcode production secrets inside the desktop installer.
-## Activate device
+## Public desktop endpoints
 
-```http
+```text
+POST /api/desktop/licenses/activate
+POST /api/desktop/licenses/validate
+```
+
+These endpoints accept an activation code and do not require a bearer token. The activation code resolves the tenant/subscription internally.
+
+## Protected internal/admin endpoints
+
+```text
+POST /api/desktop/licenses/{subscriptionId}/activation-code
 POST /api/desktop/licenses/{subscriptionId}/activate
-Authorization: Bearer <tenant-token>
-Content-Type: application/json
-```
-
-```json
-{
-  "deviceFingerprint": "DESKTOP-FOFADB8-BOARD-001",
-  "deviceName": "Owner PC",
-  "appVersion": "3.1.108.62"
-}
-```
-
-Expected success returns `allowed=true`, `reason=device_activated`, a signed `lease`, and `publicKeyBase64`.
-
-## Validate device
-
-```http
 POST /api/desktop/licenses/{subscriptionId}/validate
-Authorization: Bearer <tenant-token>
-Content-Type: application/json
 ```
+
+## Activate request
+
 ```json
 {
-  "deviceFingerprint": "DESKTOP-FOFADB8-BOARD-001",
-  "offlineLease": {
-    "algorithm": "ECDSA-P256-SHA256",
-    "payloadBase64": "...",
-    "signatureBase64": "..."
-  }
+  "activationCode": "ORR-XXXX-XXXX-XXXX-XXXX",
+  "deviceFingerprint": "machine-fingerprint",
+  "deviceName": "Owner PC",
+  "appVersion": "3.1.108.62",
+  "currentLease": null
 }
 ```
 
-Expected success returns `allowed=true`, `reason=license_valid`, and a refreshed lease.
-If the device was never activated, it returns `allowed=false` with `reason=device_not_activated`.
-
-## Response fields
-
-- `subscriptionId`, `licenseId`, `productCode`
-- `deviceFingerprint`, `deviceName`
-- `status`, `renewalStatus`, `allowed`, `reason`
-- `activeDesktopDevices`, `desktopDeviceLimit`
-- `startsOn`, `validUntil`, `leaseValidUntil`
-- `lease`, `publicKeyBase64`, `entitlements`
-## Offline behavior
-
-The API returns a signed lease that can be verified locally by the desktop software using `publicKeyBase64`.
-The current lease window is up to 7 days, capped by the subscription expiry date.
-
-Recommended desktop behavior:
-
-1. On app start, validate online when internet is available.
-2. Store the latest signed lease locally in encrypted app storage.
-3. If internet is unavailable, verify the lease signature and device fingerprint offline.
-4. If the lease is expired, show renewal/support message and block protected usage.
-5. After payment renewal, validate online again to refresh the lease.
-
-## Free staging note
-
-The public website demo purchase endpoint is staging-only and non-production.
-Production checkout must use real Razorpay payment confirmation and persistent DB.
-
-## Ready-to-copy desktop client kit
-
-A buildable sample client is available at:
+Expected result:
 
 ```text
-samples/repair-desktop-license-client/Orrbit.RepairDesktopLicenseClient
+Allowed=true
+Reason=device_activated
+Status=Active
+Lease=<signed lease payload>
+PublicKeyBase64=<license public key>
 ```
 
-Use it as the source reference for the actual Repair WinForms/WPF app startup gate.
-It includes:
+## Validate request
+
+```json
+{
+  "activationCode": "ORR-XXXX-XXXX-XXXX-XXXX",
+  "deviceFingerprint": "machine-fingerprint",
+  "deviceName": null,
+  "appVersion": null,
+  "currentLease": { }
+}
+```
+
+## Repair desktop startup logic
+
+1. Load cached offline lease from `C:\Users\Dell\AppData\Local\\oRRbit\\AI_REPAIR\\License\\lease.json`.
+2. Try online validation using activation code and current machine fingerprint.
+3. If validation succeeds, overwrite cache with new signed lease.
+4. If API/internet fails, allow only when cached lease is still valid.
+5. If license is expired, device is not activated, or device limit is full, show activation/support screen.
+
+## Sample client
+
+Ready-to-copy C# sample:
 
 ```text
-OrrbitLicenseClient.cs
-MachineFingerprint.cs
-OfflineLeaseCache.cs
-DesktopLicenseModels.cs
-DesktopLicenseSettings.cs
-Program.cs smoke runner
+samples/repair-desktop-license-client/
 ```
 
-Important: the actual Repair source was not found on DESKTOP-FOFADB8, so the desktop app itself was not patched in this step. Copy these files into the actual Repair project when that source is available.
+Environment variables for smoke test:
+
+```text
+ORRBIT_LICENSE_API=https://businessos-commerce-api-live.onrender.com
+ORRBIT_ACTIVATION_CODE=ORR-XXXX-XXXX-XXXX-XXXX
+```
+
+## Production DB tables
+
+```text
+commerce_license_activation_codes
+commerce_desktop_device_activations
+```
