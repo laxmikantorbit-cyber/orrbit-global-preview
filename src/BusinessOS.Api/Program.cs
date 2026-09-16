@@ -157,6 +157,7 @@ app.MapFreeTestingPublicCrmCommerceEndpoints();
 app.MapFreeTestingPublicCrmManagementEndpoints();
 app.MapFreeTestingPublicCrmMergeEndpoints();
 app.MapFreeTestingPublicCrmOpportunityMaintenanceEndpoints();
+app.MapFreeTestingPublicCrmOpportunityProductEndpoints();
 app.MapFreeTestingPublicCrmTeamEndpoints();
 app.MapFreeTestingCheckoutPageEndpoints();
 app.MapPaymentWebhookEndpoints();
