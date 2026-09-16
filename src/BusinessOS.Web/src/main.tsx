@@ -6,6 +6,7 @@ import { CrmAdvancedHub } from './CrmAdvancedHub.tsx'
 import { CrmManagementHub } from './CrmManagementHub.tsx'
 import { CrmDataMaintenanceHub } from './CrmDataMaintenanceHub.tsx'
 import { CrmPipelineBoard } from './CrmPipelineBoard.tsx'
+import { CrmAddressHub } from './CrmAddressHub.tsx'
 
 const path = window.location.pathname
 const advancedLinkStyle = {
@@ -14,33 +15,32 @@ const advancedLinkStyle = {
   textDecoration: 'none', fontFamily: 'Inter, system-ui, sans-serif', fontSize: '13px', fontWeight: 800,
   boxShadow: '0 12px 30px rgba(15,23,42,.22)',
 } as const
-const managementLinkStyle = {
-  ...advancedLinkStyle,
-  bottom: '64px',
-  background: '#1d4ed8',
-} as const
-const maintenanceLinkStyle = {
-  ...advancedLinkStyle,
-  bottom: '110px',
-  background: '#047857',
-} as const
-const pipelineLinkStyle = {
-  ...advancedLinkStyle,
-  bottom: '156px',
-  background: '#7c3aed',
-} as const
+const managementLinkStyle = { ...advancedLinkStyle, bottom: '64px', background: '#1d4ed8' } as const
+const maintenanceLinkStyle = { ...advancedLinkStyle, bottom: '110px', background: '#047857' } as const
+const pipelineLinkStyle = { ...advancedLinkStyle, bottom: '156px', background: '#7c3aed' } as const
+const addressLinkStyle = { ...advancedLinkStyle, bottom: '202px', background: '#b45309' } as const
 
-const content = path === '/crm/pipeline-board'
-  ? <CrmPipelineBoard />
-  : path === '/crm/maintenance'
-    ? <CrmDataMaintenanceHub />
-    : path === '/crm/manage'
-      ? <CrmManagementHub />
-      : path === '/crm/advanced'
-        ? <><CrmAdvancedHub /><a href="/crm/manage" style={managementLinkStyle}>CRM Settings & Audit →</a><a href="/crm/maintenance" style={maintenanceLinkStyle}>Data Maintenance →</a><a href="/crm/pipeline-board" style={pipelineLinkStyle}>Drag Pipeline →</a></>
-        : path === '/crm'
-          ? <><App /><a href="/crm/advanced" style={advancedLinkStyle}>Advanced CRM →</a><a href="/crm/manage" style={managementLinkStyle}>CRM Settings →</a><a href="/crm/maintenance" style={maintenanceLinkStyle}>Data Maintenance →</a><a href="/crm/pipeline-board" style={pipelineLinkStyle}>Drag Pipeline →</a></>
-          : <App />
+const utilityLinks = <>
+  <a href="/crm/advanced" style={advancedLinkStyle}>Advanced CRM →</a>
+  <a href="/crm/manage" style={managementLinkStyle}>CRM Settings →</a>
+  <a href="/crm/maintenance" style={maintenanceLinkStyle}>Data Maintenance →</a>
+  <a href="/crm/pipeline-board" style={pipelineLinkStyle}>Drag Pipeline →</a>
+  <a href="/crm/addresses" style={addressLinkStyle}>Customer Addresses →</a>
+</>
+
+const content = path === '/crm/addresses'
+  ? <CrmAddressHub />
+  : path === '/crm/pipeline-board'
+    ? <CrmPipelineBoard />
+    : path === '/crm/maintenance'
+      ? <CrmDataMaintenanceHub />
+      : path === '/crm/manage'
+        ? <CrmManagementHub />
+        : path === '/crm/advanced'
+          ? <><CrmAdvancedHub />{utilityLinks}</>
+          : path === '/crm'
+            ? <><App />{utilityLinks}</>
+            : <App />
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
