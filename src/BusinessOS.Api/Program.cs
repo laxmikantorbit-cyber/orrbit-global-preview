@@ -71,6 +71,7 @@ builder.Services.AddHttpClient<IRazorpayPaymentClient, RazorpayHttpPaymentClient
 builder.Services.AddScoped<RazorpayCheckoutService>();
 builder.Services.AddScoped<RazorpayAutoPayService>();
 var commerceConnection = builder.Configuration.GetConnectionString("Commerce");
+var postgresRuntimeRole = builder.Configuration["BusinessOS:Storage:RuntimeRole"];
 if (string.IsNullOrWhiteSpace(commerceConnection))
 {
     builder.Services.AddSingleton<IPaymentEventStore, InMemoryPaymentEventStore>();
@@ -79,12 +80,13 @@ if (string.IsNullOrWhiteSpace(commerceConnection))
 else
 {
     builder.Services.AddSingleton<IPaymentEventStore>(_ =>
-        new PostgresPaymentEventStore(commerceConnection));
+        new PostgresPaymentEventStore(commerceConnection, postgresRuntimeRole));
     builder.Services.AddSingleton<ICommerceActivationStore>(sp =>
         new PostgresCommerceActivationStore(
             commerceConnection,
             sp.GetRequiredService<PaymentSubscriptionActivationService>(),
-            sp.GetRequiredService<LeaseSigner>()));
+            sp.GetRequiredService<LeaseSigner>(),
+            postgresRuntimeRole));
 }
 
 var identityConnection = builder.Configuration.GetConnectionString("Identity");

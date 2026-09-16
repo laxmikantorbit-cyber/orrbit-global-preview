@@ -12,6 +12,7 @@ public sealed partial class PostgresCommerceActivationStore
     {
         var normalizedProvider = NormalizeProviderValue(provider);
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await BusinessOS.Api.PostgresRuntimeRole.ApplyAsync(connection, _runtimeRole, cancellationToken);
         const string sql = """
             SELECT tenant_id,subscription_id,provider,provider_subscription_id,
                    provider_plan_id,start_at_unix,total_count,status,
@@ -36,6 +37,7 @@ public sealed partial class PostgresCommerceActivationStore
         var normalizedProvider = NormalizeProviderValue(provider);
         if (string.IsNullOrWhiteSpace(providerSubscriptionId)) return null;
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await BusinessOS.Api.PostgresRuntimeRole.ApplyAsync(connection, _runtimeRole, cancellationToken);
         const string sql = """
             SELECT tenant_id,subscription_id,provider,provider_subscription_id,
                    provider_plan_id,start_at_unix,total_count,status,
@@ -66,6 +68,7 @@ public sealed partial class PostgresCommerceActivationStore
                 ? null : binding.AuthorizationUrl.Trim()
         };
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await BusinessOS.Api.PostgresRuntimeRole.ApplyAsync(connection, _runtimeRole, cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await SetTenantAsync(connection, transaction, normalized.TenantId, cancellationToken);
         var subscription = await LoadSubscriptionAsync(
@@ -126,6 +129,7 @@ public sealed partial class PostgresCommerceActivationStore
         if (string.IsNullOrWhiteSpace(providerSubscriptionId) || string.IsNullOrWhiteSpace(status))
             throw new ArgumentException("Provider subscription id and status are required.");
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await BusinessOS.Api.PostgresRuntimeRole.ApplyAsync(connection, _runtimeRole, cancellationToken);
         const string sql = """
             UPDATE commerce_provider_subscription_routes
             SET status=@status,auto_renew_enabled=@auto_renew_enabled,

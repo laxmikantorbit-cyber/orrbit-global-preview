@@ -16,6 +16,8 @@ public sealed partial class PostgresCommerceActivationStore
         var now = DateTimeOffset.UtcNow;
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+
+        await BusinessOS.Api.PostgresRuntimeRole.ApplyAsync(connection, _runtimeRole, cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
         var persisted = await LoadSubscriptionAsync(
@@ -76,6 +78,8 @@ public sealed partial class PostgresCommerceActivationStore
         var now = DateTimeOffset.UtcNow;
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+
+        await BusinessOS.Api.PostgresRuntimeRole.ApplyAsync(connection, _runtimeRole, cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
         var persisted = await LoadSubscriptionAsync(

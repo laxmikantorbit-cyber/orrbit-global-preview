@@ -37,6 +37,7 @@ public sealed partial class PostgresCommerceActivationStore
         try
         {
             await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+            await BusinessOS.Api.PostgresRuntimeRole.ApplyAsync(connection, _runtimeRole, cancellationToken);
             await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
             await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
             await InsertQuoteAsync(connection, transaction, order, createdAtUtc, cancellationToken);
@@ -66,6 +67,7 @@ public sealed partial class PostgresCommerceActivationStore
         try
         {
             await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+            await BusinessOS.Api.PostgresRuntimeRole.ApplyAsync(connection, _runtimeRole, cancellationToken);
             await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
             await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
             var persisted = await LoadSubscriptionAsync(
@@ -136,6 +138,7 @@ public sealed partial class PostgresCommerceActivationStore
         try
         {
             await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+            await BusinessOS.Api.PostgresRuntimeRole.ApplyAsync(connection, _runtimeRole, cancellationToken);
             await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
             await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
             var trimmedRazorpayOrderId = razorpayOrderId.Trim();
@@ -163,6 +166,7 @@ public sealed partial class PostgresCommerceActivationStore
         if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(providerOrderId))
             return null;
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await BusinessOS.Api.PostgresRuntimeRole.ApplyAsync(connection, _runtimeRole, cancellationToken);
         return await LoadProviderOrderRouteAsync(
             connection,
             provider,
@@ -178,6 +182,7 @@ public sealed partial class PostgresCommerceActivationStore
         if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(providerOrderId))
             return null;
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await BusinessOS.Api.PostgresRuntimeRole.ApplyAsync(connection, _runtimeRole, cancellationToken);
         var route = await LoadProviderOrderRouteAsync(
             connection, provider, providerOrderId, cancellationToken);
         if (route is null)

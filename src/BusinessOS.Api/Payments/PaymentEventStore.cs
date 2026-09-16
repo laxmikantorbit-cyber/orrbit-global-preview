@@ -62,12 +62,14 @@ public sealed class InMemoryPaymentEventStore : IPaymentEventStore
 public sealed class PostgresPaymentEventStore : IPaymentEventStore, IAsyncDisposable
 {
     private readonly NpgsqlDataSource _dataSource;
+    private readonly string? _runtimeRole;
 
-    public PostgresPaymentEventStore(string connectionString)
+    public PostgresPaymentEventStore(string connectionString, string? runtimeRole = null)
     {
         if (string.IsNullOrWhiteSpace(connectionString))
             throw new ArgumentException("Payment connection string is required.", nameof(connectionString));
         _dataSource = NpgsqlDataSource.Create(connectionString);
+        _runtimeRole = runtimeRole;
     }
 
     public async Task<PaymentProcessResult> ProcessAsync(
@@ -81,6 +83,7 @@ public sealed class PostgresPaymentEventStore : IPaymentEventStore, IAsyncDispos
         try
         {
             await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+            await BusinessOS.Api.PostgresRuntimeRole.ApplyAsync(connection, _runtimeRole, cancellationToken);
             await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
             var eventPayment = await LoadPaymentByEventAsync(
                 connection, transaction, normalizedProvider,
@@ -122,6 +125,7 @@ public sealed class PostgresPaymentEventStore : IPaymentEventStore, IAsyncDispos
         if (ids.Length == 0)
             return Array.Empty<CommerceAdminPaymentItem>();
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await BusinessOS.Api.PostgresRuntimeRole.ApplyAsync(connection, _runtimeRole, cancellationToken);
         const string sql = """
             SELECT provider,payment_id,provider_order_id,status,amount_subunits,
                    currency_code,captured_at_utc,updated_at_utc

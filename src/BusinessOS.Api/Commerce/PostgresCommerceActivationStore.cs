@@ -18,17 +18,20 @@ public sealed partial class PostgresCommerceActivationStore : ICommerceActivatio
     private readonly NpgsqlDataSource _dataSource;
     private readonly PaymentSubscriptionActivationService _activationService;
     private readonly LeaseSigner _signer;
+    private readonly string? _runtimeRole;
 
     public PostgresCommerceActivationStore(
         string connectionString,
         PaymentSubscriptionActivationService activationService,
-        LeaseSigner signer)
+        LeaseSigner signer,
+        string? runtimeRole = null)
     {
         if (string.IsNullOrWhiteSpace(connectionString))
             throw new ArgumentException("Commerce connection string is required.", nameof(connectionString));
         _dataSource = NpgsqlDataSource.Create(connectionString);
         _activationService = activationService;
         _signer = signer;
+        _runtimeRole = runtimeRole;
     }
 
     public async Task<ActivationResponse?> FindActivationAsync(
@@ -37,6 +40,7 @@ public sealed partial class PostgresCommerceActivationStore : ICommerceActivatio
         CancellationToken cancellationToken = default)
     {
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await BusinessOS.Api.PostgresRuntimeRole.ApplyAsync(connection, _runtimeRole, cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
         var persisted = await LoadSubscriptionAsync(
@@ -56,6 +60,7 @@ public sealed partial class PostgresCommerceActivationStore : ICommerceActivatio
         CancellationToken cancellationToken = default)
     {
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await BusinessOS.Api.PostgresRuntimeRole.ApplyAsync(connection, _runtimeRole, cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
         var persisted = await LoadSubscriptionAsync(
@@ -71,6 +76,7 @@ public sealed partial class PostgresCommerceActivationStore : ICommerceActivatio
         CancellationToken cancellationToken = default)
     {
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await BusinessOS.Api.PostgresRuntimeRole.ApplyAsync(connection, _runtimeRole, cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
         var persisted = await LoadSubscriptionAsync(
@@ -133,6 +139,7 @@ public sealed partial class PostgresCommerceActivationStore : ICommerceActivatio
         try
         {
             await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+            await BusinessOS.Api.PostgresRuntimeRole.ApplyAsync(connection, _runtimeRole, cancellationToken);
             await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
             await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
             await InsertQuoteAsync(connection, transaction, order, createdAtUtc, cancellationToken);
@@ -173,6 +180,7 @@ public sealed partial class PostgresCommerceActivationStore : ICommerceActivatio
         try
         {
             await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+            await BusinessOS.Api.PostgresRuntimeRole.ApplyAsync(connection, _runtimeRole, cancellationToken);
             await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
             await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
             var persisted = await LoadSubscriptionAsync(
