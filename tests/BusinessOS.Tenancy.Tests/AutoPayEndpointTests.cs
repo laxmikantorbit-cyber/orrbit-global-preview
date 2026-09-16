@@ -249,6 +249,121 @@ public sealed class AutoPayEndpointTests : IClassFixture<WebApplicationFactory<P
         Assert.Equal(first.RenewalActivation.NewValidUntil, after!.ValidUntil);
     }
     [Fact]
+    public async Task AutoPay_Authorization_Verifies_Signature_And_Marks_Authenticated()
+    {
+        var client = CreateTenantAClient();
+        var subscriptionId = await ActivateSubscriptionAsync(client);
+        var setupResponse = await client.PostAsync(
+            $"/api/commerce/subscriptions/{subscriptionId}/autopay/setup", null);
+        var setup = await setupResponse.Content.ReadFromJsonAsync<AutoPaySetupResponse>();
+        Assert.NotNull(setup);
+
+        const string paymentId = "pay_autopay_authorize";
+        var signature = WebhookSignatureVerifier.Compute(
+            RazorpaySubscriptionAuthorizationVerifier.Payload(paymentId, setup!.ProviderSubscriptionId),
+            "autopay-test-key-secret");
+        var response = await client.PostAsJsonAsync(
+            $"/api/commerce/subscriptions/{subscriptionId}/autopay/authorize",
+            new AutoPayAuthorizationRequest(paymentId, setup.ProviderSubscriptionId, signature));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<AutoPayAuthorizationResponse>();
+        Assert.NotNull(result);
+        Assert.Equal("authenticated", result!.Status);
+        Assert.True(result.AutoRenewEnabled);
+    }
+
+    [Fact]
+    public async Task AutoPay_Authorization_Rejects_Invalid_Signature_Without_State_Change()
+    {
+        var client = CreateTenantAClient();
+        var subscriptionId = await ActivateSubscriptionAsync(client);
+        var setupResponse = await client.PostAsync(
+            $"/api/commerce/subscriptions/{subscriptionId}/autopay/setup", null);
+        var setup = await setupResponse.Content.ReadFromJsonAsync<AutoPaySetupResponse>();
+        Assert.NotNull(setup);
+
+        var response = await client.PostAsJsonAsync(
+            $"/api/commerce/subscriptions/{subscriptionId}/autopay/authorize",
+            new AutoPayAuthorizationRequest(
+                "pay_autopay_invalid", setup!.ProviderSubscriptionId, "bad-signature"));
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+
+        var status = await client.GetFromJsonAsync<ProviderSubscriptionBinding>(
+            $"/api/commerce/subscriptions/{subscriptionId}/autopay");
+        Assert.NotNull(status);
+        Assert.Equal("created", status!.Status);
+    }
+
+    [Fact]
+    public async Task AutoPay_Authorization_Rejects_Provider_Subscription_Mismatch()
+    {
+        var client = CreateTenantAClient();
+        var subscriptionId = await ActivateSubscriptionAsync(client);
+        var setupResponse = await client.PostAsync(
+            $"/api/commerce/subscriptions/{subscriptionId}/autopay/setup", null);
+        var setup = await setupResponse.Content.ReadFromJsonAsync<AutoPaySetupResponse>();
+        Assert.NotNull(setup);
+
+        var response = await client.PostAsJsonAsync(
+            $"/api/commerce/subscriptions/{subscriptionId}/autopay/authorize",
+            new AutoPayAuthorizationRequest(
+                "pay_autopay_mismatch", "sub_wrong_provider_id", "ignored"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AutoPay_Authorization_Fails_Closed_When_Key_Secret_Is_Missing()
+    {
+        var client = FreeTestingFactoryWithoutKeySecret().CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", "tenant-a-staging-token");
+        var subscriptionId = await ActivateSubscriptionAsync(client);
+        var setupResponse = await client.PostAsync(
+            $"/api/commerce/subscriptions/{subscriptionId}/autopay/setup", null);
+        var setup = await setupResponse.Content.ReadFromJsonAsync<AutoPaySetupResponse>();
+        Assert.NotNull(setup);
+
+        var response = await client.PostAsJsonAsync(
+            $"/api/commerce/subscriptions/{subscriptionId}/autopay/authorize",
+            new AutoPayAuthorizationRequest("pay_missing_secret", setup!.ProviderSubscriptionId, "signature"));
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AutoPay_Authorization_Does_Not_Downgrade_Active_Provider_State()
+    {
+        var client = CreateTenantAClient();
+        var subscriptionId = await ActivateSubscriptionAsync(client);
+        var setupResponse = await client.PostAsync(
+            $"/api/commerce/subscriptions/{subscriptionId}/autopay/setup", null);
+        var setup = await setupResponse.Content.ReadFromJsonAsync<AutoPaySetupResponse>();
+        Assert.NotNull(setup);
+
+        var activeBody = JsonSerializer.Serialize(new {
+            @event = "subscription.activated",
+            payload = new { subscription = new { entity = new { id = setup!.ProviderSubscriptionId, status = "active" } } }
+        });
+        var webhook = await SendSignedWebhookAsync(client, activeBody);
+        Assert.Equal(HttpStatusCode.OK, webhook.StatusCode);
+
+        const string paymentId = "pay_late_authorization";
+        var signature = WebhookSignatureVerifier.Compute(
+            RazorpaySubscriptionAuthorizationVerifier.Payload(paymentId, setup.ProviderSubscriptionId),
+            "autopay-test-key-secret");
+        var response = await client.PostAsJsonAsync(
+            $"/api/commerce/subscriptions/{subscriptionId}/autopay/authorize",
+            new AutoPayAuthorizationRequest(paymentId, setup.ProviderSubscriptionId, signature));
+        var result = await response.Content.ReadFromJsonAsync<AutoPayAuthorizationResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(result);
+        Assert.Equal("active", result!.Status);
+    }
+
+    [Fact]
     public async Task FreeTesting_AutoPay_Charge_Is_Blocked_After_Cancellation()
     {
         var client = CreateTenantAClient();
@@ -367,6 +482,7 @@ public sealed class AutoPayEndpointTests : IClassFixture<WebApplicationFactory<P
                     ["BusinessOS:StorageMode"] = "InMemory",
                     ["BusinessOS:Payments:Mode"] = "RazorpayTestPending",
                     ["Payments:RazorpayWebhookSecret"] = "autopay-test-webhook-secret",
+                    ["Payments:RazorpayKeySecret"] = "autopay-test-key-secret",
                     ["BusinessOS:Auth:BearerTokens:0:Token"] = "tenant-a-staging-token",
                     ["BusinessOS:Auth:BearerTokens:0:Subject"] = "poc-user-a",
                     ["BusinessOS:Auth:BearerTokens:0:TenantCode"] = "TENANT-A",
@@ -375,6 +491,14 @@ public sealed class AutoPayEndpointTests : IClassFixture<WebApplicationFactory<P
                     ["BusinessOS:Auth:BearerTokens:1:TenantCode"] = "TENANT-B"
                 }));
         });
+    private WebApplicationFactory<Program> FreeTestingFactoryWithoutKeySecret() =>
+        FreeTestingFactory().WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration((_, config) =>
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Payments:RazorpayKeySecret"] = ""
+                })));
+
     private static async Task<Guid> ActivateSubscriptionAsync(HttpClient client)
     {
         var checkoutResponse = await client.PostAsJsonAsync(

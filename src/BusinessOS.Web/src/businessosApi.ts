@@ -59,6 +59,37 @@ export type EntitlementResponse = {
   validUntil: string
 }
 
+export type AutoPaySetupResponse = {
+  tenantId: string
+  subscriptionId: string
+  provider: string
+  providerSubscriptionId: string
+  providerPlanId: string
+  status: string
+  providerPublicKeyId: string
+  authorizationUrl?: string | null
+  startAtUnix: number
+  totalCount: number
+  existingBinding: boolean
+}
+
+export type AutoPayStatus = {
+  providerSubscriptionId: string
+  status: string
+  autoRenewEnabled: boolean
+  cancelAtPeriodEnd: boolean
+  authorizationUrl?: string | null
+}
+
+export type AutoPayAuthorizationResponse = {
+  tenantId: string
+  subscriptionId: string
+  providerSubscriptionId: string
+  status: string
+  autoRenewEnabled: boolean
+  updatedAtUtc: string
+}
+
 export type AdminSnapshot = {
   tenantId: string
   generatedAtUtc: string
@@ -137,6 +168,38 @@ export async function cancelAtPeriodEnd(token: string, subscriptionId: string) {
     { method: 'POST', headers: authHeaders(token) },
   )
   return parseResponse<EntitlementResponse>(response)
+}
+
+export async function setupAutoPay(token: string, subscriptionId: string) {
+  const response = await fetch(`${apiBase}/api/commerce/subscriptions/${subscriptionId}/autopay/setup`, {
+    method: 'POST', headers: authHeaders(token),
+  })
+  return parseResponse<AutoPaySetupResponse>(response)
+}
+
+export async function getAutoPayStatus(token: string, subscriptionId: string) {
+  const response = await fetch(`${apiBase}/api/commerce/subscriptions/${subscriptionId}/autopay`, {
+    headers: authHeaders(token),
+  })
+  return parseResponse<AutoPayStatus>(response)
+}
+
+export async function authorizeAutoPay(token: string, subscriptionId: string, request: {
+  razorpayPaymentId: string
+  razorpaySubscriptionId: string
+  razorpaySignature: string
+}) {
+  const response = await fetch(`${apiBase}/api/commerce/subscriptions/${subscriptionId}/autopay/authorize`, {
+    method: 'POST', headers: authHeaders(token), body: JSON.stringify(request),
+  })
+  return parseResponse<AutoPayAuthorizationResponse>(response)
+}
+
+export async function simulateAutoPayRenewal(token: string, subscriptionId: string) {
+  const response = await fetch(`${apiBase}/api/testing/payments/razorpay/subscriptions/${subscriptionId}/charge`, {
+    method: 'POST', headers: authHeaders(token), body: JSON.stringify({ providerOrderId: null, paymentId: null, capturedAtUtc: null }),
+  })
+  return parseResponse<Record<string, unknown>>(response)
 }
 
 export async function getAdminStatus(token: string) {

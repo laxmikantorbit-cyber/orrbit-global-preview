@@ -1,17 +1,22 @@
 import { useMemo, useState } from 'react'
 import './App.css'
 import { CrmDemo } from './CrmDemo'
+import { openRazorpaySubscriptionAuthorization } from './razorpaySubscriptionCheckout'
 import {
   apiBase,
+  authorizeAutoPay,
   cancelAtPeriodEnd,
   captureFreePayment,
   createInitialCheckout,
   getAdminStatus,
+  getAutoPayStatus,
   getEntitlement,
   getSubscription,
   health,
   publicDemoPurchase,
   readiness,
+  setupAutoPay,
+  simulateAutoPayRenewal,
   type EntitlementResponse,
 } from './businessosApi'
 
@@ -44,16 +49,17 @@ function json(data: unknown) {
   return JSON.stringify(data, null, 2)
 }
 function App() {
-  if (window.location.pathname === '/crm') return <CrmDemo />
-
   const [token, setToken] = useState('')
   const [steps, setSteps] = useState<Step[]>(initialSteps)
   const [output, setOutput] = useState('Ready for staging checkout test.')
   const [subscriptionId, setSubscriptionId] = useState('')
   const [activationCode, setActivationCode] = useState('')
   const [entitlement, setEntitlement] = useState<EntitlementResponse | null>(null)
+  const [autoPayBusy, setAutoPayBusy] = useState(false)
 
   const canRunProtected = useMemo(() => token.trim().length > 0, [token])
+
+  if (window.location.pathname === '/crm') return <CrmDemo />
 
   function mark(key: string, status: StepStatus, detail?: string) {
     setSteps((items) =>
@@ -152,6 +158,48 @@ function App() {
       )
     }
   }
+  async function setupAutoPayForLastSubscription() {
+    if (!subscriptionId || !canRunProtected || autoPayBusy) return
+    setAutoPayBusy(true)
+    try {
+      const setup = await setupAutoPay(token.trim(), subscriptionId)
+      if (setup.providerPublicKeyId === 'rzp_test_free_testing') {
+        const status = await getAutoPayStatus(token.trim(), subscriptionId)
+        setOutput(json({ autoPaySetup: setup, autoPayStatus: status, next: 'Use the simulator button to test a recurring renewal charge.' }))
+        return
+      }
+      const authorization = await openRazorpaySubscriptionAuthorization(setup)
+      const verified = await authorizeAutoPay(token.trim(), subscriptionId, {
+        razorpayPaymentId: authorization.razorpay_payment_id,
+        razorpaySubscriptionId: authorization.razorpay_subscription_id,
+        razorpaySignature: authorization.razorpay_signature,
+      })
+      const status = await getAutoPayStatus(token.trim(), subscriptionId)
+      setOutput(json({ autoPaySetup: setup, authorization: verified, autoPayStatus: status }))
+    } catch (error) {
+      setOutput(error instanceof Error ? error.message : String(error))
+    } finally {
+      setAutoPayBusy(false)
+    }
+  }
+
+  async function simulateAutoPayRenewalForLastSubscription() {
+    if (!subscriptionId || !canRunProtected || autoPayBusy) return
+    setAutoPayBusy(true)
+    try {
+      const before = await getEntitlement(token.trim(), subscriptionId)
+      const charge = await simulateAutoPayRenewal(token.trim(), subscriptionId)
+      const after = await getEntitlement(token.trim(), subscriptionId)
+      const status = await getAutoPayStatus(token.trim(), subscriptionId)
+      setEntitlement(after)
+      setOutput(json({ before, simulatedAutoPayCharge: charge, after, autoPayStatus: status }))
+    } catch (error) {
+      setOutput(error instanceof Error ? error.message : String(error))
+    } finally {
+      setAutoPayBusy(false)
+    }
+  }
+
   async function cancelLastSubscription() {
     if (!subscriptionId || !canRunProtected) return
     try {
@@ -194,6 +242,7 @@ function App() {
             <li>10 named web users for testing</li>
             <li>Simulated Razorpay order and payment capture</li>
             <li>Subscription, license and entitlement status verification</li>
+            <li>AutoPay mandate setup, authorization and renewal simulation</li>
           </ul>
 
           <label htmlFor="token">Staging bearer token</label>
@@ -218,6 +267,24 @@ function App() {
             </button>
             <button type="button" className="ghost" onClick={reset}>
               Reset
+            </button>
+          </div>
+
+          <div className="button-row">
+            <button
+              type="button"
+              disabled={!subscriptionId || !canRunProtected || autoPayBusy}
+              onClick={setupAutoPayForLastSubscription}
+            >
+              {autoPayBusy ? 'Working…' : 'Setup / Authorize AutoPay'}
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              disabled={!subscriptionId || !canRunProtected || autoPayBusy}
+              onClick={simulateAutoPayRenewalForLastSubscription}
+            >
+              Simulate AutoPay Renewal
             </button>
           </div>
 

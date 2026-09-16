@@ -299,6 +299,19 @@ public sealed record AutoPaySetupResponse(
     int TotalCount,
     bool ExistingBinding);
 
+public sealed record AutoPayAuthorizationRequest(
+    string RazorpayPaymentId,
+    string RazorpaySubscriptionId,
+    string RazorpaySignature);
+
+public sealed record AutoPayAuthorizationResponse(
+    Guid TenantId,
+    Guid SubscriptionId,
+    string ProviderSubscriptionId,
+    string Status,
+    bool AutoRenewEnabled,
+    DateTimeOffset UpdatedAtUtc);
+
 public sealed record AutoPayRenewalTemplate(
     string ProductCode,
     Guid PlanVersionId,

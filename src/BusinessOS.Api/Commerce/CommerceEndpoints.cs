@@ -118,6 +118,60 @@ public static class CommerceEndpoints
             }
         });
 
+        group.MapPost("/subscriptions/{subscriptionId:guid}/autopay/authorize", async (
+            Guid subscriptionId,
+            AutoPayAuthorizationRequest request,
+            TenantContext tenant,
+            ICommerceActivationStore store,
+            IConfiguration configuration,
+            CancellationToken cancellationToken) =>
+        {
+            if (TenantRoleAuthorization.ForbidUnlessCommerceAdmin(tenant) is { } forbidden)
+                return forbidden;
+
+            if (string.IsNullOrWhiteSpace(request.RazorpayPaymentId) ||
+                string.IsNullOrWhiteSpace(request.RazorpaySubscriptionId) ||
+                string.IsNullOrWhiteSpace(request.RazorpaySignature))
+                return Results.BadRequest(new ErrorResponse("Razorpay authorization fields are required."));
+
+            var state = await store.FindSubscriptionStateAsync(
+                tenant.TenantId, subscriptionId, cancellationToken);
+            if (state is null)
+                return Results.NotFound(new ErrorResponse("Subscription was not found for this tenant."));
+
+            var binding = await store.FindProviderSubscriptionAsync(
+                tenant.TenantId, subscriptionId, "razorpay", cancellationToken);
+            if (binding is null)
+                return Results.NotFound(new ErrorResponse("AutoPay is not configured for this subscription."));
+
+            var terminal = binding.CancelAtPeriodEnd || binding.Status.ToLowerInvariant() is
+                "cancelled" or "completed" or "expired" or "halted";
+            if (terminal)
+                return Results.Conflict(new ErrorResponse("AutoPay authorization is not allowed for this provider state."));
+            if (!string.Equals(binding.ProviderSubscriptionId, request.RazorpaySubscriptionId.Trim(),
+                StringComparison.Ordinal))
+                return Results.BadRequest(new ErrorResponse("Razorpay subscription id does not match AutoPay binding."));
+
+            var secret = configuration["Payments:RazorpayKeySecret"];
+            if (string.IsNullOrWhiteSpace(secret))
+                return Results.Problem("Razorpay key secret is not configured.",
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            if (!BusinessOS.Api.Payments.RazorpaySubscriptionAuthorizationVerifier.Verify(
+                request.RazorpayPaymentId, request.RazorpaySubscriptionId, request.RazorpaySignature, secret))
+                return Results.Unauthorized();
+
+            var updated = binding;
+            if (!string.Equals(binding.Status, "active", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(binding.Status, "authenticated", StringComparison.OrdinalIgnoreCase))
+                updated = await store.UpdateProviderSubscriptionStateAsync(
+                    "razorpay", binding.ProviderSubscriptionId, "authenticated", true, false, cancellationToken)
+                    ?? binding;
+
+            return Results.Ok(new AutoPayAuthorizationResponse(
+                tenant.TenantId, subscriptionId, updated.ProviderSubscriptionId,
+                updated.Status, updated.AutoRenewEnabled, updated.UpdatedAtUtc));
+        });
+
         group.MapPost("/checkout/initial", async (
             CreateInitialCheckoutOrderRequest request,
             TenantContext tenant,
