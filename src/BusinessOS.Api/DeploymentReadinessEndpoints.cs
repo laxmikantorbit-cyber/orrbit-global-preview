@@ -83,7 +83,8 @@ public sealed record DeploymentReadinessReport(
         string paymentsMode) =>
         !environment.IsProduction() &&
         string.Equals(deploymentMode, "FreeTesting", StringComparison.OrdinalIgnoreCase) &&
-        string.Equals(storageMode, "InMemory", StringComparison.OrdinalIgnoreCase) &&
+        (string.Equals(storageMode, "InMemory", StringComparison.OrdinalIgnoreCase) ||
+         string.Equals(storageMode, "Postgres", StringComparison.OrdinalIgnoreCase)) &&
         paymentsMode.StartsWith("RazorpayTest", StringComparison.OrdinalIgnoreCase);
 
     private static void AddFreeTestingChecks(
@@ -94,7 +95,9 @@ public sealed record DeploymentReadinessReport(
         checks.Add("free_testing_mode");
         checks.Add($"storage_mode:{storageMode}");
         checks.Add($"payments_mode:{paymentsMode}");
-        checks.Add("external_db_and_live_payment_secrets_deferred_until_release");
+        checks.Add(string.Equals(storageMode, "Postgres", StringComparison.OrdinalIgnoreCase)
+            ? "free_testing_postgres_persistence"
+            : "external_db_and_live_payment_secrets_deferred_until_release");
     }
 
     private static void RequireProductionExternalConfiguration(
