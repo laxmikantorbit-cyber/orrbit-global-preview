@@ -12,8 +12,19 @@ internal static class PostgresRuntimeRole
         if (string.IsNullOrWhiteSpace(runtimeRole))
             return;
 
-        var quoted = "\"" + runtimeRole.Trim().Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
-        await using var command = new NpgsqlCommand("SET ROLE " + quoted, connection);
+        await using var command = new NpgsqlCommand(
+            "SET ROLE " + QuoteIdentifier(runtimeRole), connection);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
+
+    public static async Task ResetAsync(
+        NpgsqlConnection connection,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand("RESET ROLE", connection);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    internal static string QuoteIdentifier(string value) =>
+        "\"" + value.Trim().Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
 }

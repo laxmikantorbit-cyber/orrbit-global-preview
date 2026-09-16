@@ -5,14 +5,24 @@ namespace BusinessOS.Api.Crm;
 public sealed class CrmPostgresDatabase : IAsyncDisposable
 {
     private readonly NpgsqlDataSource _dataSource;
+    private readonly NpgsqlDataSource _bootstrapDataSource;
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly string? _runtimeRole;
+    private readonly bool _allowSchemaBootstrap;
     private bool _ready;
 
-    public CrmPostgresDatabase(string connectionString)
+    public CrmPostgresDatabase(
+        string connectionString,
+        string? runtimeRole = null,
+        bool allowSchemaBootstrap = false)
     {
         if (string.IsNullOrWhiteSpace(connectionString))
             throw new ArgumentException("CRM connection string is required.", nameof(connectionString));
-        _dataSource = NpgsqlDataSource.Create(connectionString);
+        _runtimeRole = string.IsNullOrWhiteSpace(runtimeRole) ? null : runtimeRole.Trim();
+        _bootstrapDataSource = NpgsqlDataSource.Create(connectionString);
+        _dataSource = NpgsqlDataSource.Create(
+            BuildRuntimeConnectionString(connectionString, _runtimeRole));
+        _allowSchemaBootstrap = allowSchemaBootstrap;
     }
 
     public NpgsqlDataSource DataSource => _dataSource;
@@ -24,8 +34,10 @@ public sealed class CrmPostgresDatabase : IAsyncDisposable
         try
         {
             if (_ready) return;
-            await using var command = _dataSource.CreateCommand(SchemaSql);
-            await command.ExecuteNonQueryAsync(cancellationToken);
+            if (_allowSchemaBootstrap)
+                await BootstrapAsync(cancellationToken);
+            else
+                await ValidateRuntimeAccessAsync(cancellationToken);
             _ready = true;
         }
         finally
@@ -34,7 +46,58 @@ public sealed class CrmPostgresDatabase : IAsyncDisposable
         }
     }
 
-    public ValueTask DisposeAsync() => _dataSource.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        await _dataSource.DisposeAsync();
+        await _bootstrapDataSource.DisposeAsync();
+    }
+
+    private async Task BootstrapAsync(CancellationToken cancellationToken)
+    {
+        await using var connection = await _bootstrapDataSource.OpenConnectionAsync(cancellationToken);
+        await BusinessOS.Api.PostgresRuntimeRole.ResetAsync(connection, cancellationToken);
+        await using (var command = new NpgsqlCommand(SchemaSql, connection))
+            await command.ExecuteNonQueryAsync(cancellationToken);
+
+        if (_runtimeRole is null) return;
+        var role = BusinessOS.Api.PostgresRuntimeRole.QuoteIdentifier(_runtimeRole);
+        var grants = RuntimeGrantSql.Replace("__RUNTIME_ROLE__", role, StringComparison.Ordinal);
+        await using var grantCommand = new NpgsqlCommand(grants, connection);
+        await grantCommand.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private async Task ValidateRuntimeAccessAsync(CancellationToken cancellationToken)
+    {
+        await using var command = _dataSource.CreateCommand(RuntimeValidationSql);
+        await command.ExecuteScalarAsync(cancellationToken);
+    }
+
+    private static string BuildRuntimeConnectionString(string connectionString, string? runtimeRole)
+    {
+        if (runtimeRole is null) return connectionString;
+        if (!(char.IsLetter(runtimeRole[0]) || runtimeRole[0] == '_') ||
+            runtimeRole.Any(ch => !(char.IsLetterOrDigit(ch) || ch is '_' or '$')))
+            throw new ArgumentException("Postgres runtime role contains unsupported characters.", nameof(runtimeRole));
+
+        var builder = new NpgsqlConnectionStringBuilder(connectionString);
+        var roleOption = "-c role=" + runtimeRole;
+        builder.Options = string.IsNullOrWhiteSpace(builder.Options)
+            ? roleOption
+            : builder.Options + " " + roleOption;
+        return builder.ConnectionString;
+    }
+
+    private const string RuntimeValidationSql =
+        "SELECT count(*) FROM businessos_crm.team_members WHERE false;";
+
+    private const string RuntimeGrantSql = """
+REVOKE ALL ON SCHEMA businessos_crm FROM PUBLIC;
+REVOKE ALL ON ALL TABLES IN SCHEMA businessos_crm FROM PUBLIC;
+GRANT USAGE ON SCHEMA businessos_crm TO __RUNTIME_ROLE__;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA businessos_crm TO __RUNTIME_ROLE__;
+ALTER DEFAULT PRIVILEGES IN SCHEMA businessos_crm
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO __RUNTIME_ROLE__;
+""";
 
     private const string SchemaSql = """
 CREATE SCHEMA IF NOT EXISTS businessos_crm;

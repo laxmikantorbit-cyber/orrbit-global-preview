@@ -29,6 +29,7 @@ builder.Services.AddCors(options =>
 });
 builder.Services.AddScoped<TenantContext>();
 builder.Services.AddScoped<CustomerStore>();
+var postgresRuntimeRole = builder.Configuration["BusinessOS:Storage:RuntimeRole"];
 var crmConnection = builder.Configuration.GetConnectionString("Crm");
 var useFreeTestingPostgres = string.Equals(
     builder.Configuration["BusinessOS:DeploymentMode"], "FreeTesting", StringComparison.OrdinalIgnoreCase) &&
@@ -45,7 +46,10 @@ if (string.IsNullOrWhiteSpace(crmConnection))
 }
 else
 {
-    builder.Services.AddSingleton(new CrmPostgresDatabase(crmConnection));
+    builder.Services.AddSingleton(new CrmPostgresDatabase(
+        crmConnection,
+        postgresRuntimeRole,
+        useFreeTestingPostgres));
     builder.Services.AddSingleton<ILeadRepository, PostgresCrmLeadRepository>();
     builder.Services.AddSingleton<ICrmWorkRepository, PostgresCrmWorkRepository>();
     builder.Services.AddSingleton<ICrmAccountStore, PostgresCrmAccountStore>();
@@ -71,7 +75,6 @@ builder.Services.AddHttpClient<IRazorpayPaymentClient, RazorpayHttpPaymentClient
 builder.Services.AddScoped<RazorpayCheckoutService>();
 builder.Services.AddScoped<RazorpayAutoPayService>();
 var commerceConnection = builder.Configuration.GetConnectionString("Commerce");
-var postgresRuntimeRole = builder.Configuration["BusinessOS:Storage:RuntimeRole"];
 if (string.IsNullOrWhiteSpace(commerceConnection))
 {
     builder.Services.AddSingleton<IPaymentEventStore, InMemoryPaymentEventStore>();
