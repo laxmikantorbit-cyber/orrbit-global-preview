@@ -152,6 +152,43 @@ public sealed class FreeTestingCheckoutTests : IClassFixture<WebApplicationFacto
     }
 
     [Fact]
+    public async Task InMemory_FreeTesting_Does_Not_Expose_Postgres_Commerce_Smoke()
+    {
+        var client = FreeTestingFactory().CreateClient();
+        var response = await client.PostAsync(
+            "/api/testing/postgres/commerce-smoke", null);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Postgres_FreeTesting_Requires_Explicit_Smoke_Enable_Flag()
+    {
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Staging");
+            builder.ConfigureAppConfiguration((_, config) =>
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["BusinessOS:DeploymentMode"] = "FreeTesting",
+                    ["BusinessOS:StorageMode"] = "Postgres",
+                    ["BusinessOS:Payments:Mode"] = "RazorpayTestPending"
+                }));
+        }).CreateClient();
+        var response = await client.PostAsync(
+            "/api/testing/postgres/commerce-smoke", null);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Production_Does_Not_Expose_Postgres_Commerce_Smoke()
+    {
+        var client = ProductionFactoryWithFreeTestingMode().CreateClient();
+        var response = await client.PostAsync(
+            "/api/testing/postgres/commerce-smoke", null);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Staging_Cors_Allows_Orrbitrepair_Authorization_Preflight()
     {
         var client = FreeTestingFactory().CreateClient();

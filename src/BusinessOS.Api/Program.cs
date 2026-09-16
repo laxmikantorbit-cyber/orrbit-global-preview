@@ -106,6 +106,7 @@ app.MapDesktopLicenseEndpoints();
 app.MapPaymentCheckoutEndpoints();
 app.MapFreeTestingPaymentEndpoints();
 app.MapFreeTestingPublicCheckoutEndpoints();
+app.MapFreeTestingPostgresCommerceSmokeEndpoints();
 app.MapFreeTestingPublicCrmEndpoints();
 app.MapFreeTestingPublicCrmOperationsEndpoints();
 app.MapFreeTestingPublicCrmSalesEndpoints();

@@ -77,6 +77,10 @@ public sealed class TenantAuthenticationMiddleware
         path.StartsWithSegments("/api/testing/public") ||
         string.Equals(
             path.Value,
+            "/api/testing/postgres/commerce-smoke",
+            StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(
+            path.Value,
             "/api/desktop/licenses/activate",
             StringComparison.OrdinalIgnoreCase) ||
         string.Equals(
