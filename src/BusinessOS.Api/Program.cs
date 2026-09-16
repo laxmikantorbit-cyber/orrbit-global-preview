@@ -124,6 +124,7 @@ if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseCors(BusinessOsCorsPolicy);
 app.UseMiddleware<TenantAuthenticationMiddleware>();
 app.UseMiddleware<CrmFreeTestingAccessMiddleware>();
+app.UseMiddleware<CrmAccountScopeMiddleware>();
 app.UseMiddleware<CrmOpportunityProductCarryMiddleware>();
 app.UseMiddleware<CrmMutationAuditMiddleware>();
 app.MapGet("/api/customers", async (
