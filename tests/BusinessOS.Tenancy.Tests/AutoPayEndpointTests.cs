@@ -249,6 +249,26 @@ public sealed class AutoPayEndpointTests : IClassFixture<WebApplicationFactory<P
         Assert.Equal(first.RenewalActivation.NewValidUntil, after!.ValidUntil);
     }
     [Fact]
+    public async Task FreeTesting_AutoPay_Charge_Is_Blocked_After_Cancellation()
+    {
+        var client = CreateTenantAClient();
+        var subscriptionId = await ActivateSubscriptionAsync(client);
+        var setup = await client.PostAsync(
+            $"/api/commerce/subscriptions/{subscriptionId}/autopay/setup", null);
+        Assert.Equal(HttpStatusCode.OK, setup.StatusCode);
+
+        var cancel = await client.PostAsync(
+            $"/api/commerce/subscriptions/{subscriptionId}/cancel-at-period-end", null);
+        Assert.Equal(HttpStatusCode.OK, cancel.StatusCode);
+
+        var response = await client.PostAsJsonAsync(
+            $"/api/testing/payments/razorpay/subscriptions/{subscriptionId}/charge",
+            new FreeTestingAutoPayChargeRequest(null, null, null));
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
     public async Task AutoPay_Setup_Is_Rejected_After_Period_End_Cancellation()
     {
         var client = CreateTenantAClient();

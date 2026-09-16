@@ -138,6 +138,20 @@ public sealed class FreeTestingCheckoutTests : IClassFixture<WebApplicationFacto
     }
 
     [Fact]
+    public async Task Production_Does_Not_Expose_FreeTesting_AutoPay_Charge_Endpoint()
+    {
+        var client = ProductionFactoryWithFreeTestingMode().CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", "tenant-a-prod-token");
+
+        var response = await client.PostAsJsonAsync(
+            $"/api/testing/payments/razorpay/subscriptions/{Guid.NewGuid()}/charge",
+            new FreeTestingAutoPayChargeRequest(null, null, null));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Staging_Cors_Allows_Orrbitrepair_Authorization_Preflight()
     {
         var client = FreeTestingFactory().CreateClient();
