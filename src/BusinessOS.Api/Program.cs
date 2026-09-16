@@ -1,4 +1,4 @@
-using BusinessOS.Api;
+﻿using BusinessOS.Api;
 using BusinessOS.Api.Commerce;
 using BusinessOS.Api.Crm;
 using BusinessOS.Api.Customers;
@@ -109,6 +109,7 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseCors(BusinessOsCorsPolicy);
 app.UseMiddleware<TenantAuthenticationMiddleware>();
+app.UseMiddleware<CrmFreeTestingAccessMiddleware>();
 app.MapGet("/api/customers", async (
     CustomerStore store,
     CancellationToken cancellationToken) =>

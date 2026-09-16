@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import {
   changeCrmTeamRole,
   changeCrmTeamStatus,
@@ -13,9 +13,10 @@ type Props = {
   busy: boolean
   refresh: () => Promise<void>
   notify: (message: string) => void
+  canManageTeam: boolean
 }
 
-export function CrmTeamView({ members, roles, busy, refresh, notify }: Props) {
+export function CrmTeamView({ members, roles, busy, refresh, notify, canManageTeam }: Props) {
   const [showAdd, setShowAdd] = useState(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -40,7 +41,7 @@ export function CrmTeamView({ members, roles, busy, refresh, notify }: Props) {
     <section className="crm2-module-page crm2-team-page">
       <div className="crm2-module-head">
         <div><span className="crm2-kicker">TEAM & ACCESS</span><h2>CRM users & roles</h2><p>Assign sales work and control CRM capabilities by role.</p></div>
-        <button className="crm2-primary" onClick={() => setShowAdd(true)}>＋ Add user</button>
+        {canManageTeam ? <button className="crm2-primary" onClick={() => setShowAdd(true)}>＋ Add user</button> : <span className="crm2-readonly-badge">Read only</span>}
       </div>
       <div className="crm2-summary-strip">
         <div><span>Total users</span><b>{members.length}</b></div>
@@ -54,19 +55,19 @@ export function CrmTeamView({ members, roles, busy, refresh, notify }: Props) {
               <i>{member.displayName.slice(0, 1).toUpperCase()}</i>
               <span><strong>{member.displayName}</strong><small>{member.email}{member.mobileNumber ? ` · ${member.mobileNumber}` : ''}</small></span>
             </div>
-            <select value={member.role} disabled={busy} onChange={(e) => void run(() => changeCrmTeamRole(member.id, e.target.value), 'CRM role updated')}>
+            <select value={member.role} disabled={busy || !canManageTeam} onChange={(e) => void run(() => changeCrmTeamRole(member.id, e.target.value), 'CRM role updated')}>
               {roles.map((item) => <option key={item.role}>{item.role}</option>)}
             </select>
             <div className="crm2-permissions">
               {member.permissions.slice(0, 4).map((permission) => <span key={permission}>{permission.replace(/([A-Z])/g, ' $1').trim()}</span>)}
               {member.permissions.length > 4 ? <em>+{member.permissions.length - 4}</em> : null}
             </div>
-            <button className={member.active ? 'crm2-user-active' : 'crm2-user-inactive'} disabled={busy} onClick={() => void run(() => changeCrmTeamStatus(member.id, !member.active), member.active ? 'CRM user deactivated' : 'CRM user activated')}>{member.active ? 'Active' : 'Inactive'}</button>
+            <button className={member.active ? 'crm2-user-active' : 'crm2-user-inactive'} disabled={busy || !canManageTeam} onClick={() => void run(() => changeCrmTeamStatus(member.id, !member.active), member.active ? 'CRM user deactivated' : 'CRM user activated')}>{member.active ? 'Active' : 'Inactive'}</button>
           </article>
         ))}
       </div>
 
-      {showAdd ? (
+      {showAdd && canManageTeam ? (
         <div className="crm2-inline-form">
           <div><span className="crm2-kicker">NEW CRM USER</span><h3>Add team member</h3></div>
           <div className="crm2-form-grid">

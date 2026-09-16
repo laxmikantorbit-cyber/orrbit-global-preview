@@ -1,4 +1,4 @@
-import { apiBase } from './businessosApi'
+﻿import { apiBase } from './businessosApi'
 
 async function parseResponse<T>(response: Response): Promise<T> {
   const text = await response.text()
@@ -8,6 +8,23 @@ async function parseResponse<T>(response: Response): Promise<T> {
     throw new Error(message)
   }
   return data as T
+}
+const CRM_DEMO_USER_KEY = 'businessos.crm.demoUserId'
+
+export function setCrmDemoUserId(userId?: string | null) {
+  if (userId) window.localStorage.setItem(CRM_DEMO_USER_KEY, userId)
+  else window.localStorage.removeItem(CRM_DEMO_USER_KEY)
+}
+
+export function getCrmDemoUserId() {
+  return window.localStorage.getItem(CRM_DEMO_USER_KEY)
+}
+
+async function crmFetch(path: string, init: RequestInit = {}) {
+  const headers = new Headers(init.headers)
+  const userId = getCrmDemoUserId()
+  if (userId) headers.set('X-CRM-Demo-User-Id', userId)
+  return fetch(`${apiBase}/api/testing/public/crm${path}`, { ...init, headers })
 }
 
 export type CrmLead = {
@@ -91,16 +108,16 @@ export type CrmWorkSummary = {
 }
 
 export async function listCrmLeads() {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/leads`)
+  const response = await crmFetch(`/leads`)
   return parseResponse<{ leads: CrmLead[] }>(response)
 }
 export async function crmDashboard() {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/dashboard`)
+  const response = await crmFetch(`/dashboard`)
   return parseResponse<CrmDashboard>(response)
 }
 
 export async function crmWorkSummary() {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/work-summary`)
+  const response = await crmFetch(`/work-summary`)
   return parseResponse<CrmWorkSummary>(response)
 }
 
@@ -114,7 +131,7 @@ export async function createCrmLead(input: {
   notes?: string
   priority?: string
 }) {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/leads`, {
+  const response = await crmFetch(`/leads`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -123,7 +140,7 @@ export async function createCrmLead(input: {
 }
 
 export async function changeCrmLeadStatus(leadId: string, status: string, reason?: string) {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/leads/${leadId}/status`, {    method: 'POST',
+  const response = await crmFetch(`/leads/${leadId}/status`, {    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status, reason }),
   })
@@ -131,7 +148,7 @@ export async function changeCrmLeadStatus(leadId: string, status: string, reason
 }
 
 export async function getCrmLeadWorkspace(leadId: string) {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/leads/${leadId}/workspace`)
+  const response = await crmFetch(`/leads/${leadId}/workspace`)
   return parseResponse<CrmLeadWorkspace>(response)
 }
 
@@ -143,7 +160,7 @@ export async function updateCrmLeadProfile(leadId: string, input: {
   productInterest?: string
   notes?: string
 }) {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/leads/${leadId}/profile`, {
+  const response = await crmFetch(`/leads/${leadId}/profile`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -152,7 +169,7 @@ export async function updateCrmLeadProfile(leadId: string, input: {
 }
 
 export async function changeCrmLeadPriority(leadId: string, priority: string) {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/leads/${leadId}/priority`, {    method: 'POST',
+  const response = await crmFetch(`/leads/${leadId}/priority`, {    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ priority }),
   })
@@ -164,7 +181,7 @@ export async function addCrmActivity(leadId: string, input: {
   summary: string
   details?: string
 }) {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/leads/${leadId}/activities`, {
+  const response = await crmFetch(`/leads/${leadId}/activities`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -178,7 +195,7 @@ export async function createCrmFollowUp(leadId: string, input: {
   purpose: string
   ownerUserId?: string
 }) {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/leads/${leadId}/follow-ups`, {
+  const response = await crmFetch(`/leads/${leadId}/follow-ups`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -186,12 +203,12 @@ export async function createCrmFollowUp(leadId: string, input: {
   return parseResponse<CrmFollowUp>(response)
 }
 export async function listCrmFollowUps() {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/follow-ups`)
+  const response = await crmFetch(`/follow-ups`)
   return parseResponse<{ followUps: CrmFollowUp[] }>(response)
 }
 
 export async function completeCrmFollowUp(followUpId: string, outcome?: string) {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/follow-ups/${followUpId}/complete`, {
+  const response = await crmFetch(`/follow-ups/${followUpId}/complete`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ outcome }),
@@ -200,7 +217,7 @@ export async function completeCrmFollowUp(followUpId: string, outcome?: string) 
 }
 
 export async function listCrmTasks() {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/tasks`)
+  const response = await crmFetch(`/tasks`)
   return parseResponse<{ tasks: CrmTask[] }>(response)
 }
 
@@ -212,7 +229,7 @@ export async function createCrmTask(input: {
   priority?: string
   assigneeUserId?: string
 }) {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/tasks`, {
+  const response = await crmFetch(`/tasks`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -221,7 +238,7 @@ export async function createCrmTask(input: {
 }
 
 export async function completeCrmTask(taskId: string) {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/tasks/${taskId}/complete`, {
+  const response = await crmFetch(`/tasks/${taskId}/complete`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: '{}',
@@ -262,7 +279,7 @@ export type CrmOpportunity = {
   lossReason?: string | null
 }
 export async function listCrmAccounts() {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/accounts`)
+  const response = await crmFetch(`/accounts`)
   return parseResponse<{ accounts: CrmAccount[] }>(response)
 }
 
@@ -275,7 +292,7 @@ export async function createCrmAccount(input: {
   email?: string
   phone?: string
 }) {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/accounts`, {
+  const response = await crmFetch(`/accounts`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -289,13 +306,13 @@ export async function addCrmContact(accountId: string, input: {
   phone?: string
   isPrimary?: boolean
 }) {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/accounts/${accountId}/contacts`, {
+  const response = await crmFetch(`/accounts/${accountId}/contacts`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
   })
   return parseResponse<CrmAccount>(response)
 }
 export async function listCrmOpportunities() {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/opportunities`)
+  const response = await crmFetch(`/opportunities`)
   return parseResponse<{ opportunities: CrmOpportunity[] }>(response)
 }
 
@@ -308,7 +325,7 @@ export async function createCrmOpportunity(input: {
   expectedCloseDate?: string
   originatingLeadId?: string
 }) {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/opportunities`, {
+  const response = await crmFetch(`/opportunities`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ currencyCode: 'INR', probabilityPercent: 50, ...input }),
   })
@@ -316,7 +333,7 @@ export async function createCrmOpportunity(input: {
 }
 
 export async function changeCrmOpportunityStage(opportunityId: string, stage: string, reason?: string) {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/opportunities/${opportunityId}/stage`, {
+  const response = await crmFetch(`/opportunities/${opportunityId}/stage`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stage, reason }),
   })
   return parseResponse<CrmOpportunity>(response)
@@ -329,7 +346,7 @@ export async function convertCrmLead(leadId: string, input: {
   probabilityPercent?: number
   expectedCloseDate?: string
 }) {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/leads/${leadId}/convert`, {
+  const response = await crmFetch(`/leads/${leadId}/convert`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ currencyCode: 'INR', probabilityPercent: 60, ...input }),
@@ -352,14 +369,23 @@ export type CrmTeamMember = {
   createdAtUtc: string
   permissions: string[]
 }
+export type CrmSession = {
+  member: CrmTeamMember
+  canViewAllOwnedRecords: boolean
+}
+
+export async function getCrmSession() {
+  const response = await crmFetch('/session')
+  return parseResponse<CrmSession>(response)
+}
 
 export async function listCrmRoles() {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/roles`)
+  const response = await crmFetch(`/roles`)
   return parseResponse<{ roles: CrmRole[] }>(response)
 }
 
 export async function listCrmTeam() {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/team`)
+  const response = await crmFetch(`/team`)
   return parseResponse<{ members: CrmTeamMember[] }>(response)
 }
 
@@ -369,28 +395,28 @@ export async function createCrmTeamMember(input: {
   mobileNumber?: string
   role: string
 }) {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/team`, {
+  const response = await crmFetch(`/team`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
   })
   return parseResponse<CrmTeamMember>(response)
 }
 
 export async function changeCrmTeamRole(memberId: string, role: string) {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/team/${memberId}/role`, {
+  const response = await crmFetch(`/team/${memberId}/role`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role }),
   })
   return parseResponse<CrmTeamMember>(response)
 }
 
 export async function changeCrmTeamStatus(memberId: string, active: boolean) {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/team/${memberId}/status`, {
+  const response = await crmFetch(`/team/${memberId}/status`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active }),
   })
   return parseResponse<CrmTeamMember>(response)
 }
 
 export async function assignCrmLead(leadId: string, ownerUserId?: string | null) {
-  const response = await fetch(`${apiBase}/api/testing/public/crm/leads/${leadId}/assign`, {
+  const response = await crmFetch(`/leads/${leadId}/assign`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ownerUserId }),
   })
   return parseResponse<CrmLead>(response)

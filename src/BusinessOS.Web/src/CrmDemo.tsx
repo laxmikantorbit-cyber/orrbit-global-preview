@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import './CrmDemo.css'
 import { readiness } from './businessosApi'
 import {
@@ -8,6 +8,8 @@ import {
   createCrmLead,
   crmDashboard,
   crmWorkSummary,
+  getCrmSession,
+  setCrmDemoUserId,
   listCrmAccounts,
   listCrmFollowUps,
   listCrmLeads,
@@ -21,6 +23,7 @@ import {
   type CrmLead,
   type CrmOpportunity,
   type CrmRole,
+  type CrmSession,
   type CrmTask,
   type CrmTeamMember,
   type CrmWorkSummary,
@@ -57,6 +60,7 @@ export function CrmDemo() {
   const [opportunities, setOpportunities] = useState<CrmOpportunity[]>([])
   const [teamMembers, setTeamMembers] = useState<CrmTeamMember[]>([])
   const [roles, setRoles] = useState<CrmRole[]>([])
+  const [session, setSession] = useState<CrmSession | null>(null)
   const [dashboard, setDashboard] = useState<CrmDashboard>(initialDashboard())
   const [workSummary, setWorkSummary] = useState<CrmWorkSummary>(initialWorkSummary())
   const [message, setMessage] = useState('CRM workspace ready')
@@ -90,12 +94,25 @@ export function CrmDemo() {
   }, [leads, query, statusFilter])
 
   const conversionRate = dashboard.totalLeads > 0 ? Math.round((dashboard.converted / dashboard.totalLeads) * 100) : 0
+  const can = (permission: string) => session?.member.permissions.includes(permission) ?? false
+
   async function refresh() {
     setLoading(true)
     try {
+      const sessionResult = await getCrmSession()
+      setSession(sessionResult)
+      const allowed = (permission: string) => sessionResult.member.permissions.includes(permission)
       const [leadResult, dashResult, followResult, taskResult, workResult, accountResult, opportunityResult, teamResult, roleResult, readyResult] = await Promise.all([
-        listCrmLeads(), crmDashboard(), listCrmFollowUps(), listCrmTasks(), crmWorkSummary(),
-        listCrmAccounts(), listCrmOpportunities(), listCrmTeam(), listCrmRoles(), readiness(),
+        allowed('ViewLeads') ? listCrmLeads() : Promise.resolve({ leads: [] as CrmLead[] }),
+        allowed('ViewDashboard') ? crmDashboard() : Promise.resolve(initialDashboard()),
+        allowed('ManageFollowUps') ? listCrmFollowUps() : Promise.resolve({ followUps: [] as CrmFollowUp[] }),
+        allowed('ManageTasks') ? listCrmTasks() : Promise.resolve({ tasks: [] as CrmTask[] }),
+        allowed('ViewDashboard') ? crmWorkSummary() : Promise.resolve(initialWorkSummary()),
+        allowed('ViewAccounts') ? listCrmAccounts() : Promise.resolve({ accounts: [] as CrmAccount[] }),
+        allowed('ViewOpportunities') ? listCrmOpportunities() : Promise.resolve({ opportunities: [] as CrmOpportunity[] }),
+        allowed('ViewTeam') ? listCrmTeam() : Promise.resolve({ members: [sessionResult.member] }),
+        allowed('ViewDashboard') ? listCrmRoles() : Promise.resolve({ roles: [] as CrmRole[] }),
+        readiness(),
       ])
       setLeads(leadResult.leads)
       setDashboard(dashResult)
@@ -107,12 +124,19 @@ export function CrmDemo() {
       setTeamMembers(teamResult.members)
       setRoles(roleResult.roles)
       setStorageLabel(readyResult.storageMode === 'Postgres' ? 'Postgres persistent data' : 'In-memory test data')
-      setMessage('Live CRM data refreshed')
+      setMessage(`Live CRM refreshed · ${sessionResult.canViewAllOwnedRecords ? 'Team scope' : 'My scope'}`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
     } finally {
       setLoading(false)
     }
+  }
+
+  async function switchUser(userId: string) {
+    setCrmDemoUserId(userId)
+    setSelectedLeadId(null)
+    setView('overview')
+    await refresh()
   }
 
   async function addLead() {
@@ -173,15 +197,15 @@ export function CrmDemo() {
       <aside className="crm2-sidebar">
         <div className="crm2-brand"><div className="crm2-brand-mark">o</div><div><strong>oRRbit</strong><span>BusinessOS CRM</span></div></div>
         <nav className="crm2-nav" aria-label="CRM navigation">
-          <button className={view === 'overview' ? 'active' : ''} onClick={() => setView('overview')}><span>⌂</span>Overview</button>
-          <button className={view === 'leads' ? 'active' : ''} onClick={() => setView('leads')}><span>◎</span>Leads <b>{dashboard.totalLeads}</b></button>
-          <button className={view === 'pipeline' ? 'active' : ''} onClick={() => setView('pipeline')}><span>◇</span>Pipeline</button>
-          <button className={view === 'accounts' ? 'active' : ''} onClick={() => setView('accounts')}><span>A</span>Accounts <b>{accounts.length}</b></button>
-          <button className={view === 'opportunities' ? 'active' : ''} onClick={() => setView('opportunities')}><span>O</span>Opportunities <b>{opportunities.length}</b></button>
-          <button className={view === 'followups' ? 'active' : ''} onClick={() => setView('followups')}><span>↻</span>Follow-ups <b>{workSummary.openFollowUps}</b></button>
-          <button className={view === 'tasks' ? 'active' : ''} onClick={() => setView('tasks')}><span>✓</span>Tasks <b>{workSummary.openTasks}</b></button>
-          <button className={view === 'reports' ? 'active' : ''} onClick={() => setView('reports')}><span>↗</span>Reports</button>
-          <button className={view === 'team' ? 'active' : ''} onClick={() => setView('team')}><span>U</span>Team <b>{teamMembers.filter((member) => member.active).length}</b></button>
+          {can('ViewDashboard') ? <button className={view === 'overview' ? 'active' : ''} onClick={() => setView('overview')}><span>⌂</span>Overview</button> : null}
+          {can('ViewLeads') ? <button className={view === 'leads' ? 'active' : ''} onClick={() => setView('leads')}><span>◎</span>Leads <b>{dashboard.totalLeads}</b></button> : null}
+          {can('ViewLeads') ? <button className={view === 'pipeline' ? 'active' : ''} onClick={() => setView('pipeline')}><span>◇</span>Pipeline</button> : null}
+          {can('ViewAccounts') ? <button className={view === 'accounts' ? 'active' : ''} onClick={() => setView('accounts')}><span>A</span>Accounts <b>{accounts.length}</b></button> : null}
+          {can('ViewOpportunities') ? <button className={view === 'opportunities' ? 'active' : ''} onClick={() => setView('opportunities')}><span>O</span>Opportunities <b>{opportunities.length}</b></button> : null}
+          {can('ManageFollowUps') ? <button className={view === 'followups' ? 'active' : ''} onClick={() => setView('followups')}><span>↻</span>Follow-ups <b>{workSummary.openFollowUps}</b></button> : null}
+          {can('ManageTasks') ? <button className={view === 'tasks' ? 'active' : ''} onClick={() => setView('tasks')}><span>✓</span>Tasks <b>{workSummary.openTasks}</b></button> : null}
+          {can('ViewReports') ? <button className={view === 'reports' ? 'active' : ''} onClick={() => setView('reports')}><span>↗</span>Reports</button> : null}
+          {can('ViewTeam') ? <button className={view === 'team' ? 'active' : ''} onClick={() => setView('team')}><span>U</span>Team <b>{teamMembers.filter((member) => member.active).length}</b></button> : null}
         </nav>
         <div className="crm2-sidebar-foot"><strong>CRM DEVELOPMENT</strong><small>Licensing is paused until CRM completion.</small></div>
       </aside>
@@ -189,9 +213,13 @@ export function CrmDemo() {
       <main className="crm2-main">
         <header className="crm2-topbar">
           <div><span className="crm2-kicker">CRM COMMAND CENTRE</span><h1>{view === 'overview' ? 'Sales overview' : view === 'accounts' ? 'Customer accounts' : view === 'opportunities' ? 'Opportunities' : view === 'followups' ? 'Follow-up centre' : view === 'tasks' ? 'Task centre' : view === 'reports' ? 'Sales reports' : view === 'team' ? 'Team & access' : view === 'pipeline' ? 'Sales pipeline' : 'Lead workspace'}</h1></div>
-          <div className="crm2-top-actions"><button className="crm2-refresh" disabled={loading} onClick={refresh}>↻ Refresh</button><button className="crm2-primary" onClick={() => setShowAddLead(true)}>＋ Add lead</button></div>
+          <div className="crm2-top-actions">
+            {session && teamMembers.length > 0 ? <select className="crm2-user-switch" value={session.member.id} disabled={loading} onChange={(e) => void switchUser(e.target.value)} aria-label="CRM demo user">{teamMembers.filter((member) => member.active).map((member) => <option key={member.id} value={member.id}>{member.displayName} · {member.role}</option>)}</select> : null}
+            <button className="crm2-refresh" disabled={loading} onClick={refresh}>↻ Refresh</button>
+            {can('CreateLead') ? <button className="crm2-primary" onClick={() => setShowAddLead(true)}>＋ Add lead</button> : null}
+          </div>
         </header>
-        <section className="crm2-statusbar"><div><span className={loading ? 'pulse busy' : 'pulse'} />{message}</div><span>Free staging · {storageLabel}</span></section>
+        <section className="crm2-statusbar"><div><span className={loading ? 'pulse busy' : 'pulse'} />{message}</div><span>{session ? `${session.member.displayName} · ${session.member.role} · ${session.canViewAllOwnedRecords ? 'Team scope' : 'My scope'} · ` : ''}Free staging · {storageLabel}</span></section>
         {view === 'overview' ? (
           <>
             <section className="crm2-metrics">
@@ -221,7 +249,7 @@ export function CrmDemo() {
         {view === 'leads' ? (
           <section className="crm2-table-card crm2-module-table">
             <div className="crm2-table-tools">
-              <div><span className="crm2-kicker">LEAD MANAGEMENT</span><h2>All leads</h2></div>
+              <div><span className="crm2-kicker">LEAD MANAGEMENT</span><h2>{session?.canViewAllOwnedRecords ? 'All leads' : 'My leads'}</h2></div>
               <div className="crm2-filters">
                 <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search business, contact, phone…" />
                 <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="All">All stages</option>{statuses.map((status) => <option key={status}>{status}</option>)}</select>
@@ -255,7 +283,7 @@ export function CrmDemo() {
                       <div><strong>{lead.title}</strong><em>{lead.priority || 'Normal'}</em></div>
                       <span>{lead.contactName || lead.mobileNumber || lead.leadSource || 'Direct lead'}</span>
                       <small>{lead.productInterest || 'No product selected'}</small>
-                      <select value={lead.status} disabled={loading || lead.status === 'Converted'} onClick={(e) => e.stopPropagation()} onChange={(e) => void moveLead(lead.id, e.target.value)}>{statuses.filter((item) => item !== 'Converted' || lead.status === 'Converted').map((item) => <option key={item}>{item}</option>)}</select>
+                      <select value={lead.status} disabled={loading || lead.status === 'Converted' || !can('EditLead')} onClick={(e) => e.stopPropagation()} onChange={(e) => void moveLead(lead.id, e.target.value)}>{statuses.filter((item) => item !== 'Converted' || lead.status === 'Converted').map((item) => <option key={item}>{item}</option>)}</select>
                     </article>
                   ))}
                 </div>
@@ -265,13 +293,13 @@ export function CrmDemo() {
         ) : null}
 
         {view === 'accounts' || view === 'opportunities' ? (
-          <CrmSalesView view={view} accounts={accounts} opportunities={opportunities} busy={loading} refresh={refresh} notify={setMessage} />
+          <CrmSalesView view={view} accounts={accounts} opportunities={opportunities} busy={loading} refresh={refresh} notify={setMessage} canManageAccounts={can('ManageAccounts')} canManageOpportunities={can('ManageOpportunities')} />
         ) : null}
         {view === 'followups' || view === 'tasks' || view === 'reports' ? (
           <CrmWorkView view={view} leads={leads} followUps={followUps} tasks={tasks} summary={workSummary} dashboard={dashboard} busy={loading} openLead={setSelectedLeadId} completeFollowUp={finishFollowUp} completeTask={finishTask} />
         ) : null}
         {view === 'team' ? (
-          <CrmTeamView members={teamMembers} roles={roles} busy={loading} refresh={refresh} notify={setMessage} />
+          <CrmTeamView members={teamMembers} roles={roles} busy={loading} refresh={refresh} notify={setMessage} canManageTeam={can('ManageTeam')} />
         ) : null}
         {showAddLead ? (
           <div className="crm2-overlay" onMouseDown={() => setShowAddLead(false)}>
@@ -293,7 +321,7 @@ export function CrmDemo() {
           </div>
         ) : null}
         {selectedLeadId ? (
-          <CrmLeadDrawer leadId={selectedLeadId} teamMembers={teamMembers} onClose={() => setSelectedLeadId(null)} onChanged={refresh} notify={setMessage} />
+          <CrmLeadDrawer leadId={selectedLeadId} teamMembers={teamMembers} onClose={() => setSelectedLeadId(null)} onChanged={refresh} notify={setMessage} permissions={session?.member.permissions ?? []} currentUserId={session?.member.id} />
         ) : null}
       </main>
     </div>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+﻿import { useMemo, useState } from 'react'
 import {
   addCrmContact,
   changeCrmOpportunityStage,
@@ -15,6 +15,8 @@ type Props = {
   busy: boolean
   refresh: () => Promise<void>
   notify: (message: string) => void
+  canManageAccounts: boolean
+  canManageOpportunities: boolean
 }
 
 const stages = ['Discovery', 'SolutionFit', 'Proposal', 'Negotiation', 'Won', 'Lost']
@@ -24,7 +26,7 @@ function money(value: number, currency: string) {
   catch { return `${currency} ${value.toLocaleString('en-IN')}` }
 }
 
-export function CrmSalesView({ view, accounts, opportunities, busy, refresh, notify }: Props) {
+export function CrmSalesView({ view, accounts, opportunities, busy, refresh, notify, canManageAccounts, canManageOpportunities }: Props) {
   const [showAccount, setShowAccount] = useState(false)
   const [showOpportunity, setShowOpportunity] = useState(false)
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null)
@@ -95,7 +97,7 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
       <section className="crm2-sales-module">
         <div className="crm2-module-head">
           <div><span className="crm2-kicker">CUSTOMER CRM</span><h2>Accounts & contacts</h2><p>Converted customers and their decision makers.</p></div>
-          <button className="crm2-primary" onClick={() => setShowAccount(true)}>＋ New account</button>
+          {canManageAccounts ? <button className="crm2-primary" onClick={() => setShowAccount(true)}>＋ New account</button> : <span className="crm2-readonly-badge">Read only</span>}
         </div>
         <div className="crm2-account-grid">
           {accounts.length === 0 ? <div className="crm2-empty-card"><strong>No customer accounts yet</strong><span>Convert a qualified lead or create an account manually.</span></div> : accounts.map((account) => (
@@ -111,7 +113,7 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
           ))}
         </div>
 
-        {showAccount ? (
+        {showAccount && canManageAccounts ? (
           <div className="crm2-overlay" onMouseDown={() => setShowAccount(false)}>
             <section className="crm2-drawer" onMouseDown={(e) => e.stopPropagation()}>
               <div className="crm2-drawer-head"><div><span className="crm2-kicker">NEW CUSTOMER</span><h2>Create account</h2></div><button onClick={() => setShowAccount(false)}>×</button></div>
@@ -139,7 +141,7 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
                   <article key={contact.id}><div><strong>{contact.name}</strong><span>{contact.phone || contact.email || 'No contact details'}</span></div>{contact.isPrimary ? <em>Primary</em> : null}</article>
                 ))}
               </div>
-              <div className="crm2-inline-create"><input value={contactDraft} onChange={(e) => setContactDraft(e.target.value)} placeholder="Add contact name" /><button className="crm2-primary" disabled={busy || !contactDraft.trim()} onClick={() => void addContact()}>Add contact</button></div>
+              {canManageAccounts ? <div className="crm2-inline-create"><input value={contactDraft} onChange={(e) => setContactDraft(e.target.value)} placeholder="Add contact name" /><button className="crm2-primary" disabled={busy || !contactDraft.trim()} onClick={() => void addContact()}>Add contact</button></div> : null}
             </section>
           </div>
         ) : null}
@@ -151,7 +153,7 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
     <section className="crm2-sales-module">
       <div className="crm2-module-head">
         <div><span className="crm2-kicker">DEAL MANAGEMENT</span><h2>Opportunities</h2><p>Track value, probability, expected close and deal stage.</p></div>
-        <button className="crm2-primary" disabled={accounts.length === 0} onClick={() => { setDealAccountId(accounts[0]?.id || ''); setShowOpportunity(true) }}>＋ New opportunity</button>
+        {canManageOpportunities ? <button className="crm2-primary" disabled={accounts.length === 0} onClick={() => { setDealAccountId(accounts[0]?.id || ''); setShowOpportunity(true) }}>＋ New opportunity</button> : <span className="crm2-readonly-badge">Read only</span>}
       </div>
       <div className="crm2-deal-summary">
         <article><span>Open pipeline</span><strong>{money(totalPipeline, 'INR')}</strong></article>
@@ -168,7 +170,7 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
             <span>{account?.name || 'Unknown account'}</span>
             <span>{money(deal.estimatedValue, deal.currencyCode)}</span>
             <span>{deal.probabilityPercent}%</span>
-            <select value={deal.stage} disabled={busy || ['Won', 'Lost'].includes(deal.stage)} onChange={(e) => void perform(
+            <select value={deal.stage} disabled={busy || !canManageOpportunities || ['Won', 'Lost'].includes(deal.stage)} onChange={(e) => void perform(
               () => changeCrmOpportunityStage(deal.id, e.target.value, e.target.value === 'Lost' ? 'Closed as lost' : undefined),
               `Opportunity moved to ${e.target.value}`,
             )}>{stages.map((stage) => <option key={stage}>{stage}</option>)}</select>
@@ -176,7 +178,7 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
         })}
       </div>
 
-      {showOpportunity ? (
+      {showOpportunity && canManageOpportunities ? (
         <div className="crm2-overlay" onMouseDown={() => setShowOpportunity(false)}>
           <section className="crm2-drawer" onMouseDown={(e) => e.stopPropagation()}>
             <div className="crm2-drawer-head"><div><span className="crm2-kicker">NEW DEAL</span><h2>Create opportunity</h2></div><button onClick={() => setShowOpportunity(false)}>×</button></div>

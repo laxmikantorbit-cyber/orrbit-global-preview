@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import {
   addCrmActivity,
   assignCrmLead,
@@ -22,6 +22,8 @@ type Props = {
   onClose: () => void
   onChanged: () => Promise<void>
   notify: (message: string) => void
+  permissions: string[]
+  currentUserId?: string
 }
 
 function formatDate(value?: string | null) {
@@ -36,7 +38,7 @@ function defaultFollowUpTime() {
   return new Date(date.getTime() - offset).toISOString().slice(0, 16)
 }
 
-export function CrmLeadDrawer({ leadId, teamMembers, onClose, onChanged, notify }: Props) {
+export function CrmLeadDrawer({ leadId, teamMembers, onClose, onChanged, notify, permissions, currentUserId }: Props) {
   const [workspace, setWorkspace] = useState<CrmLeadWorkspace | null>(null)
   const [tab, setTab] = useState<DrawerTab>('profile')
   const [busy, setBusy] = useState(false)
@@ -75,6 +77,8 @@ export function CrmLeadDrawer({ leadId, teamMembers, onClose, onChanged, notify 
       setNotes(data.lead.notes || '')
       setAccountName((current) => current || data.lead.title)
       setOpportunityTitle((current) => current || (data.lead.productInterest || data.lead.title) + ' Deal')
+      setFollowUpOwnerId((current) => current || currentUserId || '')
+      setTaskAssigneeId((current) => current || currentUserId || '')
     } catch (error) {
       notify(error instanceof Error ? error.message : String(error))
     } finally {
@@ -98,6 +102,13 @@ export function CrmLeadDrawer({ leadId, teamMembers, onClose, onChanged, notify 
 
   const activeTeam = teamMembers.filter((member) => member.active)
   const memberName = (id?: string | null) => teamMembers.find((member) => member.id === id)?.displayName || 'Unassigned'
+  const can = (permission: string) => permissions.includes(permission)
+  const tabs: DrawerTab[] = [
+    'profile', 'activity',
+    ...(can('ManageFollowUps') ? ['followups' as DrawerTab] : []),
+    ...(can('ManageTasks') ? ['tasks' as DrawerTab] : []),
+    ...(can('ManageOpportunities') ? ['convert' as DrawerTab] : []),
+  ]
 
   if (!workspace) {
     return <div className="crm2-overlay"><section className="crm2-drawer"><div className="crm2-loading">Loading lead workspace…</div></section></div>
@@ -120,7 +131,7 @@ export function CrmLeadDrawer({ leadId, teamMembers, onClose, onChanged, notify 
         </div>
 
         <div className="crm2-tabs">
-          {(['profile', 'activity', 'followups', 'tasks', 'convert'] as DrawerTab[]).map((item) => (
+          {tabs.map((item) => (
             <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item}</button>
           ))}
         </div>
@@ -128,38 +139,40 @@ export function CrmLeadDrawer({ leadId, teamMembers, onClose, onChanged, notify 
         {tab === 'profile' ? (
           <div className="crm2-form-section">
             <div className="crm2-form-grid">
-              <label>Business / lead name<input value={title} onChange={(e) => setTitle(e.target.value)} /></label>
-              <label>Contact person<input value={contactName} onChange={(e) => setContactName(e.target.value)} /></label>
-              <label>Mobile<input value={mobile} onChange={(e) => setMobile(e.target.value)} /></label>
-              <label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
-              <label>Product interest<input value={product} onChange={(e) => setProduct(e.target.value)} placeholder="AI Repair, School, etc." /></label>
-              <label>Priority<select value={lead.priority || 'Normal'} disabled={busy} onChange={(e) => void run(() => changeCrmLeadPriority(lead.id, e.target.value), 'Priority updated')}><option>Low</option><option>Normal</option><option>High</option><option>Urgent</option></select></label>
-              <label>Lead owner<select value={lead.ownerUserId || ''} disabled={busy} onChange={(e) => void run(() => assignCrmLead(lead.id, e.target.value || null), 'Lead owner updated')}><option value="">Unassigned</option>{activeTeam.map((member) => <option key={member.id} value={member.id}>{member.displayName} · {member.role}</option>)}</select></label>
+              <label>Business / lead name<input value={title} disabled={!can('EditLead')} onChange={(e) => setTitle(e.target.value)} /></label>
+              <label>Contact person<input value={contactName} disabled={!can('EditLead')} onChange={(e) => setContactName(e.target.value)} /></label>
+              <label>Mobile<input value={mobile} disabled={!can('EditLead')} onChange={(e) => setMobile(e.target.value)} /></label>
+              <label>Email<input type="email" value={email} disabled={!can('EditLead')} onChange={(e) => setEmail(e.target.value)} /></label>
+              <label>Product interest<input value={product} disabled={!can('EditLead')} onChange={(e) => setProduct(e.target.value)} placeholder="AI Repair, School, etc." /></label>
+              <label>Priority<select value={lead.priority || 'Normal'} disabled={busy || !can('EditLead')} onChange={(e) => void run(() => changeCrmLeadPriority(lead.id, e.target.value), 'Priority updated')}><option>Low</option><option>Normal</option><option>High</option><option>Urgent</option></select></label>
+              <label>Lead owner<select value={lead.ownerUserId || ''} disabled={busy || !can('AssignLead')} onChange={(e) => void run(() => assignCrmLead(lead.id, e.target.value || null), 'Lead owner updated')}><option value="">Unassigned</option>{activeTeam.map((member) => <option key={member.id} value={member.id}>{member.displayName} · {member.role}</option>)}</select></label>
             </div>
-            <label>Internal notes<textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} /></label>
+            <label>Internal notes<textarea value={notes} disabled={!can('EditLead')} onChange={(e) => setNotes(e.target.value)} rows={4} /></label>
             <div className="crm2-drawer-actions">
-              <button className="crm2-primary" disabled={busy || !title.trim()} onClick={() => void run(
+              {can('EditLead') ? <button className="crm2-primary" disabled={busy || !title.trim()} onClick={() => void run(
                 () => updateCrmLeadProfile(lead.id, {
                   title: title.trim(), contactName, mobileNumber: mobile, email,
                   productInterest: product, notes,
                 }),
                 'Lead profile saved',
-              )}>{busy ? 'Saving…' : 'Save profile'}</button>
+              )}>{busy ? 'Saving…' : 'Save profile'}</button> : <span className="crm2-readonly-badge">Read only</span>}
             </div>
           </div>
         ) : null}
 
         {tab === 'activity' ? (
           <div className="crm2-form-section">
-            <div className="crm2-form-grid">
-              <label>Activity type<select value={activityType} onChange={(e) => setActivityType(e.target.value)}><option>Note</option><option>Call</option><option>WhatsApp</option><option>Email</option><option>Meeting</option></select></label>
-              <label>Summary<input value={activitySummary} onChange={(e) => setActivitySummary(e.target.value)} placeholder="What happened?" /></label>
-            </div>
-            <label>Details<textarea value={activityDetails} onChange={(e) => setActivityDetails(e.target.value)} rows={3} /></label>
-            <div className="crm2-drawer-actions"><button className="crm2-primary" disabled={busy || !activitySummary.trim()} onClick={() => void run(async () => {
-              await addCrmActivity(lead.id, { type: activityType, summary: activitySummary.trim(), details: activityDetails })
-              setActivitySummary(''); setActivityDetails('')
-            }, 'Activity added')}>Add activity</button></div>
+            {can('EditLead') ? <>
+              <div className="crm2-form-grid">
+                <label>Activity type<select value={activityType} onChange={(e) => setActivityType(e.target.value)}><option>Note</option><option>Call</option><option>WhatsApp</option><option>Email</option><option>Meeting</option></select></label>
+                <label>Summary<input value={activitySummary} onChange={(e) => setActivitySummary(e.target.value)} placeholder="What happened?" /></label>
+              </div>
+              <label>Details<textarea value={activityDetails} onChange={(e) => setActivityDetails(e.target.value)} rows={3} /></label>
+              <div className="crm2-drawer-actions"><button className="crm2-primary" disabled={busy || !activitySummary.trim()} onClick={() => void run(async () => {
+                await addCrmActivity(lead.id, { type: activityType, summary: activitySummary.trim(), details: activityDetails })
+                setActivitySummary(''); setActivityDetails('')
+              }, 'Activity added')}>Add activity</button></div>
+            </> : <span className="crm2-readonly-badge">Activity history · read only</span>}
             <div className="crm2-timeline">
               {workspace.activities.length === 0 ? <p className="crm2-muted">No activity yet.</p> : workspace.activities.map((item) => (
                 <article key={item.id}><i>{item.type.slice(0, 1)}</i><div><strong>{item.summary}</strong><span>{item.type} · {formatDate(item.occurredAtUtc)}</span>{item.details ? <p>{item.details}</p> : null}</div></article>
@@ -172,7 +185,7 @@ export function CrmLeadDrawer({ leadId, teamMembers, onClose, onChanged, notify 
             <div className="crm2-form-grid">
               <label>Channel<select value={followUpChannel} onChange={(e) => setFollowUpChannel(e.target.value)}><option>Call</option><option>WhatsApp</option><option>Email</option><option>Meeting</option><option>Other</option></select></label>
               <label>Due date & time<input type="datetime-local" value={followUpAt} onChange={(e) => setFollowUpAt(e.target.value)} /></label>
-              <label>Owner<select value={followUpOwnerId} onChange={(e) => setFollowUpOwnerId(e.target.value)}><option value="">Unassigned</option>{activeTeam.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label>
+              <label>Owner<select value={followUpOwnerId} disabled={!can('AssignLead')} onChange={(e) => setFollowUpOwnerId(e.target.value)}><option value="">Unassigned</option>{activeTeam.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label>
             </div>
             <label>Purpose<input value={followUpPurpose} onChange={(e) => setFollowUpPurpose(e.target.value)} /></label>
             <div className="crm2-drawer-actions"><button className="crm2-primary" disabled={busy || !followUpPurpose.trim() || !followUpAt} onClick={() => void run(
@@ -196,7 +209,7 @@ export function CrmLeadDrawer({ leadId, teamMembers, onClose, onChanged, notify 
             <div className="crm2-form-grid">
               <label>Task title<input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="Prepare demo / send quotation" /></label>
               <label>Priority<select value={taskPriority} onChange={(e) => setTaskPriority(e.target.value)}><option>Low</option><option>Normal</option><option>High</option><option>Urgent</option></select></label>
-              <label>Assignee<select value={taskAssigneeId} onChange={(e) => setTaskAssigneeId(e.target.value)}><option value="">Unassigned</option>{activeTeam.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label>
+              <label>Assignee<select value={taskAssigneeId} disabled={!can('AssignLead')} onChange={(e) => setTaskAssigneeId(e.target.value)}><option value="">Unassigned</option>{activeTeam.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label>
             </div>
             <label>Task details<textarea value={taskDetails} onChange={(e) => setTaskDetails(e.target.value)} rows={3} /></label>
             <div className="crm2-drawer-actions"><button className="crm2-primary" disabled={busy || !taskTitle.trim()} onClick={() => void run(async () => {

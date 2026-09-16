@@ -15,6 +15,7 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             Guid leadId,
             IConfiguration configuration,
             IHostEnvironment environment,
+            HttpContext context,
             ILeadRepository leads,
             ICrmWorkRepository work,
             CancellationToken cancellationToken) =>
@@ -22,6 +23,9 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             if (!Enabled(configuration, environment)) return Disabled();
             var lead = await leads.GetAsync(DemoTenantId, leadId, cancellationToken);
             if (lead is null) return Results.NotFound(new ErrorResponse("Lead not found."));
+            var member = CrmFreeTestingAccessMiddleware.Current(context);
+            if (!CrmFreeTestingAccessMiddleware.CanAccessLead(member, lead))
+                return Results.Json(new ErrorResponse("Lead is outside your CRM scope."), statusCode: StatusCodes.Status403Forbidden);
             var activities = await work.ListActivitiesAsync(DemoTenantId, leadId, cancellationToken);
             var followUps = await work.ListFollowUpsAsync(DemoTenantId, leadId, cancellationToken);
             var tasks = await work.ListTasksAsync(DemoTenantId, leadId, cancellationToken);            return Results.Ok(new LeadWorkspaceResponse(
@@ -36,6 +40,7 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             UpdateLeadProfileRequest request,
             IConfiguration configuration,
             IHostEnvironment environment,
+            HttpContext context,
             ILeadRepository leads,
             ICrmWorkRepository work,
             CancellationToken cancellationToken) =>
@@ -43,6 +48,9 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             if (!Enabled(configuration, environment)) return Disabled();
             var lead = await leads.GetAsync(DemoTenantId, leadId, cancellationToken);
             if (lead is null) return Results.NotFound(new ErrorResponse("Lead not found."));
+            var member = CrmFreeTestingAccessMiddleware.Current(context);
+            if (!CrmFreeTestingAccessMiddleware.CanAccessLead(member, lead))
+                return Results.Json(new ErrorResponse("Lead is outside your CRM scope."), statusCode: StatusCodes.Status403Forbidden);
             try
             {
                 lead.UpdateProfile(request.Title, request.ContactName, request.MobileNumber,
@@ -62,6 +70,7 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             AssignLeadRequest request,
             IConfiguration configuration,
             IHostEnvironment environment,
+            HttpContext context,
             ILeadRepository leads,
             ICrmWorkRepository work,
             ICrmTeamRepository team,
@@ -70,6 +79,9 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             if (!Enabled(configuration, environment)) return Disabled();
             var lead = await leads.GetAsync(DemoTenantId, leadId, cancellationToken);
             if (lead is null) return Results.NotFound(new ErrorResponse("Lead not found."));
+            var member = CrmFreeTestingAccessMiddleware.Current(context);
+            if (!CrmFreeTestingAccessMiddleware.CanAccessLead(member, lead))
+                return Results.Json(new ErrorResponse("Lead is outside your CRM scope."), statusCode: StatusCodes.Status403Forbidden);
             if (request.OwnerUserId.HasValue && await FreeTestingPublicCrmTeamEndpoints.GetActiveMemberAsync(team, request.OwnerUserId, cancellationToken) is null)
                 return Results.BadRequest(new ErrorResponse("Assigned CRM user must be active."));
             try
@@ -92,11 +104,15 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             ChangeLeadPriorityRequest request,
             IConfiguration configuration,
             IHostEnvironment environment,
+            HttpContext context,
             ILeadRepository leads,
             CancellationToken cancellationToken) =>        {
             if (!Enabled(configuration, environment)) return Disabled();
             var lead = await leads.GetAsync(DemoTenantId, leadId, cancellationToken);
             if (lead is null) return Results.NotFound(new ErrorResponse("Lead not found."));
+            var member = CrmFreeTestingAccessMiddleware.Current(context);
+            if (!CrmFreeTestingAccessMiddleware.CanAccessLead(member, lead))
+                return Results.Json(new ErrorResponse("Lead is outside your CRM scope."), statusCode: StatusCodes.Status403Forbidden);
             if (!Enum.TryParse<LeadPriority>(request.Priority, true, out var priority))
                 return Results.BadRequest(new ErrorResponse("Valid priority is required."));
             try
@@ -116,18 +132,22 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             AddLeadActivityRequest request,
             IConfiguration configuration,
             IHostEnvironment environment,
+            HttpContext context,
             ILeadRepository leads,
             ICrmWorkRepository work,
             CancellationToken cancellationToken) =>
         {
             if (!Enabled(configuration, environment)) return Disabled();
             var lead = await leads.GetAsync(DemoTenantId, leadId, cancellationToken);
-            if (lead is null) return Results.NotFound(new ErrorResponse("Lead not found."));            if (!Enum.TryParse<CrmActivityType>(request.Type, true, out var type))
+            if (lead is null) return Results.NotFound(new ErrorResponse("Lead not found."));
+            var member = CrmFreeTestingAccessMiddleware.Current(context);
+            if (!CrmFreeTestingAccessMiddleware.CanAccessLead(member, lead))
+                return Results.Json(new ErrorResponse("Lead is outside your CRM scope."), statusCode: StatusCodes.Status403Forbidden);            if (!Enum.TryParse<CrmActivityType>(request.Type, true, out var type))
                 return Results.BadRequest(new ErrorResponse("Valid activity type is required."));
             try
             {
                 var activity = new LeadActivity(Guid.NewGuid(), DemoTenantId, leadId, type,
-                    request.Summary, request.Details, request.ActorUserId);
+                    request.Summary, request.Details, member.Id);
                 await work.AddActivityAsync(activity, cancellationToken);
                 if (type is CrmActivityType.Call or CrmActivityType.WhatsApp or CrmActivityType.Email or CrmActivityType.Meeting)
                 {
@@ -147,6 +167,7 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             CreateFollowUpRequest request,
             IConfiguration configuration,
             IHostEnvironment environment,
+            HttpContext context,
             ILeadRepository leads,
             ICrmWorkRepository work,
             ICrmTeamRepository team,
@@ -155,14 +176,24 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             if (!Enabled(configuration, environment)) return Disabled();
             var lead = await leads.GetAsync(DemoTenantId, leadId, cancellationToken);
             if (lead is null) return Results.NotFound(new ErrorResponse("Lead not found."));
-            if (request.OwnerUserId.HasValue && await FreeTestingPublicCrmTeamEndpoints.GetActiveMemberAsync(team, request.OwnerUserId, cancellationToken) is null)
+            var member = CrmFreeTestingAccessMiddleware.Current(context);
+            if (!CrmFreeTestingAccessMiddleware.CanAccessLead(member, lead))
+                return Results.Json(new ErrorResponse("Lead is outside your CRM scope."), statusCode: StatusCodes.Status403Forbidden);
+            var ownerUserId = request.OwnerUserId;
+            if (!CrmFreeTestingAccessMiddleware.CanViewAllOwnedRecords(member))
+            {
+                if (ownerUserId.HasValue && ownerUserId.Value != member.Id)
+                    return Results.Json(new ErrorResponse("You can only assign follow-ups to yourself."), statusCode: StatusCodes.Status403Forbidden);
+                ownerUserId = member.Id;
+            }
+            if (ownerUserId.HasValue && await FreeTestingPublicCrmTeamEndpoints.GetActiveMemberAsync(team, ownerUserId, cancellationToken) is null)
                 return Results.BadRequest(new ErrorResponse("Follow-up owner must be an active CRM user."));
             if (!Enum.TryParse<FollowUpChannel>(request.Channel, true, out var channel))
                 return Results.BadRequest(new ErrorResponse("Valid follow-up channel is required."));
             try
             {
                 var followUp = new LeadFollowUp(Guid.NewGuid(), DemoTenantId, leadId,
-                    request.DueAtUtc, channel, request.Purpose, request.OwnerUserId);
+                    request.DueAtUtc, channel, request.Purpose, ownerUserId);
                 await work.AddFollowUpAsync(followUp, cancellationToken);
                 lead.ScheduleNextFollowUp(request.DueAtUtc);
                 await leads.SaveAsync(lead, cancellationToken);
@@ -180,11 +211,15 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             Guid? leadId,
             IConfiguration configuration,
             IHostEnvironment environment,
+            HttpContext context,
             ICrmWorkRepository work,
             CancellationToken cancellationToken) =>
         {
             if (!Enabled(configuration, environment)) return Disabled();
             var items = await work.ListFollowUpsAsync(DemoTenantId, leadId, cancellationToken);
+            var member = CrmFreeTestingAccessMiddleware.Current(context);
+            if (!CrmFreeTestingAccessMiddleware.CanViewAllOwnedRecords(member))
+                items = items.Where(x => x.OwnerUserId == member.Id).ToArray();
             return Results.Ok(new { followUps = items.Select(ToFollowUp).ToArray() });
         });
         group.MapPost("/follow-ups/{followUpId:guid}/complete", async (
@@ -192,6 +227,7 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             CompleteFollowUpRequest request,
             IConfiguration configuration,
             IHostEnvironment environment,
+            HttpContext context,
             ILeadRepository leads,
             ICrmWorkRepository work,
             CancellationToken cancellationToken) =>
@@ -199,6 +235,9 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             if (!Enabled(configuration, environment)) return Disabled();
             var followUp = await work.GetFollowUpAsync(DemoTenantId, followUpId, cancellationToken);
             if (followUp is null) return Results.NotFound(new ErrorResponse("Follow-up not found."));
+            var member = CrmFreeTestingAccessMiddleware.Current(context);
+            if (!CrmFreeTestingAccessMiddleware.CanViewAllOwnedRecords(member) && followUp.OwnerUserId != member.Id)
+                return Results.Json(new ErrorResponse("Follow-up is outside your CRM scope."), statusCode: StatusCodes.Status403Forbidden);
             try
             {
                 followUp.Complete(request.Outcome);
@@ -225,11 +264,15 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             Guid? leadId,
             IConfiguration configuration,
             IHostEnvironment environment,
+            HttpContext context,
             ICrmWorkRepository work,
             CancellationToken cancellationToken) =>
         {
             if (!Enabled(configuration, environment)) return Disabled();
             var items = await work.ListTasksAsync(DemoTenantId, leadId, cancellationToken);
+            var member = CrmFreeTestingAccessMiddleware.Current(context);
+            if (!CrmFreeTestingAccessMiddleware.CanViewAllOwnedRecords(member))
+                items = items.Where(x => x.AssigneeUserId == member.Id).ToArray();
             return Results.Ok(new { tasks = items.Select(ToTask).ToArray() });
         });
 
@@ -237,22 +280,36 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             CreateCrmTaskRequest request,
             IConfiguration configuration,
             IHostEnvironment environment,
+            HttpContext context,
             ILeadRepository leads,
             ICrmWorkRepository work,
             ICrmTeamRepository team,
             CancellationToken cancellationToken) =>
         {
             if (!Enabled(configuration, environment)) return Disabled();
-            if (request.LeadId.HasValue && await leads.GetAsync(DemoTenantId, request.LeadId.Value, cancellationToken) is null)
-                return Results.NotFound(new ErrorResponse("Lead not found."));
-            if (request.AssigneeUserId.HasValue && await FreeTestingPublicCrmTeamEndpoints.GetActiveMemberAsync(team, request.AssigneeUserId, cancellationToken) is null)
+            var member = CrmFreeTestingAccessMiddleware.Current(context);
+            if (request.LeadId.HasValue)
+            {
+                var lead = await leads.GetAsync(DemoTenantId, request.LeadId.Value, cancellationToken);
+                if (lead is null) return Results.NotFound(new ErrorResponse("Lead not found."));
+                if (!CrmFreeTestingAccessMiddleware.CanAccessLead(member, lead))
+                    return Results.Json(new ErrorResponse("Lead is outside your CRM scope."), statusCode: StatusCodes.Status403Forbidden);
+            }
+            var assigneeUserId = request.AssigneeUserId;
+            if (!CrmFreeTestingAccessMiddleware.CanViewAllOwnedRecords(member))
+            {
+                if (assigneeUserId.HasValue && assigneeUserId.Value != member.Id)
+                    return Results.Json(new ErrorResponse("You can only assign tasks to yourself."), statusCode: StatusCodes.Status403Forbidden);
+                assigneeUserId = member.Id;
+            }
+            if (assigneeUserId.HasValue && await FreeTestingPublicCrmTeamEndpoints.GetActiveMemberAsync(team, assigneeUserId, cancellationToken) is null)
                 return Results.BadRequest(new ErrorResponse("Task assignee must be an active CRM user."));
             if (!Enum.TryParse<LeadPriority>(request.Priority ?? "Normal", true, out var priority))
                 return Results.BadRequest(new ErrorResponse("Valid task priority is required."));
             try
             {
                 var task = new CrmTask(Guid.NewGuid(), DemoTenantId, request.Title, request.DueAtUtc,
-                    request.LeadId, request.Details, priority, request.AssigneeUserId);
+                    request.LeadId, request.Details, priority, assigneeUserId);
                 await work.AddTaskAsync(task, cancellationToken);
                 if (request.LeadId.HasValue)
                     await AddActivity(work, request.LeadId.Value, CrmActivityType.TaskCreated,
@@ -269,12 +326,16 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             Guid taskId,
             IConfiguration configuration,
             IHostEnvironment environment,
+            HttpContext context,
             ICrmWorkRepository work,
             CancellationToken cancellationToken) =>
         {
             if (!Enabled(configuration, environment)) return Disabled();
             var task = await work.GetTaskAsync(DemoTenantId, taskId, cancellationToken);
             if (task is null) return Results.NotFound(new ErrorResponse("Task not found."));
+            var member = CrmFreeTestingAccessMiddleware.Current(context);
+            if (!CrmFreeTestingAccessMiddleware.CanViewAllOwnedRecords(member) && task.AssigneeUserId != member.Id)
+                return Results.Json(new ErrorResponse("Task is outside your CRM scope."), statusCode: StatusCodes.Status403Forbidden);
             try
             {
                 task.Complete();
@@ -292,6 +353,7 @@ public static class FreeTestingPublicCrmOperationsEndpoints
         group.MapGet("/work-summary", async (
             IConfiguration configuration,
             IHostEnvironment environment,
+            HttpContext context,
             ICrmWorkRepository work,
             CancellationToken cancellationToken) =>
         {
@@ -299,6 +361,12 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             var now = DateTimeOffset.UtcNow;
             var followUps = await work.ListFollowUpsAsync(DemoTenantId, null, cancellationToken);
             var tasks = await work.ListTasksAsync(DemoTenantId, null, cancellationToken);
+            var member = CrmFreeTestingAccessMiddleware.Current(context);
+            if (!CrmFreeTestingAccessMiddleware.CanViewAllOwnedRecords(member))
+            {
+                followUps = followUps.Where(x => x.OwnerUserId == member.Id).ToArray();
+                tasks = tasks.Where(x => x.AssigneeUserId == member.Id).ToArray();
+            }
             var openFollowUps = followUps.Where(x => x.Status == CrmWorkStatus.Open).ToArray();
             var openTasks = tasks.Where(x => x.Status == CrmWorkStatus.Open).ToArray();
             return Results.Ok(new CrmWorkSummaryResponse(

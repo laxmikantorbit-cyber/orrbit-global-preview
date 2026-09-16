@@ -83,28 +83,44 @@ public static class FreeTestingPublicCrmSalesEndpoints
         group.MapGet("/opportunities", async (
             IConfiguration configuration,
             IHostEnvironment environment,
+            HttpContext context,
             ICrmOpportunityStore opportunities,
             CancellationToken cancellationToken) =>
         {
             if (!Enabled(configuration, environment)) return Disabled();
             var items = await opportunities.ListAsync(DemoTenantId, cancellationToken);
+            var member = CrmFreeTestingAccessMiddleware.Current(context);
+            if (!CrmFreeTestingAccessMiddleware.CanViewAllOwnedRecords(member))
+                items = items.Where(x => x.OwnerUserId == member.Id).ToArray();
             return Results.Ok(new { opportunities = items.Select(ToOpportunity).OrderByDescending(x => x.EstimatedValue).ToArray() });
         });
         group.MapPost("/opportunities", async (
             CreateCrmOpportunityRequest request,
             IConfiguration configuration,
             IHostEnvironment environment,
+            HttpContext context,
             ICrmAccountStore accounts,
             ICrmOpportunityStore opportunities,
+            ICrmTeamRepository team,
             CancellationToken cancellationToken) =>
         {
             if (!Enabled(configuration, environment)) return Disabled();
             if (await accounts.GetAsync(DemoTenantId, request.AccountId, cancellationToken) is null)
                 return Results.NotFound(new ErrorResponse("Account not found."));
+            var member = CrmFreeTestingAccessMiddleware.Current(context);
+            var ownerUserId = request.OwnerUserId;
+            if (!CrmFreeTestingAccessMiddleware.CanViewAllOwnedRecords(member))
+            {
+                if (ownerUserId.HasValue && ownerUserId.Value != member.Id)
+                    return Results.Json(new ErrorResponse("You can only own your opportunities."), statusCode: StatusCodes.Status403Forbidden);
+                ownerUserId = member.Id;
+            }
+            if (ownerUserId.HasValue && await FreeTestingPublicCrmTeamEndpoints.GetActiveMemberAsync(team, ownerUserId, cancellationToken) is null)
+                return Results.BadRequest(new ErrorResponse("Opportunity owner must be an active CRM user."));
             try
             {
                 var item = new Opportunity(Guid.NewGuid(), DemoTenantId, request.AccountId,
-                    request.Title, Forecast(request), request.OriginatingLeadId, request.OwnerUserId);
+                    request.Title, Forecast(request), request.OriginatingLeadId, ownerUserId);
                 await opportunities.AddAsync(item, cancellationToken);
                 return Results.Ok(ToOpportunity(item));
             }
@@ -119,12 +135,16 @@ public static class FreeTestingPublicCrmSalesEndpoints
             ChangeOpportunityStageRequest request,
             IConfiguration configuration,
             IHostEnvironment environment,
+            HttpContext context,
             ICrmOpportunityStore opportunities,
             CancellationToken cancellationToken) =>
         {
             if (!Enabled(configuration, environment)) return Disabled();
             var item = await opportunities.GetAsync(DemoTenantId, opportunityId, cancellationToken);
             if (item is null) return Results.NotFound(new ErrorResponse("Opportunity not found."));
+            var member = CrmFreeTestingAccessMiddleware.Current(context);
+            if (!CrmFreeTestingAccessMiddleware.CanViewAllOwnedRecords(member) && item.OwnerUserId != member.Id)
+                return Results.Json(new ErrorResponse("Opportunity is outside your CRM scope."), statusCode: StatusCodes.Status403Forbidden);
             if (!Enum.TryParse<OpportunityStage>(request.Stage, true, out var stage))
                 return Results.BadRequest(new ErrorResponse("Valid opportunity stage is required."));
             try
@@ -155,6 +175,7 @@ public static class FreeTestingPublicCrmSalesEndpoints
             ConvertCrmLeadRequest request,
             IConfiguration configuration,
             IHostEnvironment environment,
+            HttpContext context,
             ILeadRepository leads,
             ICrmWorkRepository work,
             ICrmAccountStore accounts,
@@ -164,6 +185,9 @@ public static class FreeTestingPublicCrmSalesEndpoints
             if (!Enabled(configuration, environment)) return Disabled();
             var lead = await leads.GetAsync(DemoTenantId, leadId, cancellationToken);
             if (lead is null) return Results.NotFound(new ErrorResponse("Lead not found."));
+            var member = CrmFreeTestingAccessMiddleware.Current(context);
+            if (!CrmFreeTestingAccessMiddleware.CanAccessLead(member, lead))
+                return Results.Json(new ErrorResponse("Lead is outside your CRM scope."), statusCode: StatusCodes.Status403Forbidden);
             if (lead.Status == LeadStatus.Converted)
                 return Results.BadRequest(new ErrorResponse("Lead is already converted."));
             try
@@ -192,7 +216,7 @@ public static class FreeTestingPublicCrmSalesEndpoints
                 await leads.SaveAsync(lead, cancellationToken);
                 await work.AddActivityAsync(new LeadActivity(Guid.NewGuid(), DemoTenantId,
                     lead.Id, CrmActivityType.Converted, "Lead converted to customer",
-                    $"Account: {account.Name}; Opportunity: {opportunity.Title}"), cancellationToken);
+                    $"Account: {account.Name}; Opportunity: {opportunity.Title}", member.Id), cancellationToken);
                 return Results.Ok(new CrmConversionResponse(ToAccount(account), ToOpportunity(opportunity)));
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)

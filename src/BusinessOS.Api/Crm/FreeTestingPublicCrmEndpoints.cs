@@ -18,12 +18,16 @@ public static class FreeTestingPublicCrmEndpoints
         group.MapGet("/leads", async (
             IConfiguration configuration,
             IHostEnvironment environment,
+            HttpContext context,
             ILeadRepository repository,
             CancellationToken cancellationToken) =>
         {
             if (!IsFreeTestingMode(configuration, environment))
                 return Results.NotFound(new ErrorResponse("Public CRM staging is not enabled."));
             var leads = await repository.ListAsync(DemoTenantId, cancellationToken);
+            var member = CrmFreeTestingAccessMiddleware.Current(context);
+            if (!CrmFreeTestingAccessMiddleware.CanViewAllOwnedRecords(member))
+                leads = leads.Where(x => x.Attribution.AccountOwnerUserId == member.Id).ToArray();
             return Results.Ok(new CrmLeadListResponse(
                 leads.Select(ToResponse).OrderByDescending(x => x.CreatedSort).ToArray()));
         });
@@ -32,6 +36,7 @@ public static class FreeTestingPublicCrmEndpoints
             CreateCrmLeadRequest request,
             IConfiguration configuration,
             IHostEnvironment environment,
+            HttpContext context,
             ILeadRepository repository,
             CancellationToken cancellationToken) =>
         {
@@ -53,6 +58,7 @@ public static class FreeTestingPublicCrmEndpoints
                     request.ProductInterest,
                     request.Notes,
                     ParsePriority(request.Priority));
+                lead.AssignOwner(CrmFreeTestingAccessMiddleware.Current(context).Id);
                 await repository.AddAsync(lead, cancellationToken);
                 return Results.Ok(ToResponse(lead));
             }
@@ -66,6 +72,7 @@ public static class FreeTestingPublicCrmEndpoints
             ChangeCrmLeadStatusRequest request,
             IConfiguration configuration,
             IHostEnvironment environment,
+            HttpContext context,
             ILeadRepository repository,
             CancellationToken cancellationToken) =>
         {
@@ -73,6 +80,10 @@ public static class FreeTestingPublicCrmEndpoints
                 return Results.NotFound(new ErrorResponse("Public CRM staging is not enabled."));
             var lead = await repository.GetAsync(DemoTenantId, leadId, cancellationToken);
             if (lead is null) return Results.NotFound(new ErrorResponse("Lead not found."));
+            var member = CrmFreeTestingAccessMiddleware.Current(context);
+            if (!CrmFreeTestingAccessMiddleware.CanViewAllOwnedRecords(member) &&
+                lead.Attribution.AccountOwnerUserId != member.Id)
+                return Results.Json(new ErrorResponse("Lead is outside your CRM scope."), statusCode: StatusCodes.Status403Forbidden);
             try
             {
                 ApplyStatus(lead, request);
@@ -92,12 +103,16 @@ public static class FreeTestingPublicCrmEndpoints
         group.MapGet("/dashboard", async (
             IConfiguration configuration,
             IHostEnvironment environment,
+            HttpContext context,
             ILeadRepository repository,
             CancellationToken cancellationToken) =>
         {
             if (!IsFreeTestingMode(configuration, environment))
                 return Results.NotFound(new ErrorResponse("Public CRM staging is not enabled."));
             var leads = await repository.ListAsync(DemoTenantId, cancellationToken);
+            var member = CrmFreeTestingAccessMiddleware.Current(context);
+            if (!CrmFreeTestingAccessMiddleware.CanViewAllOwnedRecords(member))
+                leads = leads.Where(x => x.Attribution.AccountOwnerUserId == member.Id).ToArray();
             var statusCounts = leads
                 .GroupBy(x => x.Status.ToString())
                 .ToDictionary(x => x.Key, x => x.Count());

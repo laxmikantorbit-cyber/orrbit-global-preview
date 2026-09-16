@@ -17,6 +17,12 @@ public static class FreeTestingPublicCrmTeamEndpoints
     public static IEndpointRouteBuilder MapFreeTestingPublicCrmTeamEndpoints(this IEndpointRouteBuilder app)
     {
         var group=app.MapGroup("/api/testing/public/crm");
+        group.MapGet("/session",(HttpContext context,IConfiguration config,IHostEnvironment env)=>
+        {
+            if(!Enabled(config,env))return Disabled();
+            var member=CrmFreeTestingAccessMiddleware.Current(context);
+            return Results.Ok(new CrmSessionResponse(ToResponse(member),CrmFreeTestingAccessMiddleware.CanViewAllOwnedRecords(member)));
+        });
         group.MapGet("/roles",(IConfiguration config,IHostEnvironment env)=>
         {
             if(!Enabled(config,env))return Disabled();
@@ -58,3 +64,4 @@ public sealed record ChangeCrmTeamRoleRequest(string Role);
 public sealed record ChangeCrmTeamStatusRequest(bool Active);
 public sealed record CrmRoleResponse(string Role,IReadOnlyList<string> Permissions);
 public sealed record CrmTeamMemberResponse(Guid Id,string DisplayName,string Email,string? MobileNumber,string Role,bool Active,DateTimeOffset CreatedAtUtc,IReadOnlyList<string> Permissions);
+public sealed record CrmSessionResponse(CrmTeamMemberResponse Member,bool CanViewAllOwnedRecords);

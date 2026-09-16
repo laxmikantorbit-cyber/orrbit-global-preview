@@ -24,7 +24,10 @@ public enum CrmPermission
     ManageOpportunities = 9,
     ViewReports = 10,
     ManageTeam = 11,
-    ExportData = 12
+    ExportData = 12,
+    ViewAccounts = 13,
+    ViewOpportunities = 14,
+    ViewTeam = 15
 }
 
 public sealed class CrmTeamMember
@@ -61,11 +64,11 @@ public static class CrmRolePolicy
         {
             [CrmRoleCode.Owner] = Enum.GetValues<CrmPermission>(),
             [CrmRoleCode.Admin] = Enum.GetValues<CrmPermission>(),
-            [CrmRoleCode.SalesManager] = [CrmPermission.ViewDashboard,CrmPermission.ViewLeads,CrmPermission.CreateLead,CrmPermission.EditLead,CrmPermission.AssignLead,CrmPermission.ManageFollowUps,CrmPermission.ManageTasks,CrmPermission.ManageAccounts,CrmPermission.ManageOpportunities,CrmPermission.ViewReports,CrmPermission.ExportData],
-            [CrmRoleCode.SalesExecutive] = [CrmPermission.ViewDashboard,CrmPermission.ViewLeads,CrmPermission.CreateLead,CrmPermission.EditLead,CrmPermission.ManageFollowUps,CrmPermission.ManageTasks,CrmPermission.ManageAccounts,CrmPermission.ManageOpportunities,CrmPermission.ViewReports],
-            [CrmRoleCode.Telecaller] = [CrmPermission.ViewDashboard,CrmPermission.ViewLeads,CrmPermission.CreateLead,CrmPermission.EditLead,CrmPermission.ManageFollowUps,CrmPermission.ManageTasks],
-            [CrmRoleCode.Support] = [CrmPermission.ViewDashboard,CrmPermission.ViewLeads,CrmPermission.EditLead,CrmPermission.ManageFollowUps,CrmPermission.ManageTasks,CrmPermission.ManageAccounts],
-            [CrmRoleCode.Viewer] = [CrmPermission.ViewDashboard,CrmPermission.ViewLeads,CrmPermission.ViewReports]
+            [CrmRoleCode.SalesManager] = [CrmPermission.ViewDashboard,CrmPermission.ViewLeads,CrmPermission.CreateLead,CrmPermission.EditLead,CrmPermission.AssignLead,CrmPermission.ManageFollowUps,CrmPermission.ManageTasks,CrmPermission.ManageAccounts,CrmPermission.ManageOpportunities,CrmPermission.ViewReports,CrmPermission.ExportData,CrmPermission.ViewAccounts,CrmPermission.ViewOpportunities,CrmPermission.ViewTeam],
+            [CrmRoleCode.SalesExecutive] = [CrmPermission.ViewDashboard,CrmPermission.ViewLeads,CrmPermission.CreateLead,CrmPermission.EditLead,CrmPermission.ManageFollowUps,CrmPermission.ManageTasks,CrmPermission.ManageAccounts,CrmPermission.ManageOpportunities,CrmPermission.ViewReports,CrmPermission.ViewAccounts,CrmPermission.ViewOpportunities,CrmPermission.ViewTeam],
+            [CrmRoleCode.Telecaller] = [CrmPermission.ViewDashboard,CrmPermission.ViewLeads,CrmPermission.CreateLead,CrmPermission.EditLead,CrmPermission.ManageFollowUps,CrmPermission.ManageTasks,CrmPermission.ViewTeam],
+            [CrmRoleCode.Support] = [CrmPermission.ViewDashboard,CrmPermission.ViewLeads,CrmPermission.EditLead,CrmPermission.ManageFollowUps,CrmPermission.ManageTasks,CrmPermission.ManageAccounts,CrmPermission.ViewAccounts,CrmPermission.ViewTeam],
+            [CrmRoleCode.Viewer] = [CrmPermission.ViewDashboard,CrmPermission.ViewLeads,CrmPermission.ViewReports,CrmPermission.ViewAccounts,CrmPermission.ViewOpportunities,CrmPermission.ViewTeam]
         };
     public static IReadOnlyList<CrmPermission> Permissions(CrmRoleCode role)=>Matrix.GetValueOrDefault(role,[]);
     public static bool Allows(CrmRoleCode role,CrmPermission permission)=>Permissions(role).Contains(permission);
