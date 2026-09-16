@@ -1,3 +1,6 @@
+using BusinessOS.Api.Payments;
+using BusinessOS.Payments;
+
 namespace BusinessOS.Api.Commerce;
 
 public static class FreeTestingPostgresCommerceSmokeEndpoints
@@ -21,6 +24,7 @@ public static class FreeTestingPostgresCommerceSmokeEndpoints
         IConfiguration configuration,
         IHostEnvironment environment,
         ICommerceActivationStore store,
+        IPaymentEventStore paymentStore,
         CancellationToken cancellationToken)
     {
         if (!IsEnabled(configuration, environment))
@@ -63,6 +67,24 @@ public static class FreeTestingPostgresCommerceSmokeEndpoints
         if (providerRoute is null)
             return Results.Problem("Persisted AutoPay provider route was not found.");
 
+        var providerOrderId = $"order_pg_smoke_{suffix}";
+        var paymentMessage = new PaymentWebhookMessage(
+            $"evt_pg_smoke_{suffix}",
+            $"pay_pg_smoke_{suffix}",
+            providerOrderId,
+            PaymentStatus.Captured,
+            10000,
+            "INR",
+            DateTimeOffset.UtcNow);
+        var paymentInitial = await paymentStore.ProcessAsync(
+            "razorpay", paymentMessage, cancellationToken);
+        var paymentReplay = await paymentStore.ProcessAsync(
+            "razorpay", paymentMessage, cancellationToken);
+        var paymentRows = await paymentStore.ListPaymentsForProviderOrdersAsync(
+            "razorpay", [providerOrderId], 5, cancellationToken);
+        if (paymentInitial.Duplicate || !paymentReplay.Duplicate || paymentRows.Count != 1)
+            return Results.Problem("Payment event persistence/idempotency verification failed.");
+
         var renewal = await store.ActivateRenewalAsync(
             TenantA,
             activation.SubscriptionId,
@@ -93,7 +115,10 @@ public static class FreeTestingPostgresCommerceSmokeEndpoints
             persisted.ValidUntil,
             current.ValidUntil,
             providerRoute.ProviderSubscriptionId,
-            true));
+            true,
+            true,
+            paymentReplay.Duplicate,
+            paymentRows.Count));
     }
     private static bool IsEnabled(
         IConfiguration configuration,
@@ -118,4 +143,7 @@ public sealed record PostgresCommerceSmokeResponse(
     DateOnly InitialValidUntil,
     DateOnly RenewedValidUntil,
     string ProviderSubscriptionId,
-    bool Persisted);
+    bool Persisted,
+    bool PaymentPersisted,
+    bool PaymentDuplicateReplay,
+    int PaymentRows);

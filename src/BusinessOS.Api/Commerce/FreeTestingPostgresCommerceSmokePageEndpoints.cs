@@ -43,7 +43,10 @@ public static class FreeTestingPostgresCommerceSmokePageEndpoints
       subscriptionId: data.subscriptionId,
       initialValidUntil: data.initialValidUntil,
       renewedValidUntil: data.renewedValidUntil,
-      persisted: data.persisted
+      persisted: data.persisted,
+      paymentPersisted: data.paymentPersisted,
+      paymentDuplicateReplay: data.paymentDuplicateReplay,
+      paymentRows: data.paymentRows
     }, null, 2);
   } catch (error) {
     out.textContent = 'FAILED: ' + error.message;

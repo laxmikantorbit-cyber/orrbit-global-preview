@@ -180,6 +180,32 @@ public sealed class FreeTestingCheckoutTests : IClassFixture<WebApplicationFacto
     }
 
     [Fact]
+    public async Task Postgres_Smoke_When_Enabled_Exercises_Payment_Idempotency()
+    {
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Staging");
+            builder.ConfigureAppConfiguration((_, config) =>
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["BusinessOS:DeploymentMode"] = "FreeTesting",
+                    ["BusinessOS:StorageMode"] = "Postgres",
+                    ["BusinessOS:Payments:Mode"] = "RazorpayTestPending",
+                    ["BusinessOS:Testing:EnablePostgresSmoke"] = "true"
+                }));
+        }).CreateClient();
+        var response = await client.PostAsync(
+            "/api/testing/postgres/commerce-smoke", null);
+        var smoke = await response.Content.ReadFromJsonAsync<PostgresCommerceSmokeResponse>();
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(smoke);
+        Assert.True(smoke!.Persisted);
+        Assert.True(smoke.PaymentPersisted);
+        Assert.True(smoke.PaymentDuplicateReplay);
+        Assert.Equal(1, smoke.PaymentRows);
+    }
+
+    [Fact]
     public async Task Production_Does_Not_Expose_Postgres_Commerce_Smoke()
     {
         var client = ProductionFactoryWithFreeTestingMode().CreateClient();
