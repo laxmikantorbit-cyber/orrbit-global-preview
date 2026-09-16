@@ -9,6 +9,7 @@ import { CrmPipelineBoard } from './CrmPipelineBoard.tsx'
 import { CrmAddressHub } from './CrmAddressHub.tsx'
 import { CrmLeadQueryHub } from './CrmLeadQueryHub.tsx'
 import { CrmAnalyticsHub } from './CrmAnalyticsHub.tsx'
+import { CrmOpportunityProductHub } from './CrmOpportunityProductHub.tsx'
 
 const path = window.location.pathname
 const advancedLinkStyle = {
@@ -23,6 +24,7 @@ const pipelineLinkStyle = { ...advancedLinkStyle, bottom: '156px', background: '
 const addressLinkStyle = { ...advancedLinkStyle, bottom: '202px', background: '#b45309' } as const
 const queryLinkStyle = { ...advancedLinkStyle, bottom: '248px', background: '#0f766e' } as const
 const analyticsLinkStyle = { ...advancedLinkStyle, bottom: '294px', background: '#be123c' } as const
+const productsLinkStyle = { ...advancedLinkStyle, bottom: '340px', background: '#4338ca' } as const
 
 const utilityLinks = <>
   <a href="/crm/advanced" style={advancedLinkStyle}>Advanced CRM →</a>
@@ -32,25 +34,28 @@ const utilityLinks = <>
   <a href="/crm/addresses" style={addressLinkStyle}>Customer Addresses →</a>
   <a href="/crm/leads-query" style={queryLinkStyle}>Advanced Lead Search →</a>
   <a href="/crm/analytics" style={analyticsLinkStyle}>Detailed Analytics →</a>
+  <a href="/crm/opportunity-products" style={productsLinkStyle}>Deal Products →</a>
 </>
 
-const content = path === '/crm/analytics'
-  ? <CrmAnalyticsHub />
-  : path === '/crm/leads-query'
-    ? <CrmLeadQueryHub />
-    : path === '/crm/addresses'
-      ? <CrmAddressHub />
-      : path === '/crm/pipeline-board'
-        ? <CrmPipelineBoard />
-        : path === '/crm/maintenance'
-          ? <CrmDataMaintenanceHub />
-          : path === '/crm/manage'
-            ? <CrmManagementHub />
-            : path === '/crm/advanced'
-              ? <><CrmAdvancedHub />{utilityLinks}</>
-              : path === '/crm'
-                ? <><App />{utilityLinks}</>
-                : <App />
+const content = path === '/crm/opportunity-products'
+  ? <CrmOpportunityProductHub />
+  : path === '/crm/analytics'
+    ? <CrmAnalyticsHub />
+    : path === '/crm/leads-query'
+      ? <CrmLeadQueryHub />
+      : path === '/crm/addresses'
+        ? <CrmAddressHub />
+        : path === '/crm/pipeline-board'
+          ? <CrmPipelineBoard />
+          : path === '/crm/maintenance'
+            ? <CrmDataMaintenanceHub />
+            : path === '/crm/manage'
+              ? <CrmManagementHub />
+              : path === '/crm/advanced'
+                ? <><CrmAdvancedHub />{utilityLinks}</>
+                : path === '/crm'
+                  ? <><App />{utilityLinks}</>
+                  : <App />
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
