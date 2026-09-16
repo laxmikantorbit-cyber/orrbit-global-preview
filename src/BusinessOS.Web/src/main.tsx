@@ -4,6 +4,7 @@ import './index.css'
 import App from './App.tsx'
 import { CrmAdvancedHub } from './CrmAdvancedHub.tsx'
 import { CrmManagementHub } from './CrmManagementHub.tsx'
+import { CrmDataMaintenanceHub } from './CrmDataMaintenanceHub.tsx'
 
 const path = window.location.pathname
 const advancedLinkStyle = {
@@ -17,14 +18,21 @@ const managementLinkStyle = {
   bottom: '64px',
   background: '#1d4ed8',
 } as const
+const maintenanceLinkStyle = {
+  ...advancedLinkStyle,
+  bottom: '110px',
+  background: '#047857',
+} as const
 
-const content = path === '/crm/manage'
-  ? <CrmManagementHub />
-  : path === '/crm/advanced'
-    ? <><CrmAdvancedHub /><a href="/crm/manage" style={managementLinkStyle}>CRM Settings & Audit →</a></>
-    : path === '/crm'
-      ? <><App /><a href="/crm/advanced" style={advancedLinkStyle}>Advanced CRM →</a><a href="/crm/manage" style={managementLinkStyle}>CRM Settings →</a></>
-      : <App />
+const content = path === '/crm/maintenance'
+  ? <CrmDataMaintenanceHub />
+  : path === '/crm/manage'
+    ? <CrmManagementHub />
+    : path === '/crm/advanced'
+      ? <><CrmAdvancedHub /><a href="/crm/manage" style={managementLinkStyle}>CRM Settings & Audit →</a><a href="/crm/maintenance" style={maintenanceLinkStyle}>Data Maintenance →</a></>
+      : path === '/crm'
+        ? <><App /><a href="/crm/advanced" style={advancedLinkStyle}>Advanced CRM →</a><a href="/crm/manage" style={managementLinkStyle}>CRM Settings →</a><a href="/crm/maintenance" style={maintenanceLinkStyle}>Data Maintenance →</a></>
+        : <App />
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
