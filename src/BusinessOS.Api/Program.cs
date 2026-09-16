@@ -76,6 +76,7 @@ if (string.IsNullOrWhiteSpace(commerceConnection))
 {
     builder.Services.AddSingleton<IPaymentEventStore, InMemoryPaymentEventStore>();
     builder.Services.AddSingleton<ICommerceActivationStore, InMemoryCommerceActivationStore>();
+    builder.Services.AddSingleton<IProviderOrderConcurrencyGate, InMemoryProviderOrderConcurrencyGate>();
 }
 else
 {
@@ -87,6 +88,8 @@ else
             sp.GetRequiredService<PaymentSubscriptionActivationService>(),
             sp.GetRequiredService<LeaseSigner>(),
             postgresRuntimeRole));
+    builder.Services.AddSingleton<IProviderOrderConcurrencyGate>(_ =>
+        new PostgresProviderOrderConcurrencyGate(commerceConnection, postgresRuntimeRole));
 }
 
 var identityConnection = builder.Configuration.GetConnectionString("Identity");

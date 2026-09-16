@@ -18,6 +18,7 @@ public static class PaymentWebhookEndpoints
             IConfiguration configuration,
             IPaymentEventStore paymentEvents,
             ICommerceActivationStore store,
+            IProviderOrderConcurrencyGate providerOrderGate,
             CancellationToken cancellationToken) =>
         {
             var secret = configuration["Payments:RazorpayWebhookSecret"];
@@ -47,6 +48,7 @@ public static class PaymentWebhookEndpoints
                     rawBody,
                     paymentEvents,
                     store,
+                    providerOrderGate,
                     cancellationToken);
                 return subscriptionResult;
             }
@@ -124,6 +126,7 @@ public static class PaymentWebhookEndpoints
         string rawBody,
         IPaymentEventStore paymentEvents,
         ICommerceActivationStore store,
+        IProviderOrderConcurrencyGate providerOrderGate,
         CancellationToken cancellationToken)
     {
         var binding = await store.FindProviderSubscriptionRouteAsync(
@@ -159,6 +162,10 @@ public static class PaymentWebhookEndpoints
             StringComparison.OrdinalIgnoreCase))
         {
             var paymentWebhook = RazorpayWebhookParser.Parse(rawBody);
+            await using var providerOrderLease = await providerOrderGate.AcquireAsync(
+                RazorpayProvider,
+                paymentWebhook.ProviderOrderId,
+                cancellationToken);
             var route = await store.FindProviderOrderRouteAsync(
                 RazorpayProvider,
                 paymentWebhook.ProviderOrderId,

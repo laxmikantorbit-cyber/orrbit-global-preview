@@ -199,6 +199,49 @@ public sealed class AutoPayEndpointTests : IClassFixture<WebApplicationFactory<P
     }
 
     [Fact]
+    public async Task Concurrent_Subscription_Charged_Is_Serialized_And_Renews_Once()
+    {
+        var client = CreateTenantAClient();
+        var subscriptionId = await ActivateSubscriptionAsync(client);
+        var setupResponse = await client.PostAsync(
+            $"/api/commerce/subscriptions/{subscriptionId}/autopay/setup", null);
+        var setup = await setupResponse.Content.ReadFromJsonAsync<AutoPaySetupResponse>();
+        Assert.NotNull(setup);
+        var before = await client.GetFromJsonAsync<EntitlementStatusResponse>(
+            $"/api/commerce/subscriptions/{subscriptionId}/entitlement");
+        Assert.NotNull(before);
+
+        var body = ChargedWebhookBody(
+            setup!.ProviderSubscriptionId, "evt_autopay_concurrent",
+            "pay_autopay_concurrent", "order_autopay_concurrent",
+            2999900, "INR");
+        var responses = await Task.WhenAll(
+            SendSignedWebhookAsync(client, body),
+            SendSignedWebhookAsync(client, body));
+        Assert.All(responses, response => Assert.Equal(HttpStatusCode.OK, response.StatusCode));
+
+        var results = new List<RazorpaySubscriptionWebhookResponse>();
+        foreach (var response in responses)
+        {
+            var parsed = await response.Content.ReadFromJsonAsync<RazorpaySubscriptionWebhookResponse>();
+            Assert.NotNull(parsed);
+            results.Add(parsed!);
+        }
+        Assert.Equal(1, results.Count(x => !x.DuplicatePaymentEvent));
+        Assert.Equal(1, results.Count(x => x.DuplicatePaymentEvent));
+        Assert.Contains(results, x => x.Outcome == "subscription_charge_renewed");
+        Assert.Contains(results, x => x.Outcome == "subscription_charge_already_renewed");
+        Assert.All(results, x => Assert.NotNull(x.RenewalActivation));
+        var renewedUntil = results.Select(x => x.RenewalActivation!.NewValidUntil).Distinct().Single();
+        Assert.True(renewedUntil > before!.ValidUntil);
+
+        var after = await client.GetFromJsonAsync<EntitlementStatusResponse>(
+            $"/api/commerce/subscriptions/{subscriptionId}/entitlement");
+        Assert.NotNull(after);
+        Assert.Equal(renewedUntil, after!.ValidUntil);
+    }
+
+    [Fact]
     public async Task Recurring_Charge_Amount_Mismatch_Does_Not_Poison_Retry()
     {
         var client = CreateTenantAClient();
