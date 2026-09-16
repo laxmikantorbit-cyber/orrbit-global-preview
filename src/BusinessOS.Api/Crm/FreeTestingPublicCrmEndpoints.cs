@@ -44,6 +44,17 @@ public static class FreeTestingPublicCrmEndpoints
                 return Results.NotFound(new ErrorResponse("Public CRM staging is not enabled."));
             try
             {
+                var existing = await repository.ListAsync(DemoTenantId, cancellationToken);
+                var phone = Digits(request.MobileNumber);
+                var email = Normalize(request.Email);
+                var duplicate = existing.FirstOrDefault(x =>
+                    (!string.IsNullOrWhiteSpace(phone) && Digits(x.MobileNumber) == phone) ||
+                    (!string.IsNullOrWhiteSpace(email) && Normalize(x.Email) == email));
+                if (duplicate is not null)
+                    return Results.Json(new ErrorResponse(
+                        $"Duplicate lead detected: {duplicate.Title} ({duplicate.Id}). Mobile/email already exists."),
+                        statusCode: StatusCodes.Status409Conflict);
+
                 var lead = new Lead(
                     Guid.NewGuid(),
                     DemoTenantId,
@@ -175,6 +186,9 @@ public static class FreeTestingPublicCrmEndpoints
 
     private static LeadPriority ParsePriority(string? value) =>
         Enum.TryParse<LeadPriority>(value, true, out var priority) ? priority : LeadPriority.Normal;
+
+    private static string Digits(string? value) => new((value ?? string.Empty).Where(char.IsDigit).ToArray());
+    private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToLowerInvariant();
 
     private static CrmLeadResponse ToResponse(Lead lead) =>
         new(lead.Id, lead.OrganisationId, lead.Title, lead.Status.ToString(),
