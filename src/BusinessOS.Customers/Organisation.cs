@@ -110,7 +110,7 @@ public sealed class Organisation
     public void AddAddress(OrganisationAddress address)
     {
         if (address.Id == Guid.Empty) throw new ArgumentException("Address id is required.", nameof(address));
-        if (string.IsNullOrWhiteSpace(address.Line1)) throw new ArgumentException("Address line is required.", nameof(address));
+        ValidateAddress(address.Line1, address.City, address.State, address.PostalCode, address.CountryCode);
         if (_addresses.Any(x => x.Id == address.Id))
             throw new InvalidOperationException("Address id already exists.");
 
@@ -120,16 +120,43 @@ public sealed class Organisation
                 _addresses[i] = _addresses[i] with { IsPrimary = false };
         }
 
-        _addresses.Add(address with
-        {
-            Line1 = address.Line1.Trim(),
-            Line2 = Clean(address.Line2),
-            City = address.City.Trim(),
-            State = address.State.Trim(),
-            PostalCode = address.PostalCode.Trim(),
-            CountryCode = address.CountryCode.Trim().ToUpperInvariant()
-        });
+        _addresses.Add(NormalizeAddress(address));
     }
+
+    public void UpdateAddress(
+        Guid addressId,
+        string line1,
+        string? line2,
+        string city,
+        string state,
+        string postalCode,
+        string countryCode,
+        bool isPrimary)
+    {
+        if (addressId == Guid.Empty) throw new ArgumentException("Address id is required.", nameof(addressId));
+        ValidateAddress(line1, city, state, postalCode, countryCode);
+        var index = _addresses.FindIndex(x => x.Id == addressId);
+        if (index < 0) throw new InvalidOperationException("Address does not exist.");
+        if (isPrimary)
+        {
+            for (var i = 0; i < _addresses.Count; i++)
+                _addresses[i] = _addresses[i] with { IsPrimary = false };
+        }
+        _addresses[index] = NormalizeAddress(new OrganisationAddress(
+            addressId, line1, line2, city, state, postalCode, countryCode, isPrimary));
+    }
+
+    public void RemoveAddress(Guid addressId)
+    {
+        if (addressId == Guid.Empty) throw new ArgumentException("Address id is required.", nameof(addressId));
+        var index = _addresses.FindIndex(x => x.Id == addressId);
+        if (index < 0) throw new InvalidOperationException("Address does not exist.");
+        var wasPrimary = _addresses[index].IsPrimary;
+        _addresses.RemoveAt(index);
+        if (wasPrimary && _addresses.Count > 0 && _addresses.All(x => !x.IsPrimary))
+            _addresses[0] = _addresses[0] with { IsPrimary = true };
+    }
+
     public void UpdateProfile(string name, string? legalName, string? gstin)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -141,6 +168,25 @@ public sealed class Organisation
     }
 
     public void SetDisplayCode(string? displayCode) => DisplayCode = Clean(displayCode);
+
+    private static void ValidateAddress(string line1, string city, string state, string postalCode, string countryCode)
+    {
+        if (string.IsNullOrWhiteSpace(line1)) throw new ArgumentException("Address line is required.", nameof(line1));
+        if (string.IsNullOrWhiteSpace(city)) throw new ArgumentException("City is required.", nameof(city));
+        if (string.IsNullOrWhiteSpace(state)) throw new ArgumentException("State is required.", nameof(state));
+        if (string.IsNullOrWhiteSpace(postalCode)) throw new ArgumentException("Postal code is required.", nameof(postalCode));
+        if (string.IsNullOrWhiteSpace(countryCode)) throw new ArgumentException("Country code is required.", nameof(countryCode));
+    }
+
+    private static OrganisationAddress NormalizeAddress(OrganisationAddress address) => address with
+    {
+        Line1 = address.Line1.Trim(),
+        Line2 = Clean(address.Line2),
+        City = address.City.Trim(),
+        State = address.State.Trim(),
+        PostalCode = address.PostalCode.Trim(),
+        CountryCode = address.CountryCode.Trim().ToUpperInvariant()
+    };
 
     private static string? Clean(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
