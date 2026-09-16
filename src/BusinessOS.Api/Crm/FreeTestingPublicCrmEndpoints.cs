@@ -16,9 +16,13 @@ public static class FreeTestingPublicCrmEndpoints
         var group = app.MapGroup("/api/testing/public/crm");
 
         group.MapGet("/leads", async (
+            IConfiguration configuration,
+            IHostEnvironment environment,
             ILeadRepository repository,
             CancellationToken cancellationToken) =>
         {
+            if (!IsFreeTestingMode(configuration, environment))
+                return Results.NotFound(new ErrorResponse("Public CRM staging is not enabled."));
             var leads = await repository.ListAsync(DemoTenantId, cancellationToken);
             return Results.Ok(new CrmLeadListResponse(
                 leads.Select(ToResponse).OrderByDescending(x => x.CreatedSort).ToArray()));
@@ -26,9 +30,13 @@ public static class FreeTestingPublicCrmEndpoints
 
         group.MapPost("/leads", async (
             CreateCrmLeadRequest request,
+            IConfiguration configuration,
+            IHostEnvironment environment,
             ILeadRepository repository,
             CancellationToken cancellationToken) =>
         {
+            if (!IsFreeTestingMode(configuration, environment))
+                return Results.NotFound(new ErrorResponse("Public CRM staging is not enabled."));
             try
             {
                 var lead = new Lead(
@@ -50,9 +58,13 @@ public static class FreeTestingPublicCrmEndpoints
         group.MapPost("/leads/{leadId:guid}/status", async (
             Guid leadId,
             ChangeCrmLeadStatusRequest request,
+            IConfiguration configuration,
+            IHostEnvironment environment,
             ILeadRepository repository,
             CancellationToken cancellationToken) =>
         {
+            if (!IsFreeTestingMode(configuration, environment))
+                return Results.NotFound(new ErrorResponse("Public CRM staging is not enabled."));
             var lead = await repository.GetAsync(DemoTenantId, leadId, cancellationToken);
             if (lead is null) return Results.NotFound(new ErrorResponse("Lead not found."));
             try
@@ -71,9 +83,13 @@ public static class FreeTestingPublicCrmEndpoints
         });
 
         group.MapGet("/dashboard", async (
+            IConfiguration configuration,
+            IHostEnvironment environment,
             ILeadRepository repository,
             CancellationToken cancellationToken) =>
         {
+            if (!IsFreeTestingMode(configuration, environment))
+                return Results.NotFound(new ErrorResponse("Public CRM staging is not enabled."));
             var leads = await repository.ListAsync(DemoTenantId, cancellationToken);
             var statusCounts = leads
                 .GroupBy(x => x.Status.ToString())
@@ -90,6 +106,15 @@ public static class FreeTestingPublicCrmEndpoints
 
         return app;
     }
+
+    private static bool IsFreeTestingMode(
+        IConfiguration configuration,
+        IHostEnvironment environment) =>
+        !environment.IsProduction() &&
+        string.Equals(
+            configuration["BusinessOS:DeploymentMode"],
+            "FreeTesting",
+            StringComparison.OrdinalIgnoreCase);
 
     private static void ApplyStatus(
         Lead lead,
