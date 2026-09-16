@@ -54,6 +54,10 @@ public static class PaymentWebhookEndpoints
             }
 
             var webhook = RazorpayWebhookParser.Parse(rawBody);
+            await using var providerOrderLease = await providerOrderGate.AcquireAsync(
+                RazorpayProvider,
+                webhook.ProviderOrderId,
+                cancellationToken);
             var paymentResult = await paymentEvents.ProcessAsync(
                 RazorpayProvider,
                 webhook.Message with { OrderId = webhook.ProviderOrderId },

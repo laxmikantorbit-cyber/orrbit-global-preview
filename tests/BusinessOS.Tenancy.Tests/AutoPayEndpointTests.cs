@@ -153,6 +153,43 @@ public sealed class AutoPayEndpointTests : IClassFixture<WebApplicationFactory<P
     }
 
     [Fact]
+    public async Task Concurrent_Initial_Payment_Webhook_Is_Serialized_And_Activates_Once()
+    {
+        var client = CreateTenantAClient();
+        var checkoutResponse = await client.PostAsJsonAsync(
+            "/api/commerce/checkout/initial", InitialCheckoutRequest());
+        Assert.Equal(HttpStatusCode.OK, checkoutResponse.StatusCode);
+        var checkout = await checkoutResponse.Content
+            .ReadFromJsonAsync<RazorpayCheckoutOrderResponse>();
+        Assert.NotNull(checkout);
+
+        var body = ChargedWebhookBody(
+            "sub_ignored_for_payment_event",
+            "evt_initial_concurrent",
+            "pay_initial_concurrent",
+            checkout!.RazorpayOrderId,
+            checkout.RazorpayAmount,
+            checkout.CurrencyCode)
+            .Replace("subscription.charged", "payment.captured", StringComparison.Ordinal);
+        var responses = await Task.WhenAll(
+            SendSignedWebhookAsync(client, body),
+            SendSignedWebhookAsync(client, body));
+        Assert.All(responses, response => Assert.Equal(HttpStatusCode.OK, response.StatusCode));
+
+        var results = new List<PaymentWebhookResponse>();
+        foreach (var response in responses)
+        {
+            var parsed = await response.Content.ReadFromJsonAsync<PaymentWebhookResponse>();
+            Assert.NotNull(parsed);
+            results.Add(parsed!);
+        }
+        Assert.Equal(1, results.Count(x => !x.DuplicatePaymentEvent));
+        Assert.Equal(1, results.Count(x => x.DuplicatePaymentEvent));
+        Assert.All(results, x => Assert.NotNull(x.InitialActivation));
+        Assert.Single(results.Select(x => x.InitialActivation!.SubscriptionId).Distinct());
+    }
+
+    [Fact]
     public async Task Subscription_Charged_Renews_Exactly_Once()
     {
         var client = CreateTenantAClient();
