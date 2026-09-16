@@ -72,6 +72,26 @@ public static class CommerceEndpoints
             }
         });
 
+        group.MapGet("/subscriptions/{subscriptionId:guid}/autopay", async (
+            Guid subscriptionId,
+            TenantContext tenant,
+            ICommerceActivationStore store,
+            CancellationToken cancellationToken) =>
+        {
+            if (TenantRoleAuthorization.ForbidUnlessCommerceAdmin(tenant) is { } forbidden)
+                return forbidden;
+            var state = await store.FindSubscriptionStateAsync(
+                tenant.TenantId, subscriptionId, cancellationToken);
+            if (state is null)
+                return Results.NotFound(new ErrorResponse(
+                    "Subscription was not found for this tenant."));
+            var binding = await store.FindProviderSubscriptionAsync(
+                tenant.TenantId, subscriptionId, "razorpay", cancellationToken);
+            return binding is null
+                ? Results.NotFound(new ErrorResponse(
+                    "AutoPay is not configured for this subscription."))
+                : Results.Ok(binding);
+        });
         group.MapPost("/subscriptions/{subscriptionId:guid}/autopay/setup", async (
             Guid subscriptionId,
             TenantContext tenant,

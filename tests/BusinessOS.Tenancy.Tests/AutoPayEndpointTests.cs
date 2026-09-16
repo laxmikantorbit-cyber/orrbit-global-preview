@@ -43,6 +43,15 @@ public sealed class AutoPayEndpointTests : IClassFixture<WebApplicationFactory<P
         Assert.True(second!.ExistingBinding);
         Assert.Equal(first.ProviderSubscriptionId, second.ProviderSubscriptionId);
         Assert.Equal(first.StartAtUnix, second.StartAtUnix);
+
+        var statusResponse = await client.GetAsync(
+            $"/api/commerce/subscriptions/{subscriptionId}/autopay");
+        Assert.Equal(HttpStatusCode.OK, statusResponse.StatusCode);
+        var status = await statusResponse.Content
+            .ReadFromJsonAsync<ProviderSubscriptionBinding>();
+        Assert.NotNull(status);
+        Assert.Equal(first.ProviderSubscriptionId, status!.ProviderSubscriptionId);
+        Assert.True(status.AutoRenewEnabled);
     }
 
     [Fact]
@@ -55,6 +64,9 @@ public sealed class AutoPayEndpointTests : IClassFixture<WebApplicationFactory<P
             $"/api/commerce/subscriptions/{subscriptionId}/autopay/setup", null);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var statusResponse = await tenantB.GetAsync(
+            $"/api/commerce/subscriptions/{subscriptionId}/autopay");
+        Assert.Equal(HttpStatusCode.NotFound, statusResponse.StatusCode);
     }
 
     [Fact]
@@ -97,6 +109,15 @@ public sealed class AutoPayEndpointTests : IClassFixture<WebApplicationFactory<P
         Assert.Equal("halted", result!.ProviderStatus);
         Assert.False(result.AutoRenewEnabled);
         Assert.Equal(subscriptionId, result.SubscriptionId);
+
+        var statusResponse = await client.GetAsync(
+            $"/api/commerce/subscriptions/{subscriptionId}/autopay");
+        Assert.Equal(HttpStatusCode.OK, statusResponse.StatusCode);
+        var status = await statusResponse.Content
+            .ReadFromJsonAsync<ProviderSubscriptionBinding>();
+        Assert.NotNull(status);
+        Assert.Equal("halted", status!.Status);
+        Assert.False(status.AutoRenewEnabled);
     }
 
     [Fact]
