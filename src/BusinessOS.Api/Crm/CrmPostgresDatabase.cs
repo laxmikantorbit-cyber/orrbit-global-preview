@@ -34,10 +34,16 @@ public sealed class CrmPostgresDatabase : IAsyncDisposable
         try
         {
             if (_ready) return;
-            if (_allowSchemaBootstrap)
-                await BootstrapAsync(cancellationToken);
-            else
+            try
+            {
                 await ValidateRuntimeAccessAsync(cancellationToken);
+            }
+            catch (PostgresException ex) when (
+                _allowSchemaBootstrap && ex.SqlState is "42P01" or "3F000")
+            {
+                await BootstrapAsync(cancellationToken);
+                await ValidateRuntimeAccessAsync(cancellationToken);
+            }
             _ready = true;
         }
         finally
