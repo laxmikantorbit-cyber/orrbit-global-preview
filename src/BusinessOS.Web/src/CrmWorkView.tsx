@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { cancelCrmFollowUp, cancelCrmTask, rescheduleCrmFollowUp, updateCrmTask } from './crmAdvancedApi'
 import type { CrmDashboard, CrmFollowUp, CrmLead, CrmTask, CrmTeamMember, CrmWorkSummary } from './crmApi'
 
 type View = 'followups' | 'tasks' | 'reports'
@@ -23,19 +24,19 @@ type Props = {
   leads: CrmLead[]
   followUps: CrmFollowUp[]
   tasks: CrmTask[]
-  teamMembers: CrmTeamMember[]
+  teamMembers?: CrmTeamMember[]
   currentUserId?: string
-  canViewAllOwnedRecords: boolean
+  canViewAllOwnedRecords?: boolean
   summary: CrmWorkSummary
   dashboard: CrmDashboard
   busy: boolean
   openLead: (leadId: string) => void
   completeFollowUp: (id: string) => Promise<void>
-  rescheduleFollowUp: (id: string, input: FollowUpUpdate) => Promise<void>
-  cancelFollowUp: (id: string) => Promise<void>
+  rescheduleFollowUp?: (id: string, input: FollowUpUpdate) => Promise<void>
+  cancelFollowUp?: (id: string) => Promise<void>
   completeTask: (id: string) => Promise<void>
-  updateTask: (id: string, input: TaskUpdate) => Promise<void>
-  cancelTask: (id: string) => Promise<void>
+  updateTask?: (id: string, input: TaskUpdate) => Promise<void>
+  cancelTask?: (id: string) => Promise<void>
 }
 
 function formatDate(value?: string | null) {
@@ -71,11 +72,14 @@ export function CrmWorkView(props: Props) {
   const [taskDue, setTaskDue] = useState('')
   const [taskPriority, setTaskPriority] = useState('Normal')
   const [taskAssignee, setTaskAssignee] = useState('')
+  const [localBusy, setLocalBusy] = useState(false)
 
+  const busy = props.busy || localBusy
   const leadTitle = (id?: string | null) => props.leads.find((x) => x.id === id)?.title || 'General task'
+  const team = props.teamMembers ?? []
   const assignableUsers = props.canViewAllOwnedRecords
-    ? props.teamMembers.filter((x) => x.active)
-    : props.teamMembers.filter((x) => x.active && x.id === props.currentUserId)
+    ? team.filter((x) => x.active)
+    : team.filter((x) => x.active && (!props.currentUserId || x.id === props.currentUserId))
 
   function editFollowUp(item: CrmFollowUp) {
     setEditingFollowUpId(item.id)
@@ -92,6 +96,46 @@ export function CrmWorkView(props: Props) {
     setTaskDue(localInput(item.dueAtUtc))
     setTaskPriority(item.priority)
     setTaskAssignee(item.assigneeUserId || props.currentUserId || '')
+  }
+
+  async function saveFollowUp(id: string) {
+    const input = { dueAtUtc: utcInput(followDue)!, channel: followChannel, purpose: followPurpose, ownerUserId: followOwner || null }
+    setLocalBusy(true)
+    try {
+      if (props.rescheduleFollowUp) await props.rescheduleFollowUp(id, input)
+      else await rescheduleCrmFollowUp(id, input)
+      setEditingFollowUpId(null)
+      if (!props.rescheduleFollowUp) window.location.reload()
+    } finally { setLocalBusy(false) }
+  }
+
+  async function cancelFollowUp(id: string) {
+    setLocalBusy(true)
+    try {
+      if (props.cancelFollowUp) await props.cancelFollowUp(id)
+      else await cancelCrmFollowUp(id, 'Cancelled from follow-up centre')
+      if (!props.cancelFollowUp) window.location.reload()
+    } finally { setLocalBusy(false) }
+  }
+
+  async function saveTask(id: string) {
+    const input = { title: taskTitle, details: taskDetails, dueAtUtc: utcInput(taskDue), priority: taskPriority, assigneeUserId: taskAssignee || null }
+    setLocalBusy(true)
+    try {
+      if (props.updateTask) await props.updateTask(id, input)
+      else await updateCrmTask(id, input)
+      setEditingTaskId(null)
+      if (!props.updateTask) window.location.reload()
+    } finally { setLocalBusy(false) }
+  }
+
+  async function cancelTask(id: string) {
+    setLocalBusy(true)
+    try {
+      if (props.cancelTask) await props.cancelTask(id)
+      else await cancelCrmTask(id)
+      if (!props.cancelTask) window.location.reload()
+    } finally { setLocalBusy(false) }
   }
 
   if (props.view === 'followups') {
@@ -112,12 +156,12 @@ export function CrmWorkView(props: Props) {
                   <input type="datetime-local" value={followDue} onChange={(e) => setFollowDue(e.target.value)} />
                   <select value={followChannel} onChange={(e) => setFollowChannel(e.target.value)}><option>Call</option><option>WhatsApp</option><option>Email</option><option>Meeting</option><option>Other</option></select>
                   <input value={followPurpose} onChange={(e) => setFollowPurpose(e.target.value)} placeholder="Follow-up purpose" />
-                  <select value={followOwner} onChange={(e) => setFollowOwner(e.target.value)}><option value="">Unassigned</option>{assignableUsers.map((user) => <option key={user.id} value={user.id}>{user.displayName} · {user.role}</option>)}</select>
-                  <div className="crm2-top-actions"><button className="crm2-primary" disabled={props.busy || !followDue || !followPurpose.trim()} onClick={() => void props.rescheduleFollowUp(item.id, { dueAtUtc: utcInput(followDue)!, channel: followChannel, purpose: followPurpose, ownerUserId: followOwner || null }).then(() => setEditingFollowUpId(null))}>Save</button><button className="crm2-refresh" onClick={() => setEditingFollowUpId(null)}>Close</button></div>
+                  {team.length ? <select value={followOwner} onChange={(e) => setFollowOwner(e.target.value)}><option value="">Unassigned</option>{assignableUsers.map((user) => <option key={user.id} value={user.id}>{user.displayName} · {user.role}</option>)}</select> : null}
+                  <div className="crm2-top-actions"><button className="crm2-primary" disabled={busy || !followDue || !followPurpose.trim()} onClick={() => void saveFollowUp(item.id)}>Save</button><button className="crm2-refresh" onClick={() => setEditingFollowUpId(null)}>Close</button></div>
                 </div> : null}
               </div>
               <em className={item.status.toLowerCase()}>{overdue ? 'Overdue' : item.status}</em>
-              {item.status === 'Open' ? <div className="crm2-top-actions"><button disabled={props.busy} onClick={() => editFollowUp(item)}>Reschedule</button><button disabled={props.busy} onClick={() => void props.completeFollowUp(item.id)}>Complete</button><button disabled={props.busy} onClick={() => void props.cancelFollowUp(item.id)}>Cancel</button></div> : null}
+              {item.status === 'Open' ? <div className="crm2-top-actions"><button disabled={busy} onClick={() => editFollowUp(item)}>Reschedule</button><button disabled={busy} onClick={() => void props.completeFollowUp(item.id)}>Complete</button><button disabled={busy} onClick={() => void cancelFollowUp(item.id)}>Cancel</button></div> : null}
             </article>
           })}
         </div>
@@ -144,12 +188,12 @@ export function CrmWorkView(props: Props) {
                   <textarea rows={3} value={taskDetails} onChange={(e) => setTaskDetails(e.target.value)} placeholder="Task details" />
                   <input type="datetime-local" value={taskDue} onChange={(e) => setTaskDue(e.target.value)} />
                   <select value={taskPriority} onChange={(e) => setTaskPriority(e.target.value)}><option>Low</option><option>Normal</option><option>High</option><option>Urgent</option></select>
-                  <select value={taskAssignee} onChange={(e) => setTaskAssignee(e.target.value)}><option value="">Unassigned</option>{assignableUsers.map((user) => <option key={user.id} value={user.id}>{user.displayName} · {user.role}</option>)}</select>
-                  <div className="crm2-top-actions"><button className="crm2-primary" disabled={props.busy || !taskTitle.trim()} onClick={() => void props.updateTask(item.id, { title: taskTitle, details: taskDetails, dueAtUtc: utcInput(taskDue), priority: taskPriority, assigneeUserId: taskAssignee || null }).then(() => setEditingTaskId(null))}>Save</button><button className="crm2-refresh" onClick={() => setEditingTaskId(null)}>Close</button></div>
+                  {team.length ? <select value={taskAssignee} onChange={(e) => setTaskAssignee(e.target.value)}><option value="">Unassigned</option>{assignableUsers.map((user) => <option key={user.id} value={user.id}>{user.displayName} · {user.role}</option>)}</select> : null}
+                  <div className="crm2-top-actions"><button className="crm2-primary" disabled={busy || !taskTitle.trim()} onClick={() => void saveTask(item.id)}>Save</button><button className="crm2-refresh" onClick={() => setEditingTaskId(null)}>Close</button></div>
                 </div> : null}
               </div>
               <em className={item.status.toLowerCase()}>{overdue ? 'Overdue' : item.status}</em>
-              {item.status === 'Open' ? <div className="crm2-top-actions"><button disabled={props.busy} onClick={() => editTask(item)}>Edit</button><button disabled={props.busy} onClick={() => void props.completeTask(item.id)}>Complete</button><button disabled={props.busy} onClick={() => void props.cancelTask(item.id)}>Cancel</button></div> : null}
+              {item.status === 'Open' ? <div className="crm2-top-actions"><button disabled={busy} onClick={() => editTask(item)}>Edit</button><button disabled={busy} onClick={() => void props.completeTask(item.id)}>Complete</button><button disabled={busy} onClick={() => void cancelTask(item.id)}>Cancel</button></div> : null}
             </article>
           })}
         </div>
