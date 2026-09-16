@@ -161,6 +161,7 @@ app.MapFreeTestingPublicCrmIntelligenceEndpoints();
 app.MapFreeTestingPublicCrmQueryEndpoints();
 app.MapFreeTestingPublicCrmAnalyticsEndpoints();
 app.MapFreeTestingPublicCrmLeadAgingEndpoints();
+app.MapFreeTestingPublicCrmContactDirectoryEndpoints();
 app.MapFreeTestingPublicCrmCommerceEndpoints();
 app.MapFreeTestingPublicCrmManagementEndpoints();
 app.MapFreeTestingPublicCrmMergeEndpoints();
