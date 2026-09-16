@@ -14,6 +14,7 @@ import { CrmInboxHub } from './CrmInboxHub.tsx'
 import { CrmCommunicationHub } from './CrmCommunicationHub.tsx'
 import { CrmIntelligenceHub } from './CrmIntelligenceHub.tsx'
 import { CrmDataExportHub } from './CrmDataExportHub.tsx'
+import { CrmContactDirectoryHub } from './CrmContactDirectoryHub.tsx'
 
 const path = window.location.pathname
 const advancedLinkStyle = {
@@ -33,6 +34,7 @@ const inboxLinkStyle = { ...advancedLinkStyle, bottom: '386px', background: '#03
 const communicationLinkStyle = { ...advancedLinkStyle, bottom: '432px', background: '#a21caf' } as const
 const intelligenceLinkStyle = { ...advancedLinkStyle, bottom: '478px', background: '#c2410c' } as const
 const exportLinkStyle = { ...advancedLinkStyle, bottom: '524px', background: '#334155' } as const
+const contactsLinkStyle = { ...advancedLinkStyle, bottom: '570px', background: '#0e7490' } as const
 
 const utilityLinks = <>
   <a href="/crm/advanced" style={advancedLinkStyle}>Advanced CRM →</a>
@@ -47,35 +49,38 @@ const utilityLinks = <>
   <a href="/crm/communications" style={communicationLinkStyle}>Communications →</a>
   <a href="/crm/intelligence" style={intelligenceLinkStyle}>AI Sales Command →</a>
   <a href="/crm/export" style={exportLinkStyle}>CSV / Excel Export →</a>
+  <a href="/crm/contacts" style={contactsLinkStyle}>Contact Directory →</a>
 </>
 
-const content = path === '/crm/export'
-  ? <CrmDataExportHub />
-  : path === '/crm/intelligence'
-    ? <CrmIntelligenceHub />
-    : path === '/crm/communications'
-      ? <CrmCommunicationHub />
-      : path === '/crm/inbox'
-        ? <CrmInboxHub />
-        : path === '/crm/opportunity-products'
-          ? <CrmOpportunityProductHub />
-          : path === '/crm/analytics'
-            ? <CrmAnalyticsHub />
-            : path === '/crm/leads-query'
-              ? <CrmLeadQueryHub />
-              : path === '/crm/addresses'
-                ? <CrmAddressHub />
-                : path === '/crm/pipeline-board'
-                  ? <CrmPipelineBoard />
-                  : path === '/crm/maintenance'
-                    ? <CrmDataMaintenanceHub />
-                    : path === '/crm/manage'
-                      ? <CrmManagementHub />
-                      : path === '/crm/advanced'
-                        ? <><CrmAdvancedHub />{utilityLinks}</>
-                        : path === '/crm'
-                          ? <><App />{utilityLinks}</>
-                          : <App />
+const content = path === '/crm/contacts'
+  ? <CrmContactDirectoryHub />
+  : path === '/crm/export'
+    ? <CrmDataExportHub />
+    : path === '/crm/intelligence'
+      ? <CrmIntelligenceHub />
+      : path === '/crm/communications'
+        ? <CrmCommunicationHub />
+        : path === '/crm/inbox'
+          ? <CrmInboxHub />
+          : path === '/crm/opportunity-products'
+            ? <CrmOpportunityProductHub />
+            : path === '/crm/analytics'
+              ? <CrmAnalyticsHub />
+              : path === '/crm/leads-query'
+                ? <CrmLeadQueryHub />
+                : path === '/crm/addresses'
+                  ? <CrmAddressHub />
+                  : path === '/crm/pipeline-board'
+                    ? <CrmPipelineBoard />
+                    : path === '/crm/maintenance'
+                      ? <CrmDataMaintenanceHub />
+                      : path === '/crm/manage'
+                        ? <CrmManagementHub />
+                        : path === '/crm/advanced'
+                          ? <><CrmAdvancedHub />{utilityLinks}</>
+                          : path === '/crm'
+                            ? <><App />{utilityLinks}</>
+                            : <App />
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
