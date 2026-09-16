@@ -122,7 +122,14 @@ public static class FreeTestingCheckoutPageEndpoints
               write('GET /api/commerce/admin/status', admin);
               out.textContent += '\n\nFull free-staging purchase flow completed.';
             }
-            async function cancelLast() {
+            async function setupAutoPay() {
+              if (!token()) { alert('Paste staging bearer token first.'); return; }
+              if (!lastSubscriptionId) { alert('Run the purchase flow first.'); return; }
+              const setup = await request(
+                `/api/commerce/subscriptions/${lastSubscriptionId}/autopay/setup`,
+                { method: 'POST' });
+              write('POST /api/commerce/subscriptions/{id}/autopay/setup', setup);
+            }            async function cancelLast() {
               if (!token()) { alert('Paste staging bearer token first.'); return; }
               if (!lastSubscriptionId) { alert('Run the purchase flow first.'); return; }
               const cancelled = await request(
