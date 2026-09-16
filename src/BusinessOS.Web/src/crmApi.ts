@@ -270,6 +270,7 @@ export type CrmOpportunity = {
   accountId: string
   originatingLeadId?: string | null
   title: string
+  productService?: string | null
   stage: string
   estimatedValue: number
   currencyCode: string
@@ -324,6 +325,7 @@ export async function createCrmOpportunity(input: {
   probabilityPercent?: number
   expectedCloseDate?: string
   originatingLeadId?: string
+  productService?: string
 }) {
   const response = await crmFetch(`/opportunities`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },

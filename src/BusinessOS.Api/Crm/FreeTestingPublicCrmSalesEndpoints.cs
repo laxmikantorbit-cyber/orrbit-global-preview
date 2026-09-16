@@ -241,7 +241,7 @@ public static class FreeTestingPublicCrmSalesEndpoints
             try
             {
                 var item = new Opportunity(Guid.NewGuid(), DemoTenantId, request.AccountId,
-                    request.Title, Forecast(request), request.OriginatingLeadId, ownerUserId);
+                    request.Title, Forecast(request), request.OriginatingLeadId, ownerUserId, request.ProductService);
                 await opportunities.AddAsync(item, cancellationToken);
                 await AuditAsync(management, context, "OpportunityCreated", "Opportunity", item.Id,
                     $"{item.Title}; value={item.Forecast.EstimatedValue} {item.Forecast.CurrencyCode}", cancellationToken);
@@ -353,7 +353,7 @@ public static class FreeTestingPublicCrmSalesEndpoints
 
                 var opportunity = new Opportunity(Guid.NewGuid(), DemoTenantId, account.Id,
                     string.IsNullOrWhiteSpace(request.OpportunityTitle) ? lead.Title : request.OpportunityTitle,
-                    forecast, lead.Id, lead.Attribution.AccountOwnerUserId);
+                    forecast, lead.Id, lead.Attribution.AccountOwnerUserId, lead.ProductInterest);
                 await opportunities.AddAsync(opportunity, cancellationToken);
                 if (lead.Status == LeadStatus.Unqualified) lead.Reopen(LeadStatus.Qualified);
                 else if (lead.Status != LeadStatus.Qualified) lead.Qualify();
@@ -399,7 +399,7 @@ public static class FreeTestingPublicCrmSalesEndpoints
     private static CrmOpportunityResponse ToOpportunity(Opportunity x) => new(
         x.Id, x.OrganisationId, x.OriginatingLeadId, x.Title, x.Stage.ToString(),
         x.Forecast.EstimatedValue, x.Forecast.CurrencyCode, x.Forecast.ProbabilityPercent,
-        x.Forecast.ExpectedCloseDate, x.OwnerUserId, x.LossReason);
+        x.Forecast.ExpectedCloseDate, x.OwnerUserId, x.LossReason, x.ProductService);
 
     private static (Organisation Account, string Reason)? FindDuplicateAccount(
         IReadOnlyList<Organisation> accounts,
@@ -515,7 +515,8 @@ public sealed record CreateCrmOpportunityRequest(
     int ProbabilityPercent,
     DateOnly? ExpectedCloseDate,
     Guid? OriginatingLeadId,
-    Guid? OwnerUserId);
+    Guid? OwnerUserId,
+    string? ProductService = null);
 public sealed record ChangeOpportunityStageRequest(
     string Stage,
     string? Reason);
@@ -555,7 +556,8 @@ public sealed record CrmOpportunityResponse(
     int ProbabilityPercent,
     DateOnly? ExpectedCloseDate,
     Guid? OwnerUserId,
-    string? LossReason);
+    string? LossReason,
+    string? ProductService = null);
 
 public sealed record CrmConversionResponse(
     CrmAccountResponse Account,

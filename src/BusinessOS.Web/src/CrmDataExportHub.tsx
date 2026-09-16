@@ -56,7 +56,7 @@ async function load(dataset: Dataset): Promise<Row[]> {
   }
   if (dataset === 'opportunities') {
     const x = await listCrmOpportunities()
-    return x.opportunities.map(v => ({ id: v.id, title: v.title, accountId: v.accountId, stage: v.stage, estimatedValue: v.estimatedValue, currency: v.currencyCode, probability: v.probabilityPercent, expectedCloseDate: v.expectedCloseDate, ownerUserId: v.ownerUserId, lostReason: v.lossReason }))
+    return x.opportunities.map(v => ({ id: v.id, title: v.title, productService: v.productService, accountId: v.accountId, stage: v.stage, estimatedValue: v.estimatedValue, currency: v.currencyCode, probability: v.probabilityPercent, expectedCloseDate: v.expectedCloseDate, ownerUserId: v.ownerUserId, lostReason: v.lossReason }))
   }
   if (dataset === 'followups') {
     const x = await listCrmFollowUps()
