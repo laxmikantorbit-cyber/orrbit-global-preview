@@ -50,6 +50,7 @@ if (string.IsNullOrWhiteSpace(crmConnection))
     builder.Services.AddSingleton<ICrmTeamRepository, InMemoryCrmTeamRepository>();
     builder.Services.AddSingleton<ICrmManagementStore, InMemoryCrmManagementStore>();
     builder.Services.AddSingleton<ICrmNotificationStore, InMemoryCrmNotificationStore>();
+    builder.Services.AddSingleton<ICrmEntityActivityStore, InMemoryCrmEntityActivityStore>();
 }
 else
 {
@@ -64,6 +65,7 @@ else
     builder.Services.AddSingleton<ICrmTeamRepository, PostgresCrmTeamRepository>();
     builder.Services.AddSingleton<ICrmManagementStore, PostgresCrmManagementStore>();
     builder.Services.AddSingleton<ICrmNotificationStore, PostgresCrmNotificationStore>();
+    builder.Services.AddSingleton<ICrmEntityActivityStore, PostgresCrmEntityActivityStore>();
 }
 builder.Services.AddSingleton<IOrganisationRepository>(_ => CustomerSeed.CreateRepository());
 builder.Services.AddSingleton<LeaseSigner>();
@@ -154,6 +156,7 @@ app.MapFreeTestingPublicCrmSalesEndpoints();
 app.MapFreeTestingPublicCrmAddressEndpoints();
 app.MapFreeTestingPublicCrmAdvancedEndpoints();
 app.MapFreeTestingPublicCrmNotificationEndpoints();
+app.MapFreeTestingPublicCrmEntityActivityEndpoints();
 app.MapFreeTestingPublicCrmQueryEndpoints();
 app.MapFreeTestingPublicCrmAnalyticsEndpoints();
 app.MapFreeTestingPublicCrmCommerceEndpoints();
