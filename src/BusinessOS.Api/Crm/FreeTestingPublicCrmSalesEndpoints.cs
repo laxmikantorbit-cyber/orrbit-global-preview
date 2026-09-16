@@ -1,4 +1,4 @@
-using BusinessOS.Api.Commerce;
+﻿using BusinessOS.Api.Commerce;
 using BusinessOS.Crm;
 using BusinessOS.Customers;
 using BusinessOS.Sales;
@@ -16,18 +16,18 @@ public static class FreeTestingPublicCrmSalesEndpoints
         group.MapGet("/accounts", async (
             IConfiguration configuration,
             IHostEnvironment environment,
-            IOrganisationRepository organisations,
+            ICrmAccountStore accounts,
             CancellationToken cancellationToken) =>
         {
             if (!Enabled(configuration, environment)) return Disabled();
-            var items = await organisations.ListByRoleAsync(DemoTenantId, OrganisationRole.Customer, cancellationToken);
+            var items = await accounts.ListAsync(DemoTenantId, cancellationToken);
             return Results.Ok(new { accounts = items.Select(ToAccount).OrderBy(x => x.Name).ToArray() });
         });
         group.MapPost("/accounts", async (
             CreateCrmAccountRequest request,
             IConfiguration configuration,
             IHostEnvironment environment,
-            IOrganisationRepository organisations,
+            ICrmAccountStore accounts,
             CancellationToken cancellationToken) =>
         {
             if (!Enabled(configuration, environment)) return Disabled();
@@ -39,7 +39,7 @@ public static class FreeTestingPublicCrmSalesEndpoints
                 if (!string.IsNullOrWhiteSpace(request.ContactName))
                     account.AddContact(new ContactPerson(Guid.NewGuid(), request.ContactName,
                         request.Email, request.Phone, true));
-                await organisations.AddAsync(account, cancellationToken);
+                await accounts.AddAsync(account, cancellationToken);
                 return Results.Ok(ToAccount(account));
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
@@ -50,10 +50,10 @@ public static class FreeTestingPublicCrmSalesEndpoints
 
         group.MapGet("/accounts/{accountId:guid}", async (
             Guid accountId, IConfiguration configuration, IHostEnvironment environment,
-            IOrganisationRepository organisations, CancellationToken cancellationToken) =>
+            ICrmAccountStore accounts, CancellationToken cancellationToken) =>
         {
             if (!Enabled(configuration, environment)) return Disabled();
-            var account = await organisations.GetAsync(DemoTenantId, accountId, cancellationToken);
+            var account = await accounts.GetAsync(DemoTenantId, accountId, cancellationToken);
             return account is null ? Results.NotFound(new ErrorResponse("Account not found.")) : Results.Ok(ToAccount(account));
         });
         group.MapPost("/accounts/{accountId:guid}/contacts", async (
@@ -61,16 +61,17 @@ public static class FreeTestingPublicCrmSalesEndpoints
             AddCrmContactRequest request,
             IConfiguration configuration,
             IHostEnvironment environment,
-            IOrganisationRepository organisations,
+            ICrmAccountStore accounts,
             CancellationToken cancellationToken) =>
         {
             if (!Enabled(configuration, environment)) return Disabled();
-            var account = await organisations.GetAsync(DemoTenantId, accountId, cancellationToken);
+            var account = await accounts.GetAsync(DemoTenantId, accountId, cancellationToken);
             if (account is null) return Results.NotFound(new ErrorResponse("Account not found."));
             try
             {
                 account.AddContact(new ContactPerson(Guid.NewGuid(), request.Name,
                     request.Email, request.Phone, request.IsPrimary));
+                await accounts.SaveAsync(account, cancellationToken);
                 return Results.Ok(ToAccount(account));
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
@@ -82,7 +83,7 @@ public static class FreeTestingPublicCrmSalesEndpoints
         group.MapGet("/opportunities", async (
             IConfiguration configuration,
             IHostEnvironment environment,
-            IOpportunityRepository opportunities,
+            ICrmOpportunityStore opportunities,
             CancellationToken cancellationToken) =>
         {
             if (!Enabled(configuration, environment)) return Disabled();
@@ -93,12 +94,12 @@ public static class FreeTestingPublicCrmSalesEndpoints
             CreateCrmOpportunityRequest request,
             IConfiguration configuration,
             IHostEnvironment environment,
-            IOrganisationRepository organisations,
-            IOpportunityRepository opportunities,
+            ICrmAccountStore accounts,
+            ICrmOpportunityStore opportunities,
             CancellationToken cancellationToken) =>
         {
             if (!Enabled(configuration, environment)) return Disabled();
-            if (await organisations.GetAsync(DemoTenantId, request.AccountId, cancellationToken) is null)
+            if (await accounts.GetAsync(DemoTenantId, request.AccountId, cancellationToken) is null)
                 return Results.NotFound(new ErrorResponse("Account not found."));
             try
             {
@@ -118,7 +119,7 @@ public static class FreeTestingPublicCrmSalesEndpoints
             ChangeOpportunityStageRequest request,
             IConfiguration configuration,
             IHostEnvironment environment,
-            IOpportunityRepository opportunities,
+            ICrmOpportunityStore opportunities,
             CancellationToken cancellationToken) =>
         {
             if (!Enabled(configuration, environment)) return Disabled();
@@ -140,6 +141,7 @@ public static class FreeTestingPublicCrmSalesEndpoints
                         item.MoveTo(stage);
                         break;
                 }
+                await opportunities.SaveAsync(item, cancellationToken);
                 return Results.Ok(ToOpportunity(item));
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
@@ -155,8 +157,8 @@ public static class FreeTestingPublicCrmSalesEndpoints
             IHostEnvironment environment,
             ILeadRepository leads,
             ICrmWorkRepository work,
-            IOrganisationRepository organisations,
-            IOpportunityRepository opportunities,
+            ICrmAccountStore accounts,
+            ICrmOpportunityStore opportunities,
             CancellationToken cancellationToken) =>
         {
             if (!Enabled(configuration, environment)) return Disabled();
@@ -181,12 +183,13 @@ public static class FreeTestingPublicCrmSalesEndpoints
                     string.IsNullOrWhiteSpace(request.OpportunityTitle) ? lead.Title : request.OpportunityTitle,
                     forecast, lead.Id, lead.Attribution.AccountOwnerUserId);
 
-                await organisations.AddAsync(account, cancellationToken);
+                await accounts.AddAsync(account, cancellationToken);
                 await opportunities.AddAsync(opportunity, cancellationToken);
                 if (lead.Status == LeadStatus.Unqualified) lead.Reopen(LeadStatus.Qualified);
                 else if (lead.Status != LeadStatus.Qualified) lead.Qualify();
                 lead.LinkOrganisation(account.Id);
                 lead.Convert();
+                await leads.SaveAsync(lead, cancellationToken);
                 await work.AddActivityAsync(new LeadActivity(Guid.NewGuid(), DemoTenantId,
                     lead.Id, CrmActivityType.Converted, "Lead converted to customer",
                     $"Account: {account.Name}; Opportunity: {opportunity.Title}"), cancellationToken);

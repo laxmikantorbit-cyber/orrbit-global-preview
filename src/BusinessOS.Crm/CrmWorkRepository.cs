@@ -1,4 +1,4 @@
-namespace BusinessOS.Crm;
+﻿namespace BusinessOS.Crm;
 
 public interface ICrmWorkRepository
 {
@@ -6,9 +6,11 @@ public interface ICrmWorkRepository
     Task<IReadOnlyList<LeadActivity>> ListActivitiesAsync(Guid tenantId, Guid leadId, CancellationToken cancellationToken = default);
     Task AddFollowUpAsync(LeadFollowUp followUp, CancellationToken cancellationToken = default);
     Task<LeadFollowUp?> GetFollowUpAsync(Guid tenantId, Guid followUpId, CancellationToken cancellationToken = default);
+    Task SaveFollowUpAsync(LeadFollowUp followUp, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<LeadFollowUp>> ListFollowUpsAsync(Guid tenantId, Guid? leadId = null, CancellationToken cancellationToken = default);
     Task AddTaskAsync(CrmTask task, CancellationToken cancellationToken = default);
     Task<CrmTask?> GetTaskAsync(Guid tenantId, Guid taskId, CancellationToken cancellationToken = default);
+    Task SaveTaskAsync(CrmTask task, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<CrmTask>> ListTasksAsync(Guid tenantId, Guid? leadId = null, CancellationToken cancellationToken = default);
 }
 
@@ -53,6 +55,17 @@ public sealed class InMemoryCrmWorkRepository : ICrmWorkRepository
             return Task.FromResult(item?.TenantId == tenantId ? item : null);
         }
     }
+    public Task SaveFollowUpAsync(LeadFollowUp followUp, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(followUp);
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            if (!_followUps.ContainsKey(followUp.Id)) throw new InvalidOperationException("Follow-up does not exist.");
+            _followUps[followUp.Id] = followUp;
+        }
+        return Task.CompletedTask;
+    }
     public Task<IReadOnlyList<LeadFollowUp>> ListFollowUpsAsync(Guid tenantId, Guid? leadId = null, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -80,6 +93,17 @@ public sealed class InMemoryCrmWorkRepository : ICrmWorkRepository
             var item = _tasks.GetValueOrDefault(taskId);
             return Task.FromResult(item?.TenantId == tenantId ? item : null);
         }
+    }
+    public Task SaveTaskAsync(CrmTask task, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(task);
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            if (!_tasks.ContainsKey(task.Id)) throw new InvalidOperationException("Task does not exist.");
+            _tasks[task.Id] = task;
+        }
+        return Task.CompletedTask;
     }
     public Task<IReadOnlyList<CrmTask>> ListTasksAsync(Guid tenantId, Guid? leadId = null, CancellationToken cancellationToken = default)
     {

@@ -29,9 +29,29 @@ builder.Services.AddCors(options =>
 });
 builder.Services.AddScoped<TenantContext>();
 builder.Services.AddScoped<CustomerStore>();
-builder.Services.AddSingleton<ILeadRepository, InMemoryLeadRepository>();
-builder.Services.AddSingleton<ICrmWorkRepository, InMemoryCrmWorkRepository>();
-builder.Services.AddSingleton<IOpportunityRepository, InMemoryOpportunityRepository>();
+var crmConnection = builder.Configuration.GetConnectionString("Crm");
+var useFreeTestingPostgres = string.Equals(
+    builder.Configuration["BusinessOS:DeploymentMode"], "FreeTesting", StringComparison.OrdinalIgnoreCase) &&
+    string.Equals(builder.Configuration["BusinessOS:StorageMode"], "Postgres", StringComparison.OrdinalIgnoreCase);
+if (string.IsNullOrWhiteSpace(crmConnection) && useFreeTestingPostgres)
+    crmConnection = builder.Configuration.GetConnectionString("Commerce");
+if (string.IsNullOrWhiteSpace(crmConnection))
+{
+    builder.Services.AddSingleton<ILeadRepository, InMemoryLeadRepository>();
+    builder.Services.AddSingleton<ICrmWorkRepository, InMemoryCrmWorkRepository>();
+    builder.Services.AddSingleton<ICrmAccountStore, InMemoryCrmAccountStore>();
+    builder.Services.AddSingleton<ICrmOpportunityStore, InMemoryCrmOpportunityStore>();
+    builder.Services.AddSingleton<ICrmTeamRepository, InMemoryCrmTeamRepository>();
+}
+else
+{
+    builder.Services.AddSingleton(new CrmPostgresDatabase(crmConnection));
+    builder.Services.AddSingleton<ILeadRepository, PostgresCrmLeadRepository>();
+    builder.Services.AddSingleton<ICrmWorkRepository, PostgresCrmWorkRepository>();
+    builder.Services.AddSingleton<ICrmAccountStore, PostgresCrmAccountStore>();
+    builder.Services.AddSingleton<ICrmOpportunityStore, PostgresCrmOpportunityStore>();
+    builder.Services.AddSingleton<ICrmTeamRepository, PostgresCrmTeamRepository>();
+}
 builder.Services.AddSingleton<IOrganisationRepository>(_ => CustomerSeed.CreateRepository());
 builder.Services.AddSingleton<LeaseSigner>();
 builder.Services.AddSingleton<PaymentProcessor>();
@@ -111,6 +131,7 @@ app.MapFreeTestingPostgresCommerceSmokePageEndpoints();
 app.MapFreeTestingPublicCrmEndpoints();
 app.MapFreeTestingPublicCrmOperationsEndpoints();
 app.MapFreeTestingPublicCrmSalesEndpoints();
+app.MapFreeTestingPublicCrmTeamEndpoints();
 app.MapFreeTestingCheckoutPageEndpoints();
 app.MapPaymentWebhookEndpoints();
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   addCrmActivity,
+  assignCrmLead,
   changeCrmLeadPriority,
   completeCrmFollowUp,
   completeCrmTask,
@@ -10,12 +11,14 @@ import {
   getCrmLeadWorkspace,
   updateCrmLeadProfile,
   type CrmLeadWorkspace,
+  type CrmTeamMember,
 } from './crmApi'
 
 type DrawerTab = 'profile' | 'activity' | 'followups' | 'tasks' | 'convert'
 
 type Props = {
   leadId: string
+  teamMembers: CrmTeamMember[]
   onClose: () => void
   onChanged: () => Promise<void>
   notify: (message: string) => void
@@ -33,7 +36,7 @@ function defaultFollowUpTime() {
   return new Date(date.getTime() - offset).toISOString().slice(0, 16)
 }
 
-export function CrmLeadDrawer({ leadId, onClose, onChanged, notify }: Props) {
+export function CrmLeadDrawer({ leadId, teamMembers, onClose, onChanged, notify }: Props) {
   const [workspace, setWorkspace] = useState<CrmLeadWorkspace | null>(null)
   const [tab, setTab] = useState<DrawerTab>('profile')
   const [busy, setBusy] = useState(false)
@@ -49,9 +52,11 @@ export function CrmLeadDrawer({ leadId, onClose, onChanged, notify }: Props) {
   const [followUpChannel, setFollowUpChannel] = useState('Call')
   const [followUpPurpose, setFollowUpPurpose] = useState('Follow up with customer')
   const [followUpAt, setFollowUpAt] = useState(defaultFollowUpTime())
+  const [followUpOwnerId, setFollowUpOwnerId] = useState('')
   const [taskTitle, setTaskTitle] = useState('')
   const [taskDetails, setTaskDetails] = useState('')
   const [taskPriority, setTaskPriority] = useState('Normal')
+  const [taskAssigneeId, setTaskAssigneeId] = useState('')
   const [accountName, setAccountName] = useState('')
   const [opportunityTitle, setOpportunityTitle] = useState('')
   const [estimatedValue, setEstimatedValue] = useState('29999')
@@ -91,6 +96,9 @@ export function CrmLeadDrawer({ leadId, onClose, onChanged, notify }: Props) {
     }
   }
 
+  const activeTeam = teamMembers.filter((member) => member.active)
+  const memberName = (id?: string | null) => teamMembers.find((member) => member.id === id)?.displayName || 'Unassigned'
+
   if (!workspace) {
     return <div className="crm2-overlay"><section className="crm2-drawer"><div className="crm2-loading">Loading lead workspace…</div></section></div>
   }
@@ -126,6 +134,7 @@ export function CrmLeadDrawer({ leadId, onClose, onChanged, notify }: Props) {
               <label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
               <label>Product interest<input value={product} onChange={(e) => setProduct(e.target.value)} placeholder="AI Repair, School, etc." /></label>
               <label>Priority<select value={lead.priority || 'Normal'} disabled={busy} onChange={(e) => void run(() => changeCrmLeadPriority(lead.id, e.target.value), 'Priority updated')}><option>Low</option><option>Normal</option><option>High</option><option>Urgent</option></select></label>
+              <label>Lead owner<select value={lead.ownerUserId || ''} disabled={busy} onChange={(e) => void run(() => assignCrmLead(lead.id, e.target.value || null), 'Lead owner updated')}><option value="">Unassigned</option>{activeTeam.map((member) => <option key={member.id} value={member.id}>{member.displayName} · {member.role}</option>)}</select></label>
             </div>
             <label>Internal notes<textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} /></label>
             <div className="crm2-drawer-actions">
@@ -163,16 +172,17 @@ export function CrmLeadDrawer({ leadId, onClose, onChanged, notify }: Props) {
             <div className="crm2-form-grid">
               <label>Channel<select value={followUpChannel} onChange={(e) => setFollowUpChannel(e.target.value)}><option>Call</option><option>WhatsApp</option><option>Email</option><option>Meeting</option><option>Other</option></select></label>
               <label>Due date & time<input type="datetime-local" value={followUpAt} onChange={(e) => setFollowUpAt(e.target.value)} /></label>
+              <label>Owner<select value={followUpOwnerId} onChange={(e) => setFollowUpOwnerId(e.target.value)}><option value="">Unassigned</option>{activeTeam.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label>
             </div>
             <label>Purpose<input value={followUpPurpose} onChange={(e) => setFollowUpPurpose(e.target.value)} /></label>
             <div className="crm2-drawer-actions"><button className="crm2-primary" disabled={busy || !followUpPurpose.trim() || !followUpAt} onClick={() => void run(
-              () => createCrmFollowUp(lead.id, { dueAtUtc: new Date(followUpAt).toISOString(), channel: followUpChannel, purpose: followUpPurpose.trim() }),
+              () => createCrmFollowUp(lead.id, { dueAtUtc: new Date(followUpAt).toISOString(), channel: followUpChannel, purpose: followUpPurpose.trim(), ownerUserId: followUpOwnerId || undefined }),
               'Follow-up scheduled',
             )}>Schedule follow-up</button></div>
             <div className="crm2-work-list">
               {workspace.followUps.length === 0 ? <p className="crm2-muted">No follow-ups scheduled.</p> : workspace.followUps.map((item) => (
                 <article key={item.id} className={item.status === 'Open' && new Date(item.dueAtUtc) < new Date() ? 'overdue' : ''}>
-                  <div><strong>{item.purpose}</strong><span>{item.channel} · {formatDate(item.dueAtUtc)}</span>{item.outcome ? <small>{item.outcome}</small> : null}</div>
+                  <div><strong>{item.purpose}</strong><span>{item.channel} · {formatDate(item.dueAtUtc)} · {memberName(item.ownerUserId)}</span>{item.outcome ? <small>{item.outcome}</small> : null}</div>
                   <em>{item.status}</em>
                   {item.status === 'Open' ? <button disabled={busy} onClick={() => void run(() => completeCrmFollowUp(item.id, 'Completed from CRM'), 'Follow-up completed')}>Complete</button> : null}
                 </article>
@@ -186,16 +196,17 @@ export function CrmLeadDrawer({ leadId, onClose, onChanged, notify }: Props) {
             <div className="crm2-form-grid">
               <label>Task title<input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="Prepare demo / send quotation" /></label>
               <label>Priority<select value={taskPriority} onChange={(e) => setTaskPriority(e.target.value)}><option>Low</option><option>Normal</option><option>High</option><option>Urgent</option></select></label>
+              <label>Assignee<select value={taskAssigneeId} onChange={(e) => setTaskAssigneeId(e.target.value)}><option value="">Unassigned</option>{activeTeam.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label>
             </div>
             <label>Task details<textarea value={taskDetails} onChange={(e) => setTaskDetails(e.target.value)} rows={3} /></label>
             <div className="crm2-drawer-actions"><button className="crm2-primary" disabled={busy || !taskTitle.trim()} onClick={() => void run(async () => {
-              await createCrmTask({ title: taskTitle.trim(), leadId: lead.id, details: taskDetails, priority: taskPriority })
+              await createCrmTask({ title: taskTitle.trim(), leadId: lead.id, details: taskDetails, priority: taskPriority, assigneeUserId: taskAssigneeId || undefined })
               setTaskTitle(''); setTaskDetails('')
             }, 'Task created')}>Create task</button></div>
             <div className="crm2-work-list">
               {workspace.tasks.length === 0 ? <p className="crm2-muted">No tasks for this lead.</p> : workspace.tasks.map((item) => (
                 <article key={item.id}>
-                  <div><strong>{item.title}</strong><span>{item.priority}{item.dueAtUtc ? ` · ${formatDate(item.dueAtUtc)}` : ''}</span>{item.details ? <small>{item.details}</small> : null}</div>
+                  <div><strong>{item.title}</strong><span>{item.priority}{item.dueAtUtc ? ` · ${formatDate(item.dueAtUtc)}` : ''} · {memberName(item.assigneeUserId)}</span>{item.details ? <small>{item.details}</small> : null}</div>
                   <em>{item.status}</em>
                   {item.status === 'Open' ? <button disabled={busy} onClick={() => void run(() => completeCrmTask(item.id), 'Task completed')}>Complete</button> : null}
                 </article>

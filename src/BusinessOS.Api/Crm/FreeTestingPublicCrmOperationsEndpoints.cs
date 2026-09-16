@@ -1,4 +1,4 @@
-using BusinessOS.Api.Commerce;
+﻿using BusinessOS.Api.Commerce;
 using BusinessOS.Crm;
 
 namespace BusinessOS.Api.Crm;
@@ -47,6 +47,7 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             {
                 lead.UpdateProfile(request.Title, request.ContactName, request.MobileNumber,
                     request.Email, request.ProductInterest, request.Notes);
+                await leads.SaveAsync(lead, cancellationToken);
                 await AddActivity(work, leadId, CrmActivityType.ProfileUpdated,
                     "Lead profile updated", null, cancellationToken);
                 return Results.Ok(ToLead(lead));
@@ -63,14 +64,18 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             IHostEnvironment environment,
             ILeadRepository leads,
             ICrmWorkRepository work,
+            ICrmTeamRepository team,
             CancellationToken cancellationToken) =>
         {
             if (!Enabled(configuration, environment)) return Disabled();
             var lead = await leads.GetAsync(DemoTenantId, leadId, cancellationToken);
             if (lead is null) return Results.NotFound(new ErrorResponse("Lead not found."));
+            if (request.OwnerUserId.HasValue && await FreeTestingPublicCrmTeamEndpoints.GetActiveMemberAsync(team, request.OwnerUserId, cancellationToken) is null)
+                return Results.BadRequest(new ErrorResponse("Assigned CRM user must be active."));
             try
             {
                 lead.AssignOwner(request.OwnerUserId);
+                await leads.SaveAsync(lead, cancellationToken);
                 await AddActivity(work, leadId, CrmActivityType.AssignmentChanged,
                     request.OwnerUserId.HasValue ? "Lead assigned" : "Lead unassigned",
                     request.OwnerUserId?.ToString(), cancellationToken);
@@ -97,6 +102,7 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             try
             {
                 lead.SetPriority(priority);
+                await leads.SaveAsync(lead, cancellationToken);
                 return Results.Ok(ToLead(lead));
             }
             catch (InvalidOperationException ex)
@@ -124,7 +130,10 @@ public static class FreeTestingPublicCrmOperationsEndpoints
                     request.Summary, request.Details, request.ActorUserId);
                 await work.AddActivityAsync(activity, cancellationToken);
                 if (type is CrmActivityType.Call or CrmActivityType.WhatsApp or CrmActivityType.Email or CrmActivityType.Meeting)
+                {
                     lead.RecordContact(activity.OccurredAtUtc);
+                    await leads.SaveAsync(lead, cancellationToken);
+                }
                 return Results.Ok(ToActivity(activity));
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
@@ -140,11 +149,15 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             IHostEnvironment environment,
             ILeadRepository leads,
             ICrmWorkRepository work,
+            ICrmTeamRepository team,
             CancellationToken cancellationToken) =>
         {
             if (!Enabled(configuration, environment)) return Disabled();
             var lead = await leads.GetAsync(DemoTenantId, leadId, cancellationToken);
-            if (lead is null) return Results.NotFound(new ErrorResponse("Lead not found."));            if (!Enum.TryParse<FollowUpChannel>(request.Channel, true, out var channel))
+            if (lead is null) return Results.NotFound(new ErrorResponse("Lead not found."));
+            if (request.OwnerUserId.HasValue && await FreeTestingPublicCrmTeamEndpoints.GetActiveMemberAsync(team, request.OwnerUserId, cancellationToken) is null)
+                return Results.BadRequest(new ErrorResponse("Follow-up owner must be an active CRM user."));
+            if (!Enum.TryParse<FollowUpChannel>(request.Channel, true, out var channel))
                 return Results.BadRequest(new ErrorResponse("Valid follow-up channel is required."));
             try
             {
@@ -152,6 +165,7 @@ public static class FreeTestingPublicCrmOperationsEndpoints
                     request.DueAtUtc, channel, request.Purpose, request.OwnerUserId);
                 await work.AddFollowUpAsync(followUp, cancellationToken);
                 lead.ScheduleNextFollowUp(request.DueAtUtc);
+                await leads.SaveAsync(lead, cancellationToken);
                 await AddActivity(work, leadId, CrmActivityType.FollowUpScheduled,
                     $"{channel} follow-up scheduled", request.Purpose, cancellationToken);
                 return Results.Ok(ToFollowUp(followUp));
@@ -188,6 +202,7 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             try
             {
                 followUp.Complete(request.Outcome);
+                await work.SaveFollowUpAsync(followUp, cancellationToken);
                 var lead = await leads.GetAsync(DemoTenantId, followUp.LeadId, cancellationToken);
                 lead?.RecordContact(followUp.CompletedAtUtc);
                 if (lead is not null)
@@ -195,6 +210,7 @@ public static class FreeTestingPublicCrmOperationsEndpoints
                     var open = (await work.ListFollowUpsAsync(DemoTenantId, lead.Id, cancellationToken))
                         .Where(x => x.Status == CrmWorkStatus.Open).OrderBy(x => x.DueAtUtc).FirstOrDefault();
                     lead.ScheduleNextFollowUp(open?.DueAtUtc);
+                    await leads.SaveAsync(lead, cancellationToken);
                 }
                 await AddActivity(work, followUp.LeadId, CrmActivityType.FollowUpCompleted,
                     "Follow-up completed", request.Outcome, cancellationToken);
@@ -223,17 +239,21 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             IHostEnvironment environment,
             ILeadRepository leads,
             ICrmWorkRepository work,
+            ICrmTeamRepository team,
             CancellationToken cancellationToken) =>
         {
             if (!Enabled(configuration, environment)) return Disabled();
             if (request.LeadId.HasValue && await leads.GetAsync(DemoTenantId, request.LeadId.Value, cancellationToken) is null)
                 return Results.NotFound(new ErrorResponse("Lead not found."));
+            if (request.AssigneeUserId.HasValue && await FreeTestingPublicCrmTeamEndpoints.GetActiveMemberAsync(team, request.AssigneeUserId, cancellationToken) is null)
+                return Results.BadRequest(new ErrorResponse("Task assignee must be an active CRM user."));
             if (!Enum.TryParse<LeadPriority>(request.Priority ?? "Normal", true, out var priority))
                 return Results.BadRequest(new ErrorResponse("Valid task priority is required."));
             try
             {
                 var task = new CrmTask(Guid.NewGuid(), DemoTenantId, request.Title, request.DueAtUtc,
-                    request.LeadId, request.Details, priority, request.AssigneeUserId);                await work.AddTaskAsync(task, cancellationToken);
+                    request.LeadId, request.Details, priority, request.AssigneeUserId);
+                await work.AddTaskAsync(task, cancellationToken);
                 if (request.LeadId.HasValue)
                     await AddActivity(work, request.LeadId.Value, CrmActivityType.TaskCreated,
                         "Task created", request.Title, cancellationToken);
@@ -258,6 +278,7 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             try
             {
                 task.Complete();
+                await work.SaveTaskAsync(task, cancellationToken);
                 if (task.LeadId.HasValue)
                     await AddActivity(work, task.LeadId.Value, CrmActivityType.TaskCompleted,
                         "Task completed", task.Title, cancellationToken);

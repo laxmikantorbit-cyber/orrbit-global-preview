@@ -1,4 +1,4 @@
-namespace BusinessOS.Crm;
+﻿namespace BusinessOS.Crm;
 
 public sealed class Lead
 {
@@ -58,6 +58,26 @@ public sealed class Lead
     public DateTimeOffset? NextFollowUpAtUtc { get; private set; }
     public IReadOnlyCollection<string> Tags => _tags;
 
+    public static Lead Restore(
+        Guid id, Guid tenantId, Guid organisationId, string title, LeadAttribution attribution,
+        string? contactName, string? mobileNumber, string? email, string? productInterest,
+        string? notes, LeadPriority priority, LeadStatus status, string? unqualifiedReason,
+        DateTimeOffset createdAtUtc, DateTimeOffset updatedAtUtc, DateTimeOffset? lastContactAtUtc,
+        DateTimeOffset? nextFollowUpAtUtc, IEnumerable<string>? tags = null)
+    {
+        var lead = new Lead(id, tenantId, organisationId, title, attribution, contactName,
+            mobileNumber, email, productInterest, notes, priority, createdAtUtc)
+        {
+            Status = status,
+            UnqualifiedReason = Clean(unqualifiedReason),
+            UpdatedAtUtc = updatedAtUtc,
+            LastContactAtUtc = lastContactAtUtc,
+            NextFollowUpAtUtc = nextFollowUpAtUtc
+        };
+        if (tags is not null)
+            foreach (var tag in tags.Where(x => !string.IsNullOrWhiteSpace(x))) lead._tags.Add(tag.Trim());
+        return lead;
+    }
     public void UpdateProfile(
         string title,
         string? contactName,

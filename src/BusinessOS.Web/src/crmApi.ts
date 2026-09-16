@@ -176,6 +176,7 @@ export async function createCrmFollowUp(leadId: string, input: {
   dueAtUtc: string
   channel: string
   purpose: string
+  ownerUserId?: string
 }) {
   const response = await fetch(`${apiBase}/api/testing/public/crm/leads/${leadId}/follow-ups`, {
     method: 'POST',
@@ -209,6 +210,7 @@ export async function createCrmTask(input: {
   details?: string
   dueAtUtc?: string
   priority?: string
+  assigneeUserId?: string
 }) {
   const response = await fetch(`${apiBase}/api/testing/public/crm/tasks`, {
     method: 'POST',
@@ -333,4 +335,63 @@ export async function convertCrmLead(leadId: string, input: {
     body: JSON.stringify({ currencyCode: 'INR', probabilityPercent: 60, ...input }),
   })
   return parseResponse<{ account: CrmAccount; opportunity: CrmOpportunity }>(response)
+}
+
+export type CrmRole = {
+  role: string
+  permissions: string[]
+}
+
+export type CrmTeamMember = {
+  id: string
+  displayName: string
+  email: string
+  mobileNumber?: string | null
+  role: string
+  active: boolean
+  createdAtUtc: string
+  permissions: string[]
+}
+
+export async function listCrmRoles() {
+  const response = await fetch(`${apiBase}/api/testing/public/crm/roles`)
+  return parseResponse<{ roles: CrmRole[] }>(response)
+}
+
+export async function listCrmTeam() {
+  const response = await fetch(`${apiBase}/api/testing/public/crm/team`)
+  return parseResponse<{ members: CrmTeamMember[] }>(response)
+}
+
+export async function createCrmTeamMember(input: {
+  displayName: string
+  email: string
+  mobileNumber?: string
+  role: string
+}) {
+  const response = await fetch(`${apiBase}/api/testing/public/crm/team`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  })
+  return parseResponse<CrmTeamMember>(response)
+}
+
+export async function changeCrmTeamRole(memberId: string, role: string) {
+  const response = await fetch(`${apiBase}/api/testing/public/crm/team/${memberId}/role`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role }),
+  })
+  return parseResponse<CrmTeamMember>(response)
+}
+
+export async function changeCrmTeamStatus(memberId: string, active: boolean) {
+  const response = await fetch(`${apiBase}/api/testing/public/crm/team/${memberId}/status`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active }),
+  })
+  return parseResponse<CrmTeamMember>(response)
+}
+
+export async function assignCrmLead(leadId: string, ownerUserId?: string | null) {
+  const response = await fetch(`${apiBase}/api/testing/public/crm/leads/${leadId}/assign`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ownerUserId }),
+  })
+  return parseResponse<CrmLead>(response)
 }

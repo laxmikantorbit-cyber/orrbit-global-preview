@@ -1,4 +1,4 @@
-using BusinessOS.Api.Commerce;
+﻿using BusinessOS.Api.Commerce;
 using BusinessOS.Crm;
 
 namespace BusinessOS.Api.Crm;
@@ -76,6 +76,7 @@ public static class FreeTestingPublicCrmEndpoints
             try
             {
                 ApplyStatus(lead, request);
+                await repository.SaveAsync(lead, cancellationToken);
                 return Results.Ok(ToResponse(lead));
             }
             catch (ArgumentException ex)
