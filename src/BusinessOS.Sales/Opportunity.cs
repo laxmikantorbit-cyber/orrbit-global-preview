@@ -53,6 +53,16 @@ public sealed class Opportunity
         Forecast = Normalize(forecast);
     }
 
+    public void UpdateDetails(string title, OpportunityForecast forecast, Guid? ownerUserId)
+    {
+        EnsureOpen();
+        if (string.IsNullOrWhiteSpace(title)) throw new ArgumentException("Opportunity title is required.", nameof(title));
+        ValidateForecast(forecast);
+        Title = title.Trim();
+        Forecast = Normalize(forecast);
+        OwnerUserId = ownerUserId;
+    }
+
     public void AssignOwner(Guid? ownerUserId)
     {
         EnsureOpen();
