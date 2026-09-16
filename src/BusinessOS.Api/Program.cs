@@ -120,6 +120,7 @@ if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseCors(BusinessOsCorsPolicy);
 app.UseMiddleware<TenantAuthenticationMiddleware>();
 app.UseMiddleware<CrmFreeTestingAccessMiddleware>();
+app.UseMiddleware<CrmMutationAuditMiddleware>();
 app.MapGet("/api/customers", async (
     CustomerStore store,
     CancellationToken cancellationToken) =>
