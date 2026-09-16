@@ -29,6 +29,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped<TenantContext>();
 builder.Services.AddScoped<CustomerStore>();
 builder.Services.AddSingleton<ILeadRepository, InMemoryLeadRepository>();
+builder.Services.AddSingleton<ICrmWorkRepository, InMemoryCrmWorkRepository>();
 builder.Services.AddSingleton<IOrganisationRepository>(_ => CustomerSeed.CreateRepository());
 builder.Services.AddSingleton<LeaseSigner>();
 builder.Services.AddSingleton<PaymentProcessor>();
@@ -104,6 +105,7 @@ app.MapPaymentCheckoutEndpoints();
 app.MapFreeTestingPaymentEndpoints();
 app.MapFreeTestingPublicCheckoutEndpoints();
 app.MapFreeTestingPublicCrmEndpoints();
+app.MapFreeTestingPublicCrmOperationsEndpoints();
 app.MapFreeTestingCheckoutPageEndpoints();
 app.MapPaymentWebhookEndpoints();
 

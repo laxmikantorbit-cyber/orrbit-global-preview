@@ -46,7 +46,13 @@ public static class FreeTestingPublicCrmEndpoints
                     request.Title,
                     new LeadAttribution(
                         request.LeadSource,
-                        null, null, null, null, null));
+                        null, null, null, null, null),
+                    request.ContactName,
+                    request.MobileNumber,
+                    request.Email,
+                    request.ProductInterest,
+                    request.Notes,
+                    ParsePriority(request.Priority));
                 await repository.AddAsync(lead, cancellationToken);
                 return Results.Ok(ToResponse(lead));
             }
@@ -122,6 +128,12 @@ public static class FreeTestingPublicCrmEndpoints
     {
         if (!Enum.TryParse<LeadStatus>(request.Status, true, out var status))
             throw new ArgumentException("Valid status is required.");
+        if (lead.Status is LeadStatus.Converted or LeadStatus.Unqualified &&
+            status is LeadStatus.New or LeadStatus.Contacted or LeadStatus.Qualified)
+        {
+            lead.Reopen(status);
+            return;
+        }
         switch (status)
         {
             case LeadStatus.New:
@@ -145,11 +157,16 @@ public static class FreeTestingPublicCrmEndpoints
         }
     }
 
+    private static LeadPriority ParsePriority(string? value) =>
+        Enum.TryParse<LeadPriority>(value, true, out var priority) ? priority : LeadPriority.Normal;
+
     private static CrmLeadResponse ToResponse(Lead lead) =>
         new(lead.Id, lead.OrganisationId, lead.Title, lead.Status.ToString(),
-            lead.Attribution.LeadSource,
-            lead.UnqualifiedReason,
-            lead.Id.ToString("N"));
+            lead.Attribution.LeadSource, lead.ContactName, lead.MobileNumber, lead.Email,
+            lead.ProductInterest, lead.Notes, lead.Priority.ToString(),
+            lead.Attribution.AccountOwnerUserId, lead.UnqualifiedReason,
+            lead.CreatedAtUtc, lead.UpdatedAtUtc, lead.LastContactAtUtc, lead.NextFollowUpAtUtc,
+            lead.CreatedAtUtc.ToString("O"));
 }
 
 public sealed record CreateCrmLeadRequest(
@@ -157,7 +174,10 @@ public sealed record CreateCrmLeadRequest(
     string? LeadSource,
     string? ContactName,
     string? MobileNumber,
-    string? Notes);
+    string? Email,
+    string? ProductInterest,
+    string? Notes,
+    string? Priority);
 
 public sealed record ChangeCrmLeadStatusRequest(
     string Status,
@@ -169,7 +189,18 @@ public sealed record CrmLeadResponse(
     string Title,
     string Status,
     string? LeadSource,
+    string? ContactName,
+    string? MobileNumber,
+    string? Email,
+    string? ProductInterest,
+    string? Notes,
+    string Priority,
+    Guid? OwnerUserId,
     string? UnqualifiedReason,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset UpdatedAtUtc,
+    DateTimeOffset? LastContactAtUtc,
+    DateTimeOffset? NextFollowUpAtUtc,
     string CreatedSort);
 public sealed record CrmLeadListResponse(
     IReadOnlyList<CrmLeadResponse> Leads);
