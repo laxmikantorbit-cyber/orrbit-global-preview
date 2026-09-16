@@ -49,6 +49,28 @@ public interface ICommerceActivationStore
         DesktopActivationCodeRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<ProviderSubscriptionBinding?> FindProviderSubscriptionAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        string provider,
+        CancellationToken cancellationToken = default);
+
+    Task<ProviderSubscriptionBinding?> FindProviderSubscriptionRouteAsync(
+        string provider,
+        string providerSubscriptionId,
+        CancellationToken cancellationToken = default);
+
+    Task<ProviderSubscriptionBinding> RecordProviderSubscriptionAsync(
+        ProviderSubscriptionBinding binding,
+        CancellationToken cancellationToken = default);
+
+    Task<ProviderSubscriptionBinding?> UpdateProviderSubscriptionStateAsync(
+        string provider,
+        string providerSubscriptionId,
+        string status,
+        bool autoRenewEnabled,
+        bool cancelAtPeriodEnd,
+        CancellationToken cancellationToken = default);
     Task<CheckoutOrderResponse> CreateInitialCheckoutOrderAsync(
         Guid tenantId,
         CreateInitialCheckoutOrderRequest request,

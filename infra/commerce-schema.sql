@@ -268,3 +268,25 @@ CREATE TABLE IF NOT EXISTS commerce_license_activation_codes (
 );
 CREATE INDEX IF NOT EXISTS ix_commerce_activation_codes_license
   ON commerce_license_activation_codes(tenant_id, license_id);
+
+CREATE TABLE IF NOT EXISTS commerce_provider_subscription_routes (
+    provider text NOT NULL CHECK (length(btrim(provider)) > 0),
+    provider_subscription_id text NOT NULL CHECK (length(btrim(provider_subscription_id)) > 0),
+    tenant_id uuid NOT NULL REFERENCES tenants(id),
+    subscription_id uuid NOT NULL,
+    provider_plan_id text NOT NULL CHECK (length(btrim(provider_plan_id)) > 0),
+    start_at_unix bigint NOT NULL CHECK (start_at_unix > 0),
+    total_count integer NOT NULL CHECK (total_count > 0),
+    status text NOT NULL CHECK (length(btrim(status)) > 0),
+    auto_renew_enabled boolean NOT NULL DEFAULT true,
+    cancel_at_period_end boolean NOT NULL DEFAULT false,
+    authorization_url text NULL,
+    created_at_utc timestamptz NOT NULL,
+    updated_at_utc timestamptz NOT NULL,
+    PRIMARY KEY (provider, provider_subscription_id),
+    UNIQUE (tenant_id, subscription_id, provider),
+    FOREIGN KEY (tenant_id, subscription_id)
+      REFERENCES commerce_subscriptions(tenant_id, id)
+);
+CREATE INDEX IF NOT EXISTS ix_provider_subscription_routes_tenant_subscription
+  ON commerce_provider_subscription_routes(tenant_id, subscription_id);

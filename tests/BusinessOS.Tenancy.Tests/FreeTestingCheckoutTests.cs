@@ -64,6 +64,7 @@ public sealed class FreeTestingCheckoutTests : IClassFixture<WebApplicationFacto
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("BusinessOS Free Staging Checkout Test", body);
         Assert.Contains("Run Full Purchase Flow", body);
+        Assert.Contains("Setup AutoPay for Last Subscription", body);
         Assert.DoesNotContain("tenant-a-staging-token", body);
     }
 

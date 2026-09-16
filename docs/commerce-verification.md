@@ -299,3 +299,19 @@ The policy allows `GET`, `POST`, `OPTIONS`, and request headers including `Autho
 It does not use wildcard origins and does not enable browser credentials.
 
 For custom origins, set `BusinessOS:Cors:AllowedOrigins` / `BusinessOS__Cors__AllowedOrigins__0` style configuration.
+
+## Razorpay AutoPay free-staging foundation
+
+AutoPay setup is tenant-scoped and Commerce-admin protected:
+- `POST /api/commerce/subscriptions/{subscriptionId}/autopay/setup`
+- repeated setup returns the existing provider binding instead of creating duplicates
+- FreeTesting uses synthetic `plan_free_test_annual` and `sub_free_test_*` identifiers
+- Production requires configured Razorpay key/secret, provider plan id and billing-cycle count
+
+Provider subscription mappings persist the internal tenant/subscription, Razorpay subscription
+and plan ids, scheduled start, total cycle count, provider state, authorization URL and
+auto-renew/cancellation flags. Signed `subscription.*` webhooks update this provider state.
+
+Period-end cancellation preserves BusinessOS entitlement through `ValidUntil`, while an
+existing Razorpay AutoPay mandate is cancelled immediately so no future provider debit can
+occur. The internal entitlement then expires at its paid term boundary.

@@ -198,6 +198,36 @@ public sealed class CommerceActivationStoreTests
     }
 
     [Fact]
+    public async Task Provider_Subscription_Binding_Is_Tenant_Scoped_And_State_Updatable()
+    {
+        using var signer = new LeaseSigner();
+        ICommerceActivationStore store = new InMemoryCommerceActivationStore(
+            new PaymentSubscriptionActivationService(), signer);
+        var activation = await store.ActivateInitialPurchaseAsync(
+            TenantA, InitialRequest("pay_autopay_binding"));
+        var binding = new ProviderSubscriptionBinding(
+            TenantA, activation.SubscriptionId, "razorpay", "sub_test_1",
+            "plan_test_1", 1800000000, 12, "created", true, false,
+            "https://example.test/authorize", DateTimeOffset.UtcNow);
+
+        var recorded = await store.RecordProviderSubscriptionAsync(binding);
+        var sameTenant = await store.FindProviderSubscriptionAsync(
+            TenantA, activation.SubscriptionId, "razorpay");
+        var otherTenant = await store.FindProviderSubscriptionAsync(
+            TenantB, activation.SubscriptionId, "razorpay");
+        var routed = await store.FindProviderSubscriptionRouteAsync(
+            "razorpay", "sub_test_1");
+        var updated = await store.UpdateProviderSubscriptionStateAsync(
+            "razorpay", "sub_test_1", "halted", false, false);
+
+        Assert.Equal(recorded, sameTenant);
+        Assert.Null(otherTenant);
+        Assert.Equal(activation.SubscriptionId, routed!.SubscriptionId);
+        Assert.Equal("halted", updated!.Status);
+        Assert.False(updated.AutoRenewEnabled);
+    }
+
+    [Fact]
     public async Task Captured_Webhook_Can_Resolve_Order_From_Razorpay_Order_Id()
     {
         using var signer = new LeaseSigner();

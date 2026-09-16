@@ -82,3 +82,19 @@ For uncancelled subscriptions, the entitlement API exposes a 7-day grace window 
 `ValidUntil`. During grace the renewal status is `payment_pending`; after grace it becomes
 `renewal_required`. Razorpay AutoPay/failure event wiring can drive this state in the
 recurring-payment phase without changing the client entitlement contract.
+
+## Razorpay AutoPay configuration
+
+Production AutoPay remains disabled until release-ready configuration is supplied. Required
+settings are `Payments:RazorpayKeyId`, `Payments:RazorpayKeySecret`, a product-specific
+`Payments:RazorpayAutoPay:PlanIds:<ProductCode>` (or fallback
+`Payments:RazorpaySubscriptionPlanId`), and `Payments:RazorpayAutoPay:TotalCount`.
+
+AutoPay setup creates a Razorpay Subscription beginning after the current paid `ValidUntil`
+term. Subscription webhooks use the existing Razorpay webhook secret and update the stored
+provider state. Do not enable live AutoPay before webhook delivery and production database
+persistence are both verified.
+
+`cancel-at-period-end` intentionally cancels any linked Razorpay mandate immediately while
+keeping BusinessOS access active through the already-paid `ValidUntil`. This separates
+billing cancellation from entitlement termination and prevents future unintended charges.

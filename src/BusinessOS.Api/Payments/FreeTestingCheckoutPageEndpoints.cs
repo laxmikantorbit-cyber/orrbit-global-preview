@@ -61,6 +61,7 @@ public static class FreeTestingCheckoutPageEndpoints
               <input id="token" type="password" autocomplete="off" placeholder="Paste staging token from Render only for testing" />
               <button onclick="runHealth()">Check Health</button>
               <button onclick="runFullFlow()">Run Full Purchase Flow</button>
+              <button onclick="setupAutoPay()">Setup AutoPay for Last Subscription</button>
               <button onclick="cancelLast()">Cancel Last Subscription at Period End</button>
             </div>
             <div class="grid">

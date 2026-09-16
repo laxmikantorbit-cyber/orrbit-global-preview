@@ -271,3 +271,30 @@ public sealed record DesktopActivationCodeRequest(
     string? DeviceName,
     string? AppVersion,
     SignedLicenseLease? CurrentLease);
+
+public sealed record ProviderSubscriptionBinding(
+    Guid TenantId,
+    Guid SubscriptionId,
+    string Provider,
+    string ProviderSubscriptionId,
+    string ProviderPlanId,
+    long StartAtUnix,
+    int TotalCount,
+    string Status,
+    bool AutoRenewEnabled,
+    bool CancelAtPeriodEnd,
+    string? AuthorizationUrl,
+    DateTimeOffset UpdatedAtUtc);
+
+public sealed record AutoPaySetupResponse(
+    Guid TenantId,
+    Guid SubscriptionId,
+    string Provider,
+    string ProviderSubscriptionId,
+    string ProviderPlanId,
+    string Status,
+    string ProviderPublicKeyId,
+    string? AuthorizationUrl,
+    long StartAtUnix,
+    int TotalCount,
+    bool ExistingBinding);

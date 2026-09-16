@@ -32,6 +32,34 @@ public sealed class RazorpayWebhookParserTests
     }
 
     [Fact]
+    public void Subscription_Webhook_Parses_Provider_State()
+    {
+        var webhook = RazorpaySubscriptionWebhookParser.TryParse("""
+            {
+              "event":"subscription.halted",
+              "payload":{"subscription":{"entity":{
+                "id":"sub_test_123",
+                "status":"halted"
+              }}}
+            }
+            """);
+
+        Assert.NotNull(webhook);
+        Assert.Equal("subscription.halted", webhook!.EventName);
+        Assert.Equal("sub_test_123", webhook.ProviderSubscriptionId);
+        Assert.Equal("halted", webhook.Status);
+    }
+
+    [Fact]
+    public void Payment_Webhook_Is_Not_Parsed_As_Subscription_Webhook()
+    {
+        var webhook = RazorpaySubscriptionWebhookParser.TryParse("""
+            {"event":"payment.captured","payload":{"payment":{"entity":{"id":"pay_1"}}}}
+            """);
+        Assert.Null(webhook);
+    }
+
+    [Fact]
     public void Internal_Order_Note_Takes_Priority_When_Present()
     {
         var commerceOrderId = Guid.NewGuid();

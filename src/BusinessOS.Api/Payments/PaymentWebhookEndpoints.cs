@@ -39,6 +39,18 @@ public static class PaymentWebhookEndpoints
             if (!WebhookSignatureVerifier.Verify(rawBody, signature.ToString(), secret))
                 return Results.Unauthorized();
 
+            var subscriptionWebhook = RazorpaySubscriptionWebhookParser.TryParse(rawBody);
+            if (subscriptionWebhook is not null)
+            {
+                var subscriptionResult = await ProcessSubscriptionWebhookAsync(
+                    subscriptionWebhook,
+                    rawBody,
+                    paymentEvents,
+                    store,
+                    cancellationToken);
+                return subscriptionResult;
+            }
+
             var webhook = RazorpayWebhookParser.Parse(rawBody);
             var paymentResult = await paymentEvents.ProcessAsync(
                 RazorpayProvider,
@@ -107,6 +119,63 @@ public static class PaymentWebhookEndpoints
         return app;
     }
 
+    private static async Task<IResult> ProcessSubscriptionWebhookAsync(
+        RazorpaySubscriptionWebhook webhook,
+        string rawBody,
+        IPaymentEventStore paymentEvents,
+        ICommerceActivationStore store,
+        CancellationToken cancellationToken)
+    {
+        var binding = await store.FindProviderSubscriptionRouteAsync(
+            RazorpayProvider,
+            webhook.ProviderSubscriptionId,
+            cancellationToken);
+        if (binding is null)
+            return Results.NotFound(new ErrorResponse(
+                "Razorpay subscription route was not found."));
+
+        var autoRenewEnabled = binding.CancelAtPeriodEnd
+            ? false
+            : webhook.Status.ToLowerInvariant() switch
+            {
+                "cancelled" or "completed" or "expired" or "halted" => false,
+                _ => true
+            };
+        var updated = await store.UpdateProviderSubscriptionStateAsync(
+            RazorpayProvider,
+            webhook.ProviderSubscriptionId,
+            webhook.Status,
+            autoRenewEnabled,
+            binding.CancelAtPeriodEnd,
+            cancellationToken);
+
+        bool duplicatePayment = false;
+        string? paymentId = null;
+        if (string.Equals(
+            webhook.EventName,
+            "subscription.charged",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            var paymentWebhook = RazorpayWebhookParser.Parse(rawBody);
+            var paymentResult = await paymentEvents.ProcessAsync(
+                RazorpayProvider,
+                paymentWebhook.Message with { OrderId = paymentWebhook.ProviderOrderId },
+                cancellationToken);
+            duplicatePayment = paymentResult.Duplicate;
+            paymentId = paymentResult.Payment.PaymentId;
+        }
+
+        return Results.Ok(new RazorpaySubscriptionWebhookResponse(
+            "subscription_state_recorded",
+            duplicatePayment,
+            binding.TenantId,
+            binding.SubscriptionId,
+            webhook.ProviderSubscriptionId,
+            webhook.Status,
+            paymentId,
+            updated?.AutoRenewEnabled ?? autoRenewEnabled));
+    }
+
     private static string? ValidateRoute(
         RazorpayPaymentWebhook webhook,
         ProviderOrderRoute? route)
@@ -135,3 +204,13 @@ public sealed record PaymentWebhookResponse(
     bool DuplicatePaymentEvent,
     ActivationResponse? InitialActivation,
     RenewalResponse? RenewalActivation);
+
+public sealed record RazorpaySubscriptionWebhookResponse(
+    string Outcome,
+    bool DuplicatePaymentEvent,
+    Guid TenantId,
+    Guid SubscriptionId,
+    string ProviderSubscriptionId,
+    string ProviderStatus,
+    string? PaymentId,
+    bool AutoRenewEnabled);

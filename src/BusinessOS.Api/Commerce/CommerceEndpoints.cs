@@ -42,17 +42,60 @@ public static class CommerceEndpoints
             Guid subscriptionId,
             TenantContext tenant,
             ICommerceActivationStore store,
+            RazorpayAutoPayService autoPay,
             CancellationToken cancellationToken) =>
         {
             if (TenantRoleAuthorization.ForbidUnlessCommerceAdmin(tenant) is { } forbidden)
                 return forbidden;
 
-            var state = await store.CancelSubscriptionAtPeriodEndAsync(
+            var current = await store.FindSubscriptionStateAsync(
                 tenant.TenantId, subscriptionId, cancellationToken);
-            return state is null
-                ? Results.NotFound(new ErrorResponse("Subscription was not found for this tenant."))
-                : Results.Ok(EntitlementStatusEvaluator.Evaluate(
-                    state, DateOnly.FromDateTime(DateTime.UtcNow)));
+            if (current is null)
+                return Results.NotFound(new ErrorResponse("Subscription was not found for this tenant."));
+
+            try
+            {
+                await autoPay.CancelAsync(
+                    tenant.TenantId, subscriptionId, cancellationToken);
+                var state = await store.CancelSubscriptionAtPeriodEndAsync(
+                    tenant.TenantId, subscriptionId, cancellationToken);
+                return Results.Ok(EntitlementStatusEvaluator.Evaluate(
+                    state!, DateOnly.FromDateTime(DateTime.UtcNow)));
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new ErrorResponse(ex.Message));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new ErrorResponse(ex.Message));
+            }
+        });
+
+        group.MapPost("/subscriptions/{subscriptionId:guid}/autopay/setup", async (
+            Guid subscriptionId,
+            TenantContext tenant,
+            RazorpayAutoPayService autoPay,
+            CancellationToken cancellationToken) =>
+        {
+            if (TenantRoleAuthorization.ForbidUnlessCommerceAdmin(tenant) is { } forbidden)
+                return forbidden;
+            try
+            {
+                var setup = await autoPay.SetupAsync(
+                    tenant.TenantId, subscriptionId, cancellationToken);
+                return setup is null
+                    ? Results.NotFound(new ErrorResponse("Subscription was not found for this tenant."))
+                    : Results.Ok(setup);
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new ErrorResponse(ex.Message));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new ErrorResponse(ex.Message));
+            }
         });
 
         group.MapPost("/checkout/initial", async (

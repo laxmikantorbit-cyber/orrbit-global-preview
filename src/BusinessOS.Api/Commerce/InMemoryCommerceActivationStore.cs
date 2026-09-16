@@ -14,6 +14,8 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
     private readonly Dictionary<(Guid TenantId, Guid OrderId), PendingCheckoutOrder> _pendingOrders = [];
     private readonly Dictionary<(Guid TenantId, string RazorpayOrderId), Guid> _razorpayOrderIndex = [];
     private readonly Dictionary<(string Provider, string ProviderOrderId), ProviderOrderRoute> _providerRoutes = [];
+    private readonly Dictionary<(string Provider, string ProviderSubscriptionId), ProviderSubscriptionBinding> _providerSubscriptions = [];
+    private readonly Dictionary<(Guid TenantId, Guid SubscriptionId, string Provider), string> _providerSubscriptionIndex = [];
     private readonly Dictionary<(Guid TenantId, Guid OrderId), RenewalResponse> _renewalsByOrder = [];
     private readonly Dictionary<(Guid TenantId, Guid SubscriptionId), LicenseActivationCodeResponse> _activationCodes = [];
     private readonly Dictionary<string, DesktopActivationRoute> _activationCodeIndex = [];
@@ -188,6 +190,83 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
             cancellationToken);
     }
 
+    public Task<ProviderSubscriptionBinding?> FindProviderSubscriptionAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        string provider,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = NormalizeProvider(provider);
+        lock (_gate)
+        {
+            if (!_providerSubscriptionIndex.TryGetValue(
+                    (tenantId, subscriptionId, normalized), out var providerSubscriptionId))
+                return Task.FromResult<ProviderSubscriptionBinding?>(null);
+            return Task.FromResult(_providerSubscriptions.TryGetValue(
+                (normalized, providerSubscriptionId), out var binding) ? binding : null);
+        }
+    }
+
+    public Task<ProviderSubscriptionBinding?> FindProviderSubscriptionRouteAsync(
+        string provider,
+        string providerSubscriptionId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(providerSubscriptionId))
+            return Task.FromResult<ProviderSubscriptionBinding?>(null);
+        lock (_gate)
+        {
+            return Task.FromResult(_providerSubscriptions.TryGetValue(
+                (NormalizeProvider(provider), providerSubscriptionId.Trim()), out var binding)
+                ? binding : null);
+        }
+    }
+
+    public Task<ProviderSubscriptionBinding> RecordProviderSubscriptionAsync(
+        ProviderSubscriptionBinding binding,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(binding);
+        var provider = NormalizeProvider(binding.Provider);
+        if (string.IsNullOrWhiteSpace(binding.ProviderSubscriptionId) ||
+            string.IsNullOrWhiteSpace(binding.ProviderPlanId))
+            throw new ArgumentException("Provider subscription and plan ids are required.");
+        lock (_gate)
+        {
+            if (!_activations.ContainsKey((binding.TenantId, binding.SubscriptionId)))
+                throw new InvalidOperationException("Subscription was not found for provider binding.");
+            var normalized = binding with { Provider = provider };
+            _providerSubscriptions[(provider, normalized.ProviderSubscriptionId)] = normalized;
+            _providerSubscriptionIndex[(normalized.TenantId, normalized.SubscriptionId, provider)] = normalized.ProviderSubscriptionId;
+            return Task.FromResult(normalized);
+        }
+    }
+
+    public Task<ProviderSubscriptionBinding?> UpdateProviderSubscriptionStateAsync(
+        string provider,
+        string providerSubscriptionId,
+        string status,
+        bool autoRenewEnabled,
+        bool cancelAtPeriodEnd,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedProvider = NormalizeProvider(provider);
+        var normalizedId = providerSubscriptionId.Trim();
+        lock (_gate)
+        {
+            if (!_providerSubscriptions.TryGetValue((normalizedProvider, normalizedId), out var binding))
+                return Task.FromResult<ProviderSubscriptionBinding?>(null);
+            var updated = binding with
+            {
+                Status = status.Trim(),
+                AutoRenewEnabled = autoRenewEnabled,
+                CancelAtPeriodEnd = cancelAtPeriodEnd,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            };
+            _providerSubscriptions[(normalizedProvider, normalizedId)] = updated;
+            return Task.FromResult<ProviderSubscriptionBinding?>(updated);
+        }
+    }
     public Task<CheckoutOrderResponse> CreateInitialCheckoutOrderAsync(
         Guid tenantId,
         CreateInitialCheckoutOrderRequest request,
