@@ -84,7 +84,10 @@ public sealed class CrmFreeTestingAccessMiddleware
         {
             if (relative.Equals("session", StringComparison.OrdinalIgnoreCase)) return null;
             if (relative is "dashboard" or "work-summary" or "roles") return CrmPermission.ViewDashboard;
-            if (relative.StartsWith("reports", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewReports;
+            if (relative.StartsWith("reports", StringComparison.OrdinalIgnoreCase) ||
+                relative.Equals("audit", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewReports;
+            if (relative.Equals("saved-views", StringComparison.OrdinalIgnoreCase) ||
+                relative.Equals("masters", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewDashboard;
             if (relative.Equals("team", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewTeam;
             if (relative.Equals("leads", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("leads/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewLeads;
             if (relative.Equals("follow-ups", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageFollowUps;
@@ -96,6 +99,9 @@ public sealed class CrmFreeTestingAccessMiddleware
 
         if (HttpMethods.IsPost(request.Method))
         {
+            if (relative.Equals("saved-views", StringComparison.OrdinalIgnoreCase) ||
+                relative.StartsWith("saved-views/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewDashboard;
+            if (relative.Equals("masters", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageTeam;
             if (relative.Equals("leads", StringComparison.OrdinalIgnoreCase)) return CrmPermission.CreateLead;
             if (relative.StartsWith("leads/", StringComparison.OrdinalIgnoreCase))
             {
