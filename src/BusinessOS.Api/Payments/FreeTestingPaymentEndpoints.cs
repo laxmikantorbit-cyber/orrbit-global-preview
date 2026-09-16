@@ -21,6 +21,7 @@ public static class FreeTestingPaymentEndpoints
             IHostEnvironment environment,
             ICommerceActivationStore commerceStore,
             IPaymentEventStore paymentStore,
+            IProviderOrderConcurrencyGate providerOrderGate,
             CancellationToken cancellationToken) =>
         {
             if (!IsFreeTestingMode(configuration, environment))
@@ -31,6 +32,8 @@ public static class FreeTestingPaymentEndpoints
                     "razorpay_order_id is required."));
 
             var orderId = razorpayOrderId.Trim();
+            await using var providerOrderLease = await providerOrderGate.AcquireAsync(
+                RazorpayProvider, orderId, cancellationToken);
             var status = await commerceStore.FindProviderOrderStatusAsync(
                 RazorpayProvider,
                 orderId,
@@ -78,6 +81,7 @@ public static class FreeTestingPaymentEndpoints
             IHostEnvironment environment,
             ICommerceActivationStore commerceStore,
             IPaymentEventStore paymentStore,
+            IProviderOrderConcurrencyGate providerOrderGate,
             CancellationToken cancellationToken) =>
         {
             if (!IsFreeTestingMode(configuration, environment))
@@ -96,6 +100,8 @@ public static class FreeTestingPaymentEndpoints
             var providerOrderId = string.IsNullOrWhiteSpace(request?.ProviderOrderId)
                 ? $"order_free_test_autopay_{Guid.NewGuid():N}"
                 : request!.ProviderOrderId.Trim();
+            await using var providerOrderLease = await providerOrderGate.AcquireAsync(
+                RazorpayProvider, providerOrderId, cancellationToken);
             var status = await commerceStore.FindProviderOrderStatusAsync(
                 RazorpayProvider, providerOrderId, cancellationToken);
             if (status is not null)

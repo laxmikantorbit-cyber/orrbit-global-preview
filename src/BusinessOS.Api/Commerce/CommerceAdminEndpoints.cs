@@ -58,6 +58,7 @@ public static class CommerceAdminEndpoints
             ICommerceActivationStore commerceStore,
             IPaymentEventStore paymentStore,
             IRazorpayPaymentClient paymentClient,
+            IProviderOrderConcurrencyGate providerOrderGate,
             CancellationToken cancellationToken) =>
         {
             if (TenantRoleAuthorization.ForbidUnlessCommerceAdmin(tenant) is { } forbidden)
@@ -66,8 +67,11 @@ public static class CommerceAdminEndpoints
             if (string.IsNullOrWhiteSpace(razorpayOrderId))
                 return Results.BadRequest(new ErrorResponse("razorpay_order_id is required."));
 
+            var normalizedOrderId = razorpayOrderId.Trim();
+            await using var providerOrderLease = await providerOrderGate.AcquireAsync(
+                RazorpayProvider, normalizedOrderId, cancellationToken);
             var status = await commerceStore.FindProviderOrderStatusAsync(
-                RazorpayProvider, razorpayOrderId, cancellationToken);
+                RazorpayProvider, normalizedOrderId, cancellationToken);
             if (status is null)
                 return Results.NotFound(new ErrorResponse(
                     "Razorpay provider order route was not found."));
@@ -76,7 +80,7 @@ public static class CommerceAdminEndpoints
                     "Razorpay order was not found for this tenant."));
 
             return await ExecuteManualReconcileAsync(
-                razorpayOrderId.Trim(), status, commerceStore,
+                normalizedOrderId, status, commerceStore,
                 paymentStore, paymentClient, cancellationToken);
         });
 

@@ -44,6 +44,7 @@ public static class PaymentCheckoutEndpoints
             ICommerceActivationStore store,
             IRazorpayPaymentClient paymentClient,
             IPaymentEventStore paymentEvents,
+            IProviderOrderConcurrencyGate providerOrderGate,
             CancellationToken cancellationToken) =>
         {
             var preflight = await VerifyAndLoadStatusAsync(
@@ -54,6 +55,10 @@ public static class PaymentCheckoutEndpoints
             if (preflight.Result is not null)
                 return preflight.Result;
 
+            await using var providerOrderLease = await providerOrderGate.AcquireAsync(
+                RazorpayProvider,
+                verification.RazorpayOrderId,
+                cancellationToken);
             var providerPayment = await paymentClient.FetchPaymentAsync(
                 verification.RazorpayPaymentId,
                 cancellationToken);
