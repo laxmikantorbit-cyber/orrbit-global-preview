@@ -50,7 +50,7 @@ public sealed record DeploymentReadinessReport(
                 : "Razorpay");
 
         if (IsFreeTesting(configuration, environment, deploymentMode, storageMode, paymentsMode))
-            AddFreeTestingChecks(checks, storageMode, paymentsMode);
+            AddFreeTestingChecks(configuration, missing, checks, storageMode, paymentsMode);
         else
             RequireProductionExternalConfiguration(configuration, missing, checks);
         if (HasBearerToken(configuration))
@@ -88,6 +88,8 @@ public sealed record DeploymentReadinessReport(
         paymentsMode.StartsWith("RazorpayTest", StringComparison.OrdinalIgnoreCase);
 
     private static void AddFreeTestingChecks(
+        IConfiguration configuration,
+        ICollection<string> missing,
         ICollection<string> checks,
         string storageMode,
         string paymentsMode)
@@ -95,6 +97,12 @@ public sealed record DeploymentReadinessReport(
         checks.Add("free_testing_mode");
         checks.Add($"storage_mode:{storageMode}");
         checks.Add($"payments_mode:{paymentsMode}");
+        if (string.Equals(storageMode, "Postgres", StringComparison.OrdinalIgnoreCase))
+        {
+            Require(configuration, "ConnectionStrings:Commerce", missing);
+            if (!missing.Contains("ConnectionStrings:Commerce"))
+                checks.Add("commerce_database_configured");
+        }
         checks.Add(string.Equals(storageMode, "Postgres", StringComparison.OrdinalIgnoreCase)
             ? "free_testing_postgres_persistence"
             : "external_db_and_live_payment_secrets_deferred_until_release");

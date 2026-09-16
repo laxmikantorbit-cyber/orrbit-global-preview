@@ -67,6 +67,32 @@ public sealed class DeploymentReadinessTests : IClassFixture<WebApplicationFacto
     }
 
     [Fact]
+    public async Task Staging_FreeTesting_Postgres_Readiness_Fails_Without_Commerce_Connection()
+    {
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Staging");
+            builder.ConfigureAppConfiguration((_, config) =>
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["BusinessOS:DeploymentMode"] = "FreeTesting",
+                    ["BusinessOS:StorageMode"] = "Postgres",
+                    ["BusinessOS:Payments:Mode"] = "RazorpayTestPending",
+                    ["BusinessOS:Auth:BearerTokens:0:Token"] = "staging-token",
+                    ["BusinessOS:Auth:BearerTokens:0:Subject"] = "poc-user-a",
+                    ["BusinessOS:Auth:BearerTokens:0:TenantCode"] = "TENANT-A"
+                }));
+        }).CreateClient();
+
+        var response = await client.GetAsync("/health/ready");
+        var report = await response.Content.ReadFromJsonAsync<ReadinessDto>();
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.NotNull(report);
+        Assert.False(report!.Ready);
+        Assert.Contains("ConnectionStrings:Commerce", report.MissingConfiguration);
+    }
+    [Fact]
     public async Task Staging_FreeTesting_Readiness_Allows_Postgres_Persistence_Without_Live_Razorpay()
     {
         var client = _factory.WithWebHostBuilder(builder =>
