@@ -107,6 +107,7 @@ app.MapPaymentCheckoutEndpoints();
 app.MapFreeTestingPaymentEndpoints();
 app.MapFreeTestingPublicCheckoutEndpoints();
 app.MapFreeTestingPostgresCommerceSmokeEndpoints();
+app.MapFreeTestingPostgresCommerceSmokePageEndpoints();
 app.MapFreeTestingPublicCrmEndpoints();
 app.MapFreeTestingPublicCrmOperationsEndpoints();
 app.MapFreeTestingPublicCrmSalesEndpoints();

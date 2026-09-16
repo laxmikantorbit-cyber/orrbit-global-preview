@@ -81,6 +81,10 @@ public sealed class TenantAuthenticationMiddleware
             StringComparison.OrdinalIgnoreCase) ||
         string.Equals(
             path.Value,
+            "/testing/postgres-commerce-smoke",
+            StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(
+            path.Value,
             "/api/desktop/licenses/activate",
             StringComparison.OrdinalIgnoreCase) ||
         string.Equals(

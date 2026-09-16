@@ -189,6 +189,22 @@ public sealed class FreeTestingCheckoutTests : IClassFixture<WebApplicationFacto
     }
 
     [Fact]
+    public async Task InMemory_FreeTesting_Does_Not_Expose_Postgres_Smoke_Page()
+    {
+        var response = await FreeTestingFactory().CreateClient()
+            .GetAsync("/testing/postgres-commerce-smoke");
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Production_Does_Not_Expose_Postgres_Smoke_Page()
+    {
+        var response = await ProductionFactoryWithFreeTestingMode().CreateClient()
+            .GetAsync("/testing/postgres-commerce-smoke");
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Staging_Cors_Allows_Orrbitrepair_Authorization_Preflight()
     {
         var client = FreeTestingFactory().CreateClient();
