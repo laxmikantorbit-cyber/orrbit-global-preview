@@ -65,6 +65,8 @@ public sealed class FreeTestingCheckoutTests : IClassFixture<WebApplicationFacto
         Assert.Contains("BusinessOS Free Staging Checkout Test", body);
         Assert.Contains("Run Full Purchase Flow", body);
         Assert.Contains("Setup AutoPay for Last Subscription", body);
+        Assert.Contains("Simulate AutoPay Renewal Charge", body);
+        Assert.Contains("/api/testing/payments/razorpay/subscriptions/", body);
         Assert.Contains("/autopay/setup", body);
         Assert.Contains("GET /api/commerce/subscriptions/{id}/autopay", body);
         Assert.DoesNotContain("tenant-a-staging-token", body);

@@ -201,6 +201,54 @@ public sealed class AutoPayEndpointTests : IClassFixture<WebApplicationFactory<P
         Assert.Equal("subscription_charge_renewed", result.Outcome);
     }
     [Fact]
+    public async Task FreeTesting_AutoPay_Charge_Simulator_Renews_Entitlement_Idempotently()
+    {
+        var client = CreateTenantAClient();
+        var subscriptionId = await ActivateSubscriptionAsync(client);
+        var setup = await client.PostAsync(
+            $"/api/commerce/subscriptions/{subscriptionId}/autopay/setup", null);
+        Assert.Equal(HttpStatusCode.OK, setup.StatusCode);
+
+        var before = await client.GetFromJsonAsync<EntitlementStatusResponse>(
+            $"/api/commerce/subscriptions/{subscriptionId}/entitlement");
+        Assert.NotNull(before);
+
+        const string providerOrderId = "order_free_test_autopay_simulator";
+        var chargeRequest = new FreeTestingAutoPayChargeRequest(
+            providerOrderId,
+            "pay_free_test_autopay_simulator",
+            null);
+        var firstResponse = await client.PostAsJsonAsync(
+            $"/api/testing/payments/razorpay/subscriptions/{subscriptionId}/charge",
+            chargeRequest);
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        var first = await firstResponse.Content
+            .ReadFromJsonAsync<FreeTestingCaptureResponse>();
+        Assert.NotNull(first?.RenewalActivation);
+        Assert.Equal("provider_payment_captured", first!.PaymentOutcome);
+        Assert.Equal("activated", first.ActivationOutcome);
+        Assert.False(first.DuplicatePaymentEvent);
+        Assert.True(first.RenewalActivation!.NewValidUntil > before!.ValidUntil);
+
+        var secondResponse = await client.PostAsJsonAsync(
+            $"/api/testing/payments/razorpay/subscriptions/{subscriptionId}/charge",
+            chargeRequest);
+        Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+        var second = await secondResponse.Content
+            .ReadFromJsonAsync<FreeTestingCaptureResponse>();
+        Assert.NotNull(second?.RenewalActivation);
+        Assert.Equal("already_activated", second!.PaymentOutcome);
+        Assert.Equal("activated", second.ActivationOutcome);
+        Assert.True(second.DuplicatePaymentEvent);
+        Assert.Equal(first.RenewalActivation.NewValidUntil,
+            second.RenewalActivation!.NewValidUntil);
+
+        var after = await client.GetFromJsonAsync<EntitlementStatusResponse>(
+            $"/api/commerce/subscriptions/{subscriptionId}/entitlement");
+        Assert.NotNull(after);
+        Assert.Equal(first.RenewalActivation.NewValidUntil, after!.ValidUntil);
+    }
+    [Fact]
     public async Task AutoPay_Setup_Is_Rejected_After_Period_End_Cancellation()
     {
         var client = CreateTenantAClient();

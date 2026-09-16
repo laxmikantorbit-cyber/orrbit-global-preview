@@ -62,11 +62,12 @@ public static class FreeTestingCheckoutPageEndpoints
               <button onclick="runHealth()">Check Health</button>
               <button onclick="runFullFlow()">Run Full Purchase Flow</button>
               <button onclick="setupAutoPay()">Setup AutoPay for Last Subscription</button>
+              <button onclick="simulateAutoPayRenewal()">Simulate AutoPay Renewal Charge</button>
               <button onclick="cancelLast()">Cancel Last Subscription at Period End</button>
             </div>
             <div class="grid">
               <div class="card"><b>Plan</b><br><span class="pill">AI_REPAIR</span></div>
-              <div class="card"><b>Amount</b><br><span class="pill">Ã¢â€šÂ¹29,999</span></div>
+              <div class="card"><b>Amount</b><br><span class="pill">ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¹29,999</span></div>
               <div class="card"><b>Seats</b><br><span class="pill">10 admin + 10 field</span></div>
             </div>
             <div class="card"><h3>Output</h3><pre id="out">Ready.</pre></div>
@@ -133,7 +134,20 @@ public static class FreeTestingCheckoutPageEndpoints
                 `/api/commerce/subscriptions/${lastSubscriptionId}/autopay`);
               write('GET /api/commerce/subscriptions/{id}/autopay', state);
             }
-            async function cancelLast() {
+            async function simulateAutoPayRenewal() {
+              if (!token()) { alert('Paste staging bearer token first.'); return; }
+              if (!lastSubscriptionId) { alert('Run the purchase flow first.'); return; }
+              const charge = await request(
+                `/api/testing/payments/razorpay/subscriptions/${lastSubscriptionId}/charge`,
+                { method: 'POST', body: JSON.stringify({ providerOrderId: null, paymentId: null, capturedAtUtc: null }) });
+              write('POST /api/testing/payments/razorpay/subscriptions/{id}/charge', charge);
+              const entitlement = await request(
+                `/api/commerce/subscriptions/${lastSubscriptionId}/entitlement`);
+              write('GET /api/commerce/subscriptions/{id}/entitlement after renewal', entitlement);
+              const state = await request(
+                `/api/commerce/subscriptions/${lastSubscriptionId}/autopay`);
+              write('GET /api/commerce/subscriptions/{id}/autopay after renewal', state);
+            }            async function cancelLast() {
               if (!token()) { alert('Paste staging bearer token first.'); return; }
               if (!lastSubscriptionId) { alert('Run the purchase flow first.'); return; }
               const cancelled = await request(

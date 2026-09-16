@@ -70,6 +70,104 @@ public static class FreeTestingPaymentEndpoints
                 cancellationToken);
         });
 
+        group.MapPost("/razorpay/subscriptions/{subscriptionId:guid}/charge", async (
+            Guid subscriptionId,
+            FreeTestingAutoPayChargeRequest? request,
+            TenantContext tenant,
+            IConfiguration configuration,
+            IHostEnvironment environment,
+            ICommerceActivationStore commerceStore,
+            IPaymentEventStore paymentStore,
+            CancellationToken cancellationToken) =>
+        {
+            if (!IsFreeTestingMode(configuration, environment))
+                return Results.NotFound(new ErrorResponse(
+                    "Free-testing AutoPay charge is not enabled."));
+
+            var binding = await commerceStore.FindProviderSubscriptionAsync(
+                tenant.TenantId, subscriptionId, RazorpayProvider, cancellationToken);
+            if (binding is null)
+                return Results.NotFound(new ErrorResponse(
+                    "AutoPay subscription was not found for this tenant."));
+            if (binding.CancelAtPeriodEnd)
+                return Results.Conflict(new ErrorResponse(
+                    "Cancelled AutoPay subscription cannot receive a simulated renewal charge."));
+
+            var providerOrderId = string.IsNullOrWhiteSpace(request?.ProviderOrderId)
+                ? $"order_free_test_autopay_{Guid.NewGuid():N}"
+                : request!.ProviderOrderId.Trim();
+            var status = await commerceStore.FindProviderOrderStatusAsync(
+                RazorpayProvider, providerOrderId, cancellationToken);
+            if (status is not null)
+            {
+                if (status.Route.TenantId != tenant.TenantId ||
+                    status.Route.SubscriptionId != subscriptionId)
+                    return Results.NotFound(new ErrorResponse(
+                        "Simulated AutoPay provider order was not found for this tenant."));
+                if (status.Outcome == "activated")
+                    return Results.Ok(ToResponse(
+                        "already_activated", true, status, null,
+                        status.InitialActivation, status.RenewalActivation));
+            }
+            else
+            {
+                var template = await commerceStore.FindAutoPayRenewalTemplateAsync(
+                    tenant.TenantId, subscriptionId, cancellationToken);
+                if (template is null)
+                    return Results.NotFound(new ErrorResponse(
+                        "AutoPay renewal commercial template was not found."));
+                var checkout = await commerceStore.CreateRenewalCheckoutOrderAsync(
+                    tenant.TenantId,
+                    subscriptionId,
+                    new CreateRenewalCheckoutOrderRequest(
+                        template.PlanVersionId,
+                        template.PlanVersionNumber,
+                        template.Amount,
+                        template.CurrencyCode,
+                        template.TermMonths,
+                        template.DesktopDeviceLimit,
+                        template.LocationLimit,
+                        template.WebAdminSeats,
+                        template.FieldStaffSeats,
+                        template.MultiLocationCloud),
+                    cancellationToken);
+                if (checkout is null)
+                    return Results.NotFound(new ErrorResponse(
+                        "AutoPay renewal subscription was not found."));
+                await commerceStore.RecordRazorpayOrderAsync(
+                    tenant.TenantId,
+                    checkout.CommerceOrderId,
+                    providerOrderId,
+                    checkout.ProductCode,
+                    subscriptionId,
+                    cancellationToken);
+            }
+
+            var order = await FindPendingOrderAsync(
+                commerceStore, tenant.TenantId, providerOrderId, cancellationToken);
+            if (order is null)
+                return Results.NotFound(new ErrorResponse(
+                    "Pending simulated AutoPay renewal order was not found."));
+            var captureRequest = new FreeTestingCaptureRequest(
+                request?.PaymentId,
+                request?.CapturedAtUtc);
+            var message = CreateCapturedPayment(providerOrderId, order, captureRequest);
+            var processed = await paymentStore.ProcessAsync(
+                RazorpayProvider, message, cancellationToken);
+            await commerceStore.UpdateProviderSubscriptionStateAsync(
+                RazorpayProvider,
+                binding.ProviderSubscriptionId,
+                "active",
+                autoRenewEnabled: true,
+                cancelAtPeriodEnd: false,
+                cancellationToken);
+            var route = await commerceStore.FindProviderOrderRouteAsync(
+                RazorpayProvider, providerOrderId, cancellationToken)
+                ?? throw new InvalidOperationException(
+                    "Simulated AutoPay provider order route disappeared.");
+            return await ActivateAsync(
+                route, processed, commerceStore, cancellationToken);
+        });
         return app;
     }
 
@@ -191,6 +289,10 @@ public sealed record FreeTestingCaptureRequest(
     string? PaymentId,
     DateTimeOffset? CapturedAtUtc);
 
+public sealed record FreeTestingAutoPayChargeRequest(
+    string? ProviderOrderId,
+    string? PaymentId,
+    DateTimeOffset? CapturedAtUtc);
 public sealed record FreeTestingCaptureResponse(
     string PaymentOutcome,
     string ActivationOutcome,
