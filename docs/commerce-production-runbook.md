@@ -80,8 +80,10 @@ It must not terminate an already-paid term early. The subscription remains activ
 
 For uncancelled subscriptions, the entitlement API exposes a 7-day grace window after
 `ValidUntil`. During grace the renewal status is `payment_pending`; after grace it becomes
-`renewal_required`. Razorpay AutoPay/failure event wiring can drive this state in the
-recurring-payment phase without changing the client entitlement contract.
+`renewal_required`. Razorpay `pending`/`halted` provider states do not shorten an already-paid
+term or the grace window. The entitlement response also surfaces the provider state; a halted or
+terminal mandate makes `autoRenewEnabled=false` while paid access continues through its normal
+term/grace boundary.
 
 ## Razorpay AutoPay configuration
 

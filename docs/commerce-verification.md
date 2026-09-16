@@ -311,6 +311,9 @@ AutoPay setup is tenant-scoped and Commerce-admin protected:
 Provider subscription mappings persist the internal tenant/subscription, Razorpay subscription
 and plan ids, scheduled start, total cycle count, provider state, authorization URL and
 auto-renew/cancellation flags. Signed `subscription.*` webhooks update this provider state.
+The entitlement endpoint overlays that provider state without shortening paid access: `pending`
+remains auto-renew eligible, while `halted`/terminal provider states expose `autoRenewEnabled=false`.
+The paid term and existing 7-day post-`ValidUntil` grace calculation remain authoritative.
 
 Period-end cancellation preserves BusinessOS entitlement through `ValidUntil`, while an
 existing Razorpay AutoPay mandate is cancelled immediately so no future provider debit can

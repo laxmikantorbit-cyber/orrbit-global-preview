@@ -215,7 +215,8 @@ public sealed record EntitlementStatusResponse(
     string RenewalStatus,
     bool AutoRenewEnabled,
     bool CancelAtPeriodEnd,
-    DateOnly? GraceEndsOn);
+    DateOnly? GraceEndsOn,
+    string? AutoPayProviderStatus = null);
 
 public sealed record DesktopDeviceActivationRequest(
     string DeviceFingerprint,

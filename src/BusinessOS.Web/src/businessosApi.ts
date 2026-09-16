@@ -57,6 +57,7 @@ export type EntitlementResponse = {
   cancelAtPeriodEnd: boolean
   graceEndsOn?: string | null
   validUntil: string
+  autoPayProviderStatus?: string | null
 }
 
 export type AutoPaySetupResponse = {

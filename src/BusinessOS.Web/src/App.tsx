@@ -326,6 +326,9 @@ function App() {
               <div><dt>Renewal</dt><dd>{entitlement.renewalStatus}</dd></div>
               <div><dt>Valid until</dt><dd>{entitlement.validUntil}</dd></div>
               <div><dt>Auto renew</dt><dd>{String(entitlement.autoRenewEnabled)}</dd></div>
+              {entitlement.autoPayProviderStatus ? (
+                <div><dt>AutoPay provider</dt><dd>{entitlement.autoPayProviderStatus}</dd></div>
+              ) : null}
             </dl>
           ) : <p>No subscription tested yet.</p>}
         </div>

@@ -118,6 +118,38 @@ public sealed class AutoPayEndpointTests : IClassFixture<WebApplicationFactory<P
         Assert.NotNull(status);
         Assert.Equal("halted", status!.Status);
         Assert.False(status.AutoRenewEnabled);
+
+        var entitlement = await client.GetFromJsonAsync<EntitlementStatusResponse>(
+            $"/api/commerce/subscriptions/{subscriptionId}/entitlement");
+        Assert.NotNull(entitlement);
+        Assert.Equal("Active", entitlement!.Status);
+        Assert.False(entitlement.AutoRenewEnabled);
+        Assert.Equal("halted", entitlement.AutoPayProviderStatus);
+    }
+
+    [Fact]
+    public async Task Pending_AutoPay_State_Is_Visible_Without_Shortening_Paid_Term()
+    {
+        var client = CreateTenantAClient();
+        var subscriptionId = await ActivateSubscriptionAsync(client);
+        var setupResponse = await client.PostAsync(
+            $"/api/commerce/subscriptions/{subscriptionId}/autopay/setup", null);
+        var setup = await setupResponse.Content.ReadFromJsonAsync<AutoPaySetupResponse>();
+        Assert.NotNull(setup);
+
+        var rawBody = JsonSerializer.Serialize(new {
+            @event = "subscription.pending",
+            payload = new { subscription = new { entity = new { id = setup!.ProviderSubscriptionId, status = "pending" } } }
+        });
+        var webhook = await SendSignedWebhookAsync(client, rawBody);
+        Assert.Equal(HttpStatusCode.OK, webhook.StatusCode);
+
+        var entitlement = await client.GetFromJsonAsync<EntitlementStatusResponse>(
+            $"/api/commerce/subscriptions/{subscriptionId}/entitlement");
+        Assert.NotNull(entitlement);
+        Assert.Equal("Active", entitlement!.Status);
+        Assert.True(entitlement.AutoRenewEnabled);
+        Assert.Equal("pending", entitlement.AutoPayProviderStatus);
     }
 
     [Fact]

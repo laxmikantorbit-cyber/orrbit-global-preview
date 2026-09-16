@@ -32,10 +32,20 @@ public static class CommerceEndpoints
         {
             var state = await store.FindSubscriptionStateAsync(
                 tenant.TenantId, subscriptionId, cancellationToken);
-            return state is null
-                ? Results.NotFound(new ErrorResponse("Subscription was not found for this tenant."))
-                : Results.Ok(EntitlementStatusEvaluator.Evaluate(
-                    state, DateOnly.FromDateTime(DateTime.UtcNow)));
+            if (state is null)
+                return Results.NotFound(new ErrorResponse("Subscription was not found for this tenant."));
+
+            var entitlement = EntitlementStatusEvaluator.Evaluate(
+                state, DateOnly.FromDateTime(DateTime.UtcNow));
+            var autoPay = await store.FindProviderSubscriptionAsync(
+                tenant.TenantId, subscriptionId, "razorpay", cancellationToken);
+            if (autoPay is not null)
+                entitlement = entitlement with
+                {
+                    AutoRenewEnabled = entitlement.AutoRenewEnabled && autoPay.AutoRenewEnabled,
+                    AutoPayProviderStatus = autoPay.Status
+                };
+            return Results.Ok(entitlement);
         });
 
         group.MapPost("/subscriptions/{subscriptionId:guid}/cancel-at-period-end", async (
