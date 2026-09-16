@@ -37,7 +37,8 @@ public static class FreeTestingPublicCrmEntityActivityEndpoints
             ICrmEntityActivityStore activities, ICrmManagementStore management, CancellationToken ct) =>
         {
             if (!Enabled(configuration, environment)) return Disabled();
-            if (!Channels.Contains(request.Channel ?? string.Empty))
+            var channel = request.Channel?.Trim();
+            if (string.IsNullOrWhiteSpace(channel) || !Channels.Contains(channel))
                 return Results.BadRequest(new ErrorResponse("Channel must be Call, WhatsApp, Email, Meeting, Note or Other."));
             if (string.IsNullOrWhiteSpace(request.Summary))
                 return Results.BadRequest(new ErrorResponse("Activity summary is required."));
@@ -46,7 +47,7 @@ public static class FreeTestingPublicCrmEntityActivityEndpoints
             if (access.Result is not null) return access.Result;
             var item = new CrmEntityActivity(
                 Guid.NewGuid(), DemoTenantId, access.EntityType!, entityId,
-                access.ContactId, request.Channel.Trim(), request.Summary.Trim(), Clean(request.Details),
+                access.ContactId, channel, request.Summary.Trim(), Clean(request.Details),
                 member.Id, request.OccurredAtUtc ?? DateTimeOffset.UtcNow);
             await activities.AddAsync(item, ct);
             await management.AddAuditAsync(new CrmAuditEntry(
