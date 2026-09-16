@@ -58,30 +58,19 @@ export type CrmDetailedAnalytics = {
   monthlyTrends: CrmMonthlyTrend[]
 }
 
-export type CrmLeadAgingBucket = {
-  label: string
-  leadAgeCount: number
-  inactivityCount: number
-}
-
+export type CrmLeadAgingBucket = { label: string; leadAgeCount: number; inactivityCount: number }
 export type CrmLeadAgingItem = {
-  leadId: string
-  title: string
-  status: string
-  priority: string
-  ownerUserId?: string | null
-  ownerName: string
-  ageDays: number
-  inactiveDays: number
-  nextFollowUpAtUtc?: string | null
-  productInterest?: string | null
+  leadId: string; title: string; status: string; priority: string; ownerUserId?: string | null; ownerName: string
+  ageDays: number; inactiveDays: number; nextFollowUpAtUtc?: string | null; productInterest?: string | null
 }
+export type CrmLeadAging = { openLeadCount: number; buckets: CrmLeadAgingBucket[]; leads: CrmLeadAgingItem[] }
 
-export type CrmLeadAging = {
-  openLeadCount: number
-  buckets: CrmLeadAgingBucket[]
-  leads: CrmLeadAgingItem[]
+export type CrmOpportunityAgingBucket = { label: string; count: number }
+export type CrmOpportunityAgingItem = {
+  opportunityId: string; title: string; productService?: string | null; stage: string; ownerUserId?: string | null; ownerName: string
+  estimatedValue: number; probabilityPercent: number; expectedCloseDate?: string | null; startedAtUtc?: string | null; ageDays?: number | null; stageAgeDays?: number | null
 }
+export type CrmOpportunityAging = { opportunityCount: number; buckets: CrmOpportunityAgingBucket[]; opportunities: CrmOpportunityAgingItem[] }
 
 function headers() {
   const value = new Headers()
@@ -100,3 +89,4 @@ async function get<T>(path: string) {
 
 export const getCrmDetailedAnalytics = () => get<CrmDetailedAnalytics>('/reports/detailed')
 export const getCrmLeadAging = () => get<CrmLeadAging>('/reports/lead-aging')
+export const getCrmOpportunityAging = () => get<CrmOpportunityAging>('/reports/opportunity-aging')
