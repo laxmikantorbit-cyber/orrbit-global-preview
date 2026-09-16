@@ -1,9 +1,11 @@
 using BusinessOS.Api;
 using BusinessOS.Api.Commerce;
+using BusinessOS.Api.Crm;
 using BusinessOS.Api.Customers;
 using BusinessOS.Api.Payments;
 using BusinessOS.Api.Tenancy;
 using BusinessOS.Application;
+using BusinessOS.Crm;
 using BusinessOS.Customers;
 using BusinessOS.Identity;
 using BusinessOS.Licensing;
@@ -26,6 +28,7 @@ builder.Services.AddCors(options =>
 });
 builder.Services.AddScoped<TenantContext>();
 builder.Services.AddScoped<CustomerStore>();
+builder.Services.AddSingleton<ILeadRepository, InMemoryLeadRepository>();
 builder.Services.AddSingleton<IOrganisationRepository>(_ => CustomerSeed.CreateRepository());
 builder.Services.AddSingleton<LeaseSigner>();
 builder.Services.AddSingleton<PaymentProcessor>();
@@ -100,6 +103,7 @@ app.MapDesktopLicenseEndpoints();
 app.MapPaymentCheckoutEndpoints();
 app.MapFreeTestingPaymentEndpoints();
 app.MapFreeTestingPublicCheckoutEndpoints();
+app.MapFreeTestingPublicCrmEndpoints();
 app.MapFreeTestingCheckoutPageEndpoints();
 app.MapPaymentWebhookEndpoints();
 

@@ -262,3 +262,82 @@ button.danger {
 .activation-code-box small {
   color: #cbd5e1;
 }
+
+.crm-shell .crm-hero h1 {
+  max-width: 900px;
+}
+
+.crm-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  max-width: 1120px;
+  margin: 0 auto 20px;
+}
+
+.crm-card {
+  display: grid;
+  gap: 8px;
+}
+
+.crm-card span {
+  color: #94a3b8;
+  font-weight: 700;
+}
+
+.crm-card strong {
+  color: #f8fafc;
+  font-size: 34px;
+}
+
+.crm-pipeline {
+  display: grid;
+  gap: 10px;
+}
+
+.crm-pipeline div,
+.lead-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(2, 6, 23, 0.35);
+}
+
+.crm-pipeline strong {
+  color: #86efac;
+}
+
+.crm-leads {
+  max-width: 1120px;
+  margin: 0 auto 20px;
+}
+
+.lead-row {
+  margin-top: 10px;
+}
+.lead-row div {
+  display: grid;
+  gap: 4px;
+}
+
+.lead-row small {
+  color: #94a3b8;
+}
+
+select {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: #f8fafc;
+  background: #020617;
+}
+
+@media (max-width: 860px) {
+  .crm-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}

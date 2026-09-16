@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import './App.css'
+import { CrmDemo } from './CrmDemo'
 import {
   apiBase,
   cancelAtPeriodEnd,
@@ -43,6 +44,8 @@ function json(data: unknown) {
   return JSON.stringify(data, null, 2)
 }
 function App() {
+  if (window.location.pathname === '/crm') return <CrmDemo />
+
   const [token, setToken] = useState('')
   const [steps, setSteps] = useState<Step[]>(initialSteps)
   const [output, setOutput] = useState('Ready for staging checkout test.')
