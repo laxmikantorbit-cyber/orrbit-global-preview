@@ -24,7 +24,8 @@ public sealed class LeadActivity
         Summary = summary.Trim();
         Details = Clean(details);
         ActorUserId = actorUserId;
-        OccurredAtUtc = occurredAtUtc ?? DateTimeOffset.UtcNow;    }
+        OccurredAtUtc = occurredAtUtc ?? DateTimeOffset.UtcNow;
+    }
 
     public Guid Id { get; }
     public Guid TenantId { get; }
@@ -50,7 +51,8 @@ public sealed class LeadFollowUp
         string purpose,
         Guid? ownerUserId = null,
         DateTimeOffset? createdAtUtc = null)
-    {        if (id == Guid.Empty) throw new ArgumentException("Follow-up id is required.", nameof(id));
+    {
+        if (id == Guid.Empty) throw new ArgumentException("Follow-up id is required.", nameof(id));
         if (tenantId == Guid.Empty) throw new ArgumentException("Tenant id is required.", nameof(tenantId));
         if (leadId == Guid.Empty) throw new ArgumentException("Lead id is required.", nameof(leadId));
         if (!Enum.IsDefined(channel)) throw new ArgumentOutOfRangeException(nameof(channel));
@@ -68,7 +70,7 @@ public sealed class LeadFollowUp
 
     public Guid Id { get; }
     public Guid TenantId { get; }
-    public Guid LeadId { get; }
+    public Guid LeadId { get; private set; }
     public DateTimeOffset DueAtUtc { get; private set; }
     public FollowUpChannel Channel { get; private set; }
     public string Purpose { get; private set; }
@@ -77,6 +79,7 @@ public sealed class LeadFollowUp
     public string? Outcome { get; private set; }
     public DateTimeOffset CreatedAtUtc { get; }
     public DateTimeOffset? CompletedAtUtc { get; private set; }
+
     public void Reschedule(DateTimeOffset dueAtUtc, FollowUpChannel channel, string purpose, Guid? ownerUserId)
     {
         EnsureOpen();
@@ -86,6 +89,13 @@ public sealed class LeadFollowUp
         Channel = channel;
         Purpose = purpose.Trim();
         OwnerUserId = ownerUserId;
+    }
+
+    public void MoveToLead(Guid leadId)
+    {
+        EnsureOpen();
+        if (leadId == Guid.Empty) throw new ArgumentException("Lead id is required.", nameof(leadId));
+        LeadId = leadId;
     }
 
     public void Complete(string? outcome = null, DateTimeOffset? completedAtUtc = null)
@@ -132,7 +142,8 @@ public sealed class CrmTask
         TenantId = tenantId;
         LeadId = leadId;
         Title = title.Trim();
-        Details = Clean(details);        DueAtUtc = dueAtUtc;
+        Details = Clean(details);
+        DueAtUtc = dueAtUtc;
         Priority = priority;
         AssigneeUserId = assigneeUserId;
         Status = CrmWorkStatus.Open;
@@ -141,7 +152,7 @@ public sealed class CrmTask
 
     public Guid Id { get; }
     public Guid TenantId { get; }
-    public Guid? LeadId { get; }
+    public Guid? LeadId { get; private set; }
     public string Title { get; private set; }
     public string? Details { get; private set; }
     public DateTimeOffset? DueAtUtc { get; private set; }
@@ -159,7 +170,8 @@ public sealed class CrmTask
     }
 
     public void Cancel()
-    {        EnsureOpen();
+    {
+        EnsureOpen();
         Status = CrmWorkStatus.Cancelled;
     }
 
@@ -173,6 +185,13 @@ public sealed class CrmTask
         DueAtUtc = dueAtUtc;
         Priority = priority;
         AssigneeUserId = assigneeUserId;
+    }
+
+    public void MoveToLead(Guid? leadId)
+    {
+        EnsureOpen();
+        if (leadId.HasValue && leadId.Value == Guid.Empty) throw new ArgumentException("Lead id is invalid.", nameof(leadId));
+        LeadId = leadId;
     }
 
     private void EnsureOpen()
