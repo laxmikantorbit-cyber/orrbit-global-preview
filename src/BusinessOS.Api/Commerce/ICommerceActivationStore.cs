@@ -71,6 +71,10 @@ public interface ICommerceActivationStore
         bool autoRenewEnabled,
         bool cancelAtPeriodEnd,
         CancellationToken cancellationToken = default);
+    Task<AutoPayRenewalTemplate?> FindAutoPayRenewalTemplateAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        CancellationToken cancellationToken = default);
     Task<CheckoutOrderResponse> CreateInitialCheckoutOrderAsync(
         Guid tenantId,
         CreateInitialCheckoutOrderRequest request,

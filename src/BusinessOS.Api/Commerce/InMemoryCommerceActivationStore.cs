@@ -16,6 +16,7 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
     private readonly Dictionary<(string Provider, string ProviderOrderId), ProviderOrderRoute> _providerRoutes = [];
     private readonly Dictionary<(string Provider, string ProviderSubscriptionId), ProviderSubscriptionBinding> _providerSubscriptions = [];
     private readonly Dictionary<(Guid TenantId, Guid SubscriptionId, string Provider), string> _providerSubscriptionIndex = [];
+    private readonly Dictionary<(Guid TenantId, Guid SubscriptionId), CommercialSnapshot> _subscriptionCommercialSnapshots = [];
     private readonly Dictionary<(Guid TenantId, Guid OrderId), RenewalResponse> _renewalsByOrder = [];
     private readonly Dictionary<(Guid TenantId, Guid SubscriptionId), LicenseActivationCodeResponse> _activationCodes = [];
     private readonly Dictionary<string, DesktopActivationRoute> _activationCodeIndex = [];
@@ -267,6 +268,32 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
             return Task.FromResult<ProviderSubscriptionBinding?>(updated);
         }
     }
+    public Task<AutoPayRenewalTemplate?> FindAutoPayRenewalTemplateAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            if (!_activations.TryGetValue((tenantId, subscriptionId), out var activation) ||
+                !_subscriptionCommercialSnapshots.TryGetValue((tenantId, subscriptionId), out var snapshot))
+                return Task.FromResult<AutoPayRenewalTemplate?>(null);
+            var termMonths = snapshot.Billing.TermMonths
+                ?? throw new InvalidOperationException("AutoPay renewal requires a finite billing term.");
+            return Task.FromResult<AutoPayRenewalTemplate?>(new AutoPayRenewalTemplate(
+                activation.ProductCode,
+                snapshot.PlanVersionId,
+                snapshot.PlanVersionNumber,
+                snapshot.Billing.Amount,
+                snapshot.Billing.CurrencyCode,
+                termMonths,
+                snapshot.Entitlements.DesktopDeviceLimit,
+                snapshot.Entitlements.LocationLimit,
+                snapshot.Entitlements.WebAdminSeats,
+                snapshot.Entitlements.FieldStaffSeats,
+                snapshot.Entitlements.MultiLocationCloud));
+        }
+    }
     public Task<CheckoutOrderResponse> CreateInitialCheckoutOrderAsync(
         Guid tenantId,
         CreateInitialCheckoutOrderRequest request,
@@ -468,6 +495,7 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
             _signer);
 
         StoreActivation(tenantId, activation, request.ProductCode);
+        StoreCommercialSnapshot(tenantId, activation.Subscription.Id, snapshot);
         return Task.FromResult(ToResponse(tenantId, activation, request.ProductCode));
     }
 
@@ -514,6 +542,7 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
             activation.License);
 
         var response = ToRenewalResponse(tenantId, result);
+        StoreCommercialSnapshot(tenantId, subscriptionId, snapshot);
         return Task.FromResult<RenewalResponse?>(response);
     }
 
@@ -546,6 +575,7 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
                 pending.ProductCode,
                 _signer);
             StoreActivationUnsafe(tenantId, activation, pending.ProductCode);
+            _subscriptionCommercialSnapshots[(tenantId, activation.Subscription.Id)] = pending.Order.Snapshot;
             _pendingOrders.Remove((tenantId, orderId));
             return Task.FromResult<ActivationResponse?>(ToResponse(tenantId, activation, pending.ProductCode));
         }
@@ -580,6 +610,7 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
                 activation.License);
             var response = ToRenewalResponse(tenantId, result);
             _renewalsByOrder[(tenantId, orderId)] = response;
+            _subscriptionCommercialSnapshots[(tenantId, subscriptionId)] = pending.Order.Snapshot;
             _pendingOrders.Remove((tenantId, orderId));
             return Task.FromResult<RenewalResponse?>(response);
         }
@@ -622,6 +653,16 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
             createdAtUtc);
     }
 
+    private void StoreCommercialSnapshot(
+        Guid tenantId,
+        Guid subscriptionId,
+        CommercialSnapshot snapshot)
+    {
+        lock (_gate)
+        {
+            _subscriptionCommercialSnapshots[(tenantId, subscriptionId)] = snapshot;
+        }
+    }
     private void StoreActivation(
         Guid tenantId,
         InitialActivationResult activation,

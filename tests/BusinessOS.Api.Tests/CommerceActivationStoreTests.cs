@@ -470,6 +470,40 @@ public sealed class CommerceActivationStoreTests
         Assert.Equal(checkout.CommerceOrderId, activation!.OrderId);
     }
 
+    [Fact]
+    public async Task AutoPay_Renewal_Template_Tracks_Latest_Commercial_Terms()
+    {
+        using var signer = new LeaseSigner();
+        ICommerceActivationStore store = new InMemoryCommerceActivationStore(
+            new PaymentSubscriptionActivationService(), signer);
+        var activation = await store.ActivateInitialPurchaseAsync(
+            TenantA, InitialRequest("pay_autopay_template_initial"));
+
+        var initial = await store.FindAutoPayRenewalTemplateAsync(
+            TenantA, activation.SubscriptionId);
+        Assert.NotNull(initial);
+        Assert.Equal(100m, initial!.Amount);
+        Assert.Equal(10, initial.WebAdminSeats);
+
+        var renewal = await store.ActivateRenewalAsync(
+            TenantA,
+            activation.SubscriptionId,
+            new RenewalActivationRequest(
+                Guid.NewGuid(), 3, 125m, "USD", 6,
+                2, 2, 25, 8, true,
+                "pay_autopay_template_renewal",
+                new DateTimeOffset(2027, 8, 1, 10, 0, 0, TimeSpan.Zero)));
+        Assert.NotNull(renewal);
+
+        var current = await store.FindAutoPayRenewalTemplateAsync(
+            TenantA, activation.SubscriptionId);
+        Assert.NotNull(current);
+        Assert.Equal(125m, current!.Amount);
+        Assert.Equal("USD", current.CurrencyCode);
+        Assert.Equal(6, current.TermMonths);
+        Assert.Equal(25, current.WebAdminSeats);
+        Assert.Equal(8, current.FieldStaffSeats);
+    }
     private static InitialActivationRequest InitialRequest(string paymentId) => new(
         OrgA,
         "ORRBIT-REPAIR",

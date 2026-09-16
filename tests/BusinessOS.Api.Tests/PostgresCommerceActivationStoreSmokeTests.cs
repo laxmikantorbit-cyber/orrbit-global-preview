@@ -41,6 +41,12 @@ public sealed class PostgresCommerceActivationStoreSmokeTests
         Assert.Equal(BusinessOS.Commerce.SubscriptionStatus.Active, state.SubscriptionStatus);
         Assert.Equal(new DateOnly(2027, 9, 13), persisted!.ValidUntil);
         Assert.Equal(10, persisted.Entitlements.WebAdminSeats);
+        var initialTemplate = await store.FindAutoPayRenewalTemplateAsync(
+            TenantA, activation.SubscriptionId);
+        Assert.NotNull(initialTemplate);
+        Assert.Equal(100m, initialTemplate!.Amount);
+        Assert.Equal("INR", initialTemplate.CurrencyCode);
+        Assert.Equal(10, initialTemplate.WebAdminSeats);
 
         var renewal = await store.ActivateRenewalAsync(
             TenantA,
@@ -53,6 +59,12 @@ public sealed class PostgresCommerceActivationStoreSmokeTests
         Assert.Equal(new DateOnly(2028, 9, 13), renewal!.NewValidUntil);
         Assert.Equal(new DateOnly(2028, 9, 13), current!.ValidUntil);
         Assert.Equal(20, current.Entitlements.WebAdminSeats);
+        var renewalTemplate = await store.FindAutoPayRenewalTemplateAsync(
+            TenantA, activation.SubscriptionId);
+        Assert.NotNull(renewalTemplate);
+        Assert.Equal(100m, renewalTemplate!.Amount);
+        Assert.Equal("INR", renewalTemplate.CurrencyCode);
+        Assert.Equal(20, renewalTemplate.WebAdminSeats);
 
         var cancelled = await store.CancelSubscriptionAtPeriodEndAsync(
             TenantA, activation.SubscriptionId);

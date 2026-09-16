@@ -100,6 +100,86 @@ public sealed class AutoPayEndpointTests : IClassFixture<WebApplicationFactory<P
     }
 
     [Fact]
+    public async Task Subscription_Charged_Renews_Exactly_Once()
+    {
+        var client = CreateTenantAClient();
+        var subscriptionId = await ActivateSubscriptionAsync(client);
+        var setupResponse = await client.PostAsync(
+            $"/api/commerce/subscriptions/{subscriptionId}/autopay/setup", null);
+        var setup = await setupResponse.Content.ReadFromJsonAsync<AutoPaySetupResponse>();
+        Assert.NotNull(setup);
+
+        var before = await client.GetFromJsonAsync<EntitlementStatusResponse>(
+            $"/api/commerce/subscriptions/{subscriptionId}/entitlement");
+        Assert.NotNull(before);
+        var body = ChargedWebhookBody(
+            setup!.ProviderSubscriptionId,
+            "evt_autopay_renew_once",
+            "pay_autopay_renew_once",
+            "order_autopay_renew_once",
+            2999900,
+            "INR");
+
+        var firstResponse = await SendSignedWebhookAsync(client, body);
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        var first = await firstResponse.Content
+            .ReadFromJsonAsync<RazorpaySubscriptionWebhookResponse>();
+        Assert.NotNull(first?.RenewalActivation);
+        Assert.Equal("subscription_charge_renewed", first!.Outcome);
+        Assert.False(first.DuplicatePaymentEvent);
+        Assert.True(first.RenewalActivation!.NewValidUntil > before!.ValidUntil);
+
+        var secondResponse = await SendSignedWebhookAsync(client, body);
+        Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+        var second = await secondResponse.Content
+            .ReadFromJsonAsync<RazorpaySubscriptionWebhookResponse>();
+        Assert.NotNull(second?.RenewalActivation);
+        Assert.Equal("subscription_charge_already_renewed", second!.Outcome);
+        Assert.True(second.DuplicatePaymentEvent);
+        Assert.Equal(first.RenewalActivation.NewValidUntil,
+            second.RenewalActivation!.NewValidUntil);
+
+        var after = await client.GetFromJsonAsync<EntitlementStatusResponse>(
+            $"/api/commerce/subscriptions/{subscriptionId}/entitlement");
+        Assert.NotNull(after);
+        Assert.Equal(first.RenewalActivation.NewValidUntil, after!.ValidUntil);
+    }
+
+    [Fact]
+    public async Task Recurring_Charge_Amount_Mismatch_Does_Not_Poison_Retry()
+    {
+        var client = CreateTenantAClient();
+        var subscriptionId = await ActivateSubscriptionAsync(client);
+        var setupResponse = await client.PostAsync(
+            $"/api/commerce/subscriptions/{subscriptionId}/autopay/setup", null);
+        var setup = await setupResponse.Content.ReadFromJsonAsync<AutoPaySetupResponse>();
+        Assert.NotNull(setup);
+        var before = await client.GetFromJsonAsync<EntitlementStatusResponse>(
+            $"/api/commerce/subscriptions/{subscriptionId}/entitlement");
+        Assert.NotNull(before);
+
+        const string eventId = "evt_autopay_amount_guard";
+        const string paymentId = "pay_autopay_amount_guard";
+        const string orderId = "order_autopay_amount_guard";
+        var wrong = ChargedWebhookBody(
+            setup!.ProviderSubscriptionId, eventId, paymentId, orderId, 12345, "INR");
+        var rejected = await SendSignedWebhookAsync(client, wrong);
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+        var unchanged = await client.GetFromJsonAsync<EntitlementStatusResponse>(
+            $"/api/commerce/subscriptions/{subscriptionId}/entitlement");
+        Assert.Equal(before!.ValidUntil, unchanged!.ValidUntil);
+
+        var corrected = ChargedWebhookBody(
+            setup.ProviderSubscriptionId, eventId, paymentId, orderId, 2999900, "INR");
+        var accepted = await SendSignedWebhookAsync(client, corrected);
+        Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+        var result = await accepted.Content
+            .ReadFromJsonAsync<RazorpaySubscriptionWebhookResponse>();
+        Assert.NotNull(result?.RenewalActivation);
+        Assert.False(result!.DuplicatePaymentEvent);
+        Assert.Equal("subscription_charge_renewed", result.Outcome);
+    }
+    [Fact]
     public async Task AutoPay_Setup_Is_Rejected_After_Period_End_Cancellation()
     {
         var client = CreateTenantAClient();
@@ -122,6 +202,56 @@ public sealed class AutoPayEndpointTests : IClassFixture<WebApplicationFactory<P
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    private static async Task<HttpResponseMessage> SendSignedWebhookAsync(
+        HttpClient client,
+        string rawBody)
+    {
+        const string webhookSecret = "autopay-test-webhook-secret";
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post, "/api/payments/webhooks/razorpay");
+        request.Content = new StringContent(
+            rawBody, System.Text.Encoding.UTF8, "application/json");
+        request.Headers.Add("X-Razorpay-Signature",
+            WebhookSignatureVerifier.Compute(rawBody, webhookSecret));
+        return await client.SendAsync(request);
+    }
+
+    private static string ChargedWebhookBody(
+        string providerSubscriptionId,
+        string eventId,
+        string paymentId,
+        string providerOrderId,
+        long amountPaise,
+        string currency) =>
+        JsonSerializer.Serialize(new
+        {
+            id = eventId,
+            @event = "subscription.charged",
+            payload = new
+            {
+                subscription = new
+                {
+                    entity = new
+                    {
+                        id = providerSubscriptionId,
+                        status = "active"
+                    }
+                },
+                payment = new
+                {
+                    entity = new
+                    {
+                        id = paymentId,
+                        order_id = providerOrderId,
+                        amount = amountPaise,
+                        currency,
+                        status = "captured",
+                        captured = true,
+                        created_at = 1789413600
+                    }
+                }
+            }
+        });
     private HttpClient CreateTenantAClient()
     {
         var client = FreeTestingFactory().CreateClient();

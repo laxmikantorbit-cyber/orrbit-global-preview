@@ -149,31 +149,108 @@ public static class PaymentWebhookEndpoints
             binding.CancelAtPeriodEnd,
             cancellationToken);
 
+        var outcome = "subscription_state_recorded";
         bool duplicatePayment = false;
         string? paymentId = null;
+        RenewalResponse? renewalActivation = null;
         if (string.Equals(
             webhook.EventName,
             "subscription.charged",
             StringComparison.OrdinalIgnoreCase))
         {
             var paymentWebhook = RazorpayWebhookParser.Parse(rawBody);
+            var route = await store.FindProviderOrderRouteAsync(
+                RazorpayProvider,
+                paymentWebhook.ProviderOrderId,
+                cancellationToken);
+            if (route is not null &&
+                (route.TenantId != binding.TenantId ||
+                 route.SubscriptionId != binding.SubscriptionId))
+                return Results.BadRequest(new ErrorResponse(
+                    "Recurring charge provider order route does not match AutoPay subscription."));
+
+            var template = await store.FindAutoPayRenewalTemplateAsync(
+                binding.TenantId,
+                binding.SubscriptionId,
+                cancellationToken);
+            if (template is null)
+                return Results.NotFound(new ErrorResponse(
+                    "AutoPay renewal commercial template was not found."));
+
+            var expectedPaise = checked(decimal.ToInt64(template.Amount * 100m));
+            if (paymentWebhook.Message.AmountPaise != expectedPaise ||
+                !string.Equals(paymentWebhook.Message.Currency, template.CurrencyCode,
+                    StringComparison.OrdinalIgnoreCase))
+                return Results.BadRequest(new ErrorResponse(
+                    "Recurring charge amount or currency does not match current commercial terms."));
+
             var paymentResult = await paymentEvents.ProcessAsync(
                 RazorpayProvider,
                 paymentWebhook.Message with { OrderId = paymentWebhook.ProviderOrderId },
                 cancellationToken);
             duplicatePayment = paymentResult.Duplicate;
             paymentId = paymentResult.Payment.PaymentId;
+
+            if (paymentResult.Payment.Status == PaymentStatus.Captured)
+            {
+                if (binding.CancelAtPeriodEnd)
+                    return Results.Conflict(new ErrorResponse(
+                        "Recurring charge arrived after AutoPay cancellation and requires manual reconciliation."));
+
+                if (route is null)
+                {
+                    var checkout = await store.CreateRenewalCheckoutOrderAsync(
+                        binding.TenantId,
+                        binding.SubscriptionId,
+                        new CreateRenewalCheckoutOrderRequest(
+                            template.PlanVersionId,
+                            template.PlanVersionNumber,
+                            template.Amount,
+                            template.CurrencyCode,
+                            template.TermMonths,
+                            template.DesktopDeviceLimit,
+                            template.LocationLimit,
+                            template.WebAdminSeats,
+                            template.FieldStaffSeats,
+                            template.MultiLocationCloud),
+                        cancellationToken);
+                    if (checkout is null)
+                        return Results.NotFound(new ErrorResponse(
+                            "AutoPay renewal subscription was not found."));
+
+                    await store.RecordRazorpayOrderAsync(
+                        binding.TenantId,
+                        checkout.CommerceOrderId,
+                        paymentWebhook.ProviderOrderId,
+                        checkout.ProductCode,
+                        binding.SubscriptionId,
+                        cancellationToken);
+                }
+
+                renewalActivation = await store.ActivateCapturedRenewalOrderAsync(
+                    binding.TenantId,
+                    binding.SubscriptionId,
+                    paymentResult.Payment,
+                    cancellationToken);
+                if (renewalActivation is null)
+                    return Results.NotFound(new ErrorResponse(
+                        "AutoPay renewal order was not found after recurring charge."));
+                outcome = paymentResult.Duplicate
+                    ? "subscription_charge_already_renewed"
+                    : "subscription_charge_renewed";
+            }
         }
 
         return Results.Ok(new RazorpaySubscriptionWebhookResponse(
-            "subscription_state_recorded",
+            outcome,
             duplicatePayment,
             binding.TenantId,
             binding.SubscriptionId,
             webhook.ProviderSubscriptionId,
             webhook.Status,
             paymentId,
-            updated?.AutoRenewEnabled ?? autoRenewEnabled));
+            updated?.AutoRenewEnabled ?? autoRenewEnabled,
+            renewalActivation));
     }
 
     private static string? ValidateRoute(
@@ -213,4 +290,5 @@ public sealed record RazorpaySubscriptionWebhookResponse(
     string ProviderSubscriptionId,
     string ProviderStatus,
     string? PaymentId,
-    bool AutoRenewEnabled);
+    bool AutoRenewEnabled,
+    RenewalResponse? RenewalActivation);

@@ -298,3 +298,16 @@ public sealed record AutoPaySetupResponse(
     long StartAtUnix,
     int TotalCount,
     bool ExistingBinding);
+
+public sealed record AutoPayRenewalTemplate(
+    string ProductCode,
+    Guid PlanVersionId,
+    int PlanVersionNumber,
+    decimal Amount,
+    string CurrencyCode,
+    int TermMonths,
+    int DesktopDeviceLimit,
+    int LocationLimit,
+    int WebAdminSeats,
+    int FieldStaffSeats,
+    bool MultiLocationCloud);
