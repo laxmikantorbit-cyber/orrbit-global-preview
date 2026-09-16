@@ -10,6 +10,7 @@ using BusinessOS.Customers;
 using BusinessOS.Identity;
 using BusinessOS.Licensing;
 using BusinessOS.Payments;
+using BusinessOS.Sales;
 
 const string BusinessOsCorsPolicy = "BusinessOSWebsite";
 
@@ -30,6 +31,7 @@ builder.Services.AddScoped<TenantContext>();
 builder.Services.AddScoped<CustomerStore>();
 builder.Services.AddSingleton<ILeadRepository, InMemoryLeadRepository>();
 builder.Services.AddSingleton<ICrmWorkRepository, InMemoryCrmWorkRepository>();
+builder.Services.AddSingleton<IOpportunityRepository, InMemoryOpportunityRepository>();
 builder.Services.AddSingleton<IOrganisationRepository>(_ => CustomerSeed.CreateRepository());
 builder.Services.AddSingleton<LeaseSigner>();
 builder.Services.AddSingleton<PaymentProcessor>();
@@ -106,6 +108,7 @@ app.MapFreeTestingPaymentEndpoints();
 app.MapFreeTestingPublicCheckoutEndpoints();
 app.MapFreeTestingPublicCrmEndpoints();
 app.MapFreeTestingPublicCrmOperationsEndpoints();
+app.MapFreeTestingPublicCrmSalesEndpoints();
 app.MapFreeTestingCheckoutPageEndpoints();
 app.MapPaymentWebhookEndpoints();
 

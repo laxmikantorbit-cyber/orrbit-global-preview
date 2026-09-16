@@ -7,19 +7,24 @@ import {
   createCrmLead,
   crmDashboard,
   crmWorkSummary,
+  listCrmAccounts,
   listCrmFollowUps,
   listCrmLeads,
+  listCrmOpportunities,
   listCrmTasks,
+  type CrmAccount,
   type CrmDashboard,
   type CrmFollowUp,
   type CrmLead,
+  type CrmOpportunity,
   type CrmTask,
   type CrmWorkSummary,
 } from './crmApi'
 import { CrmLeadDrawer } from './CrmLeadDrawer'
 import { CrmWorkView } from './CrmWorkView'
+import { CrmSalesView } from './CrmSalesView'
 
-type CrmView = 'overview' | 'leads' | 'pipeline' | 'followups' | 'tasks' | 'reports'
+type CrmView = 'overview' | 'leads' | 'pipeline' | 'accounts' | 'opportunities' | 'followups' | 'tasks' | 'reports'
 const statuses = ['New', 'Contacted', 'Qualified', 'Converted', 'Unqualified']
 const statusLabels: Record<string, string> = { New: 'New lead', Contacted: 'Contacted', Qualified: 'Qualified', Converted: 'Converted', Unqualified: 'Unqualified' }
 function initialDashboard(): CrmDashboard {
@@ -42,6 +47,8 @@ export function CrmDemo() {
   const [leads, setLeads] = useState<CrmLead[]>([])
   const [followUps, setFollowUps] = useState<CrmFollowUp[]>([])
   const [tasks, setTasks] = useState<CrmTask[]>([])
+  const [accounts, setAccounts] = useState<CrmAccount[]>([])
+  const [opportunities, setOpportunities] = useState<CrmOpportunity[]>([])
   const [dashboard, setDashboard] = useState<CrmDashboard>(initialDashboard())
   const [workSummary, setWorkSummary] = useState<CrmWorkSummary>(initialWorkSummary())
   const [message, setMessage] = useState('CRM workspace ready')
@@ -77,14 +84,17 @@ export function CrmDemo() {
   async function refresh() {
     setLoading(true)
     try {
-      const [leadResult, dashResult, followResult, taskResult, workResult] = await Promise.all([
+      const [leadResult, dashResult, followResult, taskResult, workResult, accountResult, opportunityResult] = await Promise.all([
         listCrmLeads(), crmDashboard(), listCrmFollowUps(), listCrmTasks(), crmWorkSummary(),
+        listCrmAccounts(), listCrmOpportunities(),
       ])
       setLeads(leadResult.leads)
       setDashboard(dashResult)
       setFollowUps(followResult.followUps)
       setTasks(taskResult.tasks)
       setWorkSummary(workResult)
+      setAccounts(accountResult.accounts)
+      setOpportunities(opportunityResult.opportunities)
       setMessage('Live CRM data refreshed')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
@@ -154,6 +164,8 @@ export function CrmDemo() {
           <button className={view === 'overview' ? 'active' : ''} onClick={() => setView('overview')}><span>⌂</span>Overview</button>
           <button className={view === 'leads' ? 'active' : ''} onClick={() => setView('leads')}><span>◎</span>Leads <b>{dashboard.totalLeads}</b></button>
           <button className={view === 'pipeline' ? 'active' : ''} onClick={() => setView('pipeline')}><span>◇</span>Pipeline</button>
+          <button className={view === 'accounts' ? 'active' : ''} onClick={() => setView('accounts')}><span>A</span>Accounts <b>{accounts.length}</b></button>
+          <button className={view === 'opportunities' ? 'active' : ''} onClick={() => setView('opportunities')}><span>O</span>Opportunities <b>{opportunities.length}</b></button>
           <button className={view === 'followups' ? 'active' : ''} onClick={() => setView('followups')}><span>↻</span>Follow-ups <b>{workSummary.openFollowUps}</b></button>
           <button className={view === 'tasks' ? 'active' : ''} onClick={() => setView('tasks')}><span>✓</span>Tasks <b>{workSummary.openTasks}</b></button>
           <button className={view === 'reports' ? 'active' : ''} onClick={() => setView('reports')}><span>↗</span>Reports</button>
@@ -163,7 +175,7 @@ export function CrmDemo() {
 
       <main className="crm2-main">
         <header className="crm2-topbar">
-          <div><span className="crm2-kicker">CRM COMMAND CENTRE</span><h1>{view === 'overview' ? 'Sales overview' : view === 'followups' ? 'Follow-up centre' : view === 'tasks' ? 'Task centre' : view === 'reports' ? 'Sales reports' : view === 'pipeline' ? 'Sales pipeline' : 'Lead workspace'}</h1></div>
+          <div><span className="crm2-kicker">CRM COMMAND CENTRE</span><h1>{view === 'overview' ? 'Sales overview' : view === 'accounts' ? 'Customer accounts' : view === 'opportunities' ? 'Opportunities' : view === 'followups' ? 'Follow-up centre' : view === 'tasks' ? 'Task centre' : view === 'reports' ? 'Sales reports' : view === 'pipeline' ? 'Sales pipeline' : 'Lead workspace'}</h1></div>
           <div className="crm2-top-actions"><button className="crm2-refresh" disabled={loading} onClick={refresh}>↻ Refresh</button><button className="crm2-primary" onClick={() => setShowAddLead(true)}>＋ Add lead</button></div>
         </header>
         <section className="crm2-statusbar"><div><span className={loading ? 'pulse busy' : 'pulse'} />{message}</div><span>Free staging · in-memory data</span></section>
@@ -230,7 +242,7 @@ export function CrmDemo() {
                       <div><strong>{lead.title}</strong><em>{lead.priority || 'Normal'}</em></div>
                       <span>{lead.contactName || lead.mobileNumber || lead.leadSource || 'Direct lead'}</span>
                       <small>{lead.productInterest || 'No product selected'}</small>
-                      <select value={lead.status} disabled={loading} onClick={(e) => e.stopPropagation()} onChange={(e) => void moveLead(lead.id, e.target.value)}>{statuses.map((item) => <option key={item}>{item}</option>)}</select>
+                      <select value={lead.status} disabled={loading || lead.status === 'Converted'} onClick={(e) => e.stopPropagation()} onChange={(e) => void moveLead(lead.id, e.target.value)}>{statuses.filter((item) => item !== 'Converted' || lead.status === 'Converted').map((item) => <option key={item}>{item}</option>)}</select>
                     </article>
                   ))}
                 </div>
@@ -239,6 +251,9 @@ export function CrmDemo() {
           </section>
         ) : null}
 
+        {view === 'accounts' || view === 'opportunities' ? (
+          <CrmSalesView view={view} accounts={accounts} opportunities={opportunities} busy={loading} refresh={refresh} notify={setMessage} />
+        ) : null}
         {view === 'followups' || view === 'tasks' || view === 'reports' ? (
           <CrmWorkView view={view} leads={leads} followUps={followUps} tasks={tasks} summary={workSummary} dashboard={dashboard} busy={loading} openLead={setSelectedLeadId} completeFollowUp={finishFollowUp} completeTask={finishTask} />
         ) : null}

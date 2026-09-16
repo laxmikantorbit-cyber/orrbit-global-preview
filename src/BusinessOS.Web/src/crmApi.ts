@@ -226,3 +226,111 @@ export async function completeCrmTask(taskId: string) {
   })
   return parseResponse<CrmTask>(response)
 }
+
+export type CrmContact = {
+  id: string
+  name: string
+  email?: string | null
+  phone?: string | null
+  isPrimary: boolean
+}
+
+export type CrmAccount = {
+  id: string
+  name: string
+  legalName?: string | null
+  gstin?: string | null
+  displayCode?: string | null
+  status: string
+  primaryContact?: CrmContact | null
+  contacts: CrmContact[]
+}
+
+export type CrmOpportunity = {
+  id: string
+  accountId: string
+  originatingLeadId?: string | null
+  title: string
+  stage: string
+  estimatedValue: number
+  currencyCode: string
+  probabilityPercent: number
+  expectedCloseDate?: string | null
+  ownerUserId?: string | null
+  lossReason?: string | null
+}
+export async function listCrmAccounts() {
+  const response = await fetch(`${apiBase}/api/testing/public/crm/accounts`)
+  return parseResponse<{ accounts: CrmAccount[] }>(response)
+}
+
+export async function createCrmAccount(input: {
+  name: string
+  legalName?: string
+  gstin?: string
+  displayCode?: string
+  contactName?: string
+  email?: string
+  phone?: string
+}) {
+  const response = await fetch(`${apiBase}/api/testing/public/crm/accounts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmAccount>(response)
+}
+
+export async function addCrmContact(accountId: string, input: {
+  name: string
+  email?: string
+  phone?: string
+  isPrimary?: boolean
+}) {
+  const response = await fetch(`${apiBase}/api/testing/public/crm/accounts/${accountId}/contacts`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  })
+  return parseResponse<CrmAccount>(response)
+}
+export async function listCrmOpportunities() {
+  const response = await fetch(`${apiBase}/api/testing/public/crm/opportunities`)
+  return parseResponse<{ opportunities: CrmOpportunity[] }>(response)
+}
+
+export async function createCrmOpportunity(input: {
+  accountId: string
+  title: string
+  estimatedValue: number
+  currencyCode?: string
+  probabilityPercent?: number
+  expectedCloseDate?: string
+  originatingLeadId?: string
+}) {
+  const response = await fetch(`${apiBase}/api/testing/public/crm/opportunities`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currencyCode: 'INR', probabilityPercent: 50, ...input }),
+  })
+  return parseResponse<CrmOpportunity>(response)
+}
+
+export async function changeCrmOpportunityStage(opportunityId: string, stage: string, reason?: string) {
+  const response = await fetch(`${apiBase}/api/testing/public/crm/opportunities/${opportunityId}/stage`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stage, reason }),
+  })
+  return parseResponse<CrmOpportunity>(response)
+}
+export async function convertCrmLead(leadId: string, input: {
+  accountName?: string
+  opportunityTitle?: string
+  estimatedValue: number
+  currencyCode?: string
+  probabilityPercent?: number
+  expectedCloseDate?: string
+}) {
+  const response = await fetch(`${apiBase}/api/testing/public/crm/leads/${leadId}/convert`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currencyCode: 'INR', probabilityPercent: 60, ...input }),
+  })
+  return parseResponse<{ account: CrmAccount; opportunity: CrmOpportunity }>(response)
+}

@@ -41,7 +41,7 @@ public sealed class Lead
 
     public Guid Id { get; }
     public Guid TenantId { get; }
-    public Guid OrganisationId { get; }
+    public Guid OrganisationId { get; private set; }
     public string Title { get; private set; }
     public string? ContactName { get; private set; }
     public string? MobileNumber { get; private set; }
@@ -89,6 +89,15 @@ public sealed class Lead
     {
         EnsureOpen();
         Attribution = Attribution with { AccountOwnerUserId = ownerUserId };
+        Touch();
+    }
+
+    public void LinkOrganisation(Guid organisationId)
+    {
+        EnsureOpen();
+        if (organisationId == Guid.Empty)
+            throw new ArgumentException("Organisation id is required.", nameof(organisationId));
+        OrganisationId = organisationId;
         Touch();
     }
 

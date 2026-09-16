@@ -6,12 +6,13 @@ import {
   completeCrmTask,
   createCrmFollowUp,
   createCrmTask,
+  convertCrmLead,
   getCrmLeadWorkspace,
   updateCrmLeadProfile,
   type CrmLeadWorkspace,
 } from './crmApi'
 
-type DrawerTab = 'profile' | 'activity' | 'followups' | 'tasks'
+type DrawerTab = 'profile' | 'activity' | 'followups' | 'tasks' | 'convert'
 
 type Props = {
   leadId: string
@@ -51,6 +52,11 @@ export function CrmLeadDrawer({ leadId, onClose, onChanged, notify }: Props) {
   const [taskTitle, setTaskTitle] = useState('')
   const [taskDetails, setTaskDetails] = useState('')
   const [taskPriority, setTaskPriority] = useState('Normal')
+  const [accountName, setAccountName] = useState('')
+  const [opportunityTitle, setOpportunityTitle] = useState('')
+  const [estimatedValue, setEstimatedValue] = useState('29999')
+  const [probability, setProbability] = useState('60')
+  const [expectedCloseDate, setExpectedCloseDate] = useState('')
   async function load() {
     setBusy(true)
     try {
@@ -62,6 +68,8 @@ export function CrmLeadDrawer({ leadId, onClose, onChanged, notify }: Props) {
       setEmail(data.lead.email || '')
       setProduct(data.lead.productInterest || '')
       setNotes(data.lead.notes || '')
+      setAccountName((current) => current || data.lead.title)
+      setOpportunityTitle((current) => current || (data.lead.productInterest || data.lead.title) + ' Deal')
     } catch (error) {
       notify(error instanceof Error ? error.message : String(error))
     } finally {
@@ -104,7 +112,7 @@ export function CrmLeadDrawer({ leadId, onClose, onChanged, notify }: Props) {
         </div>
 
         <div className="crm2-tabs">
-          {(['profile', 'activity', 'followups', 'tasks'] as DrawerTab[]).map((item) => (
+          {(['profile', 'activity', 'followups', 'tasks', 'convert'] as DrawerTab[]).map((item) => (
             <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item}</button>
           ))}
         </div>
@@ -193,6 +201,29 @@ export function CrmLeadDrawer({ leadId, onClose, onChanged, notify }: Props) {
                 </article>
               ))}
             </div>
+          </div>
+        ) : null}
+
+        {tab === 'convert' ? (
+          <div className="crm2-form-section">
+            {lead.status === 'Converted' ? (
+              <div className="crm2-converted-card"><strong>Converted successfully</strong><span>This lead is linked to a customer account and its sales opportunity.</span></div>
+            ) : (
+              <>
+                <div className="crm2-conversion-note"><strong>Lead → Customer + Opportunity</strong><span>This action creates the customer account, copies the lead contact, creates a deal and then marks the lead Converted.</span></div>
+                <div className="crm2-form-grid">
+                  <label>Customer account name<input value={accountName} onChange={(e) => setAccountName(e.target.value)} /></label>
+                  <label>Opportunity title<input value={opportunityTitle} onChange={(e) => setOpportunityTitle(e.target.value)} /></label>
+                  <label>Estimated value<input type="number" min="0" value={estimatedValue} onChange={(e) => setEstimatedValue(e.target.value)} /></label>
+                  <label>Probability %<input type="number" min="0" max="100" value={probability} onChange={(e) => setProbability(e.target.value)} /></label>
+                  <label>Expected close date<input type="date" value={expectedCloseDate} onChange={(e) => setExpectedCloseDate(e.target.value)} /></label>
+                </div>
+                <div className="crm2-drawer-actions"><button className="crm2-primary" disabled={busy || !accountName.trim() || !opportunityTitle.trim() || Number(estimatedValue) < 0} onClick={() => void run(
+                  () => convertCrmLead(lead.id, { accountName: accountName.trim(), opportunityTitle: opportunityTitle.trim(), estimatedValue: Number(estimatedValue || 0), probabilityPercent: Number(probability || 0), expectedCloseDate: expectedCloseDate || undefined }),
+                  'Lead converted to customer and opportunity',
+                )}>{busy ? 'Converting…' : 'Convert lead'}</button></div>
+              </>
+            )}
           </div>
         ) : null}
       </section>

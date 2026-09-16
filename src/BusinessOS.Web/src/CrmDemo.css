@@ -304,3 +304,70 @@
   .crm2-rich-row .crm2-more { grid-column:2; grid-row:1 / span 5; }
   .crm2-funnel-report > div { grid-template-columns:74px 1fr 28px; }
 }
+
+/* Customer accounts and opportunities */
+.crm2-sales-module { max-width:1450px; margin:18px auto 0; }
+.crm2-sales-module > .crm2-module-head { padding:22px; background:#fff; border:1px solid var(--line); border-radius:16px; }
+.crm2-module-head.compact { margin-top:22px; padding:0; }
+.crm2-module-head h3 { margin:4px 0 0; color:#2e3a56; font-size:18px; }
+.crm2-account-grid { margin-top:14px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.crm2-account-card { min-width:0; padding:16px; display:grid; grid-template-columns:42px minmax(0,1fr) 28px; gap:12px; align-items:center; background:#fff; border:1px solid var(--line); border-radius:14px; cursor:pointer; }
+.crm2-account-card:hover { border-color:#cec8fa; box-shadow:0 9px 24px rgba(37,44,75,.05); }
+.crm2-account-avatar { width:42px; height:42px; display:grid; place-items:center; color:#5a4fd0; background:#efedff; border-radius:12px; font-weight:900; }
+.crm2-account-body { min-width:0; display:grid; gap:4px; }
+.crm2-account-body > div { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.crm2-account-body strong { overflow:hidden; color:#35415d; font-size:13px; text-overflow:ellipsis; white-space:nowrap; }
+.crm2-account-body em { flex:0 0 auto; padding:4px 7px; color:#287d59; background:#e9f8f0; border-radius:999px; font-style:normal; font-size:8px; font-weight:800; }
+.crm2-account-body span { color:#6f7b95; font-size:11px; }
+.crm2-account-body small { overflow:hidden; color:#9aa3b6; font-size:9px; text-overflow:ellipsis; white-space:nowrap; }
+.crm2-empty-card { min-height:150px; padding:30px; display:grid; place-items:center; align-content:center; gap:7px; color:#8d98ae; background:#fff; border:1px dashed #dfe3eb; border-radius:14px; text-align:center; }
+.crm2-empty-card strong { color:#52607c; font-size:13px; }
+.crm2-empty-card span { max-width:360px; font-size:11px; line-height:1.5; }
+.crm2-contact-list { margin-top:10px; display:grid; gap:8px; }
+.crm2-contact-list article { padding:12px 13px; display:flex; align-items:center; justify-content:space-between; gap:12px; background:#fafbfc; border:1px solid #edf0f4; border-radius:10px; }
+.crm2-contact-list article > div { min-width:0; display:grid; gap:3px; }
+.crm2-contact-list strong { color:#38445f; font-size:12px; }
+.crm2-contact-list span { overflow:hidden; color:#8b96aa; font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+.crm2-contact-list em { padding:4px 7px; color:#5d51d2; background:#efedff; border-radius:999px; font-style:normal; font-size:8px; font-weight:800; }
+.crm2-inline-create { margin-top:14px; display:grid; grid-template-columns:1fr auto; gap:8px; }
+.crm2-inline-create input { min-width:0; margin:0; padding:10px 12px; color:#35415d; background:#fafbfc; border:1px solid #e0e4ec; border-radius:9px; font:inherit; }
+.crm2-inline-create button { padding:10px 13px; }
+.crm2-deal-summary { margin-top:14px; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+.crm2-deal-summary article { padding:16px; display:grid; gap:8px; background:#fff; border:1px solid var(--line); border-radius:13px; }
+.crm2-deal-summary span { color:#7d89a2; font-size:10px; font-weight:750; }
+.crm2-deal-summary strong { color:#2f3b57; font-size:22px; letter-spacing:-.035em; }
+.crm2-opportunity-table { margin-top:12px; overflow:hidden; background:#fff; border:1px solid var(--line); border-radius:15px; }
+.crm2-opportunity-head, .crm2-opportunity-table > article { display:grid; grid-template-columns:minmax(220px,1.3fr) minmax(160px,1fr) 130px 90px 145px; gap:12px; align-items:center; }
+.crm2-opportunity-head { padding:11px 16px; color:#9aa3b5; background:#fafbfc; border-bottom:1px solid #edf0f4; font-size:9px; font-weight:850; letter-spacing:.08em; text-transform:uppercase; }
+.crm2-opportunity-table > article { min-height:68px; padding:11px 16px; border-bottom:1px solid #f0f2f6; }
+.crm2-opportunity-table > article:last-child { border-bottom:0; }
+.crm2-opportunity-table article > div { min-width:0; display:grid; gap:3px; }
+.crm2-opportunity-table strong { overflow:hidden; color:#35415d; font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
+.crm2-opportunity-table small, .crm2-opportunity-table span { color:#7d89a1; font-size:10px; }
+.crm2-opportunity-table select { width:100%; margin:0; padding:8px; color:#52607b; background:#f8f9fb; border:1px solid #e1e5ec; border-radius:8px; font-size:10px; }
+.crm2-conversion-note, .crm2-converted-card { padding:15px; display:grid; gap:5px; background:#f7f6ff; border:1px solid #e4e0ff; border-radius:11px; }
+.crm2-conversion-note strong, .crm2-converted-card strong { color:#5549c5; font-size:12px; }
+.crm2-conversion-note span, .crm2-converted-card span { color:#7f89a0; font-size:10px; line-height:1.5; }
+.crm2-converted-card { background:#effaf4; border-color:#d4efdf; }
+.crm2-converted-card strong { color:#267653; }
+.crm2-converted-card span { color:#648373; }
+
+@media (max-width:1180px) {
+  .crm2-account-grid { grid-template-columns:1fr 1fr; }
+  .crm2-opportunity-head, .crm2-opportunity-table > article { grid-template-columns:minmax(200px,1.3fr) minmax(140px,1fr) 115px 130px; }
+  .crm2-opportunity-head > span:nth-child(4), .crm2-opportunity-table > article > span:nth-child(4) { display:none; }
+}
+@media (max-width:860px) {
+  .crm2-deal-summary { grid-template-columns:1fr 1fr; }
+  .crm2-account-grid { grid-template-columns:1fr; }
+  .crm2-opportunity-head { display:none; }
+  .crm2-opportunity-table > article { grid-template-columns:minmax(0,1fr) 130px; gap:6px 10px; }
+  .crm2-opportunity-table > article > span { grid-column:1; }
+  .crm2-opportunity-table > article > select { grid-column:2; grid-row:1 / span 4; }
+}
+@media (max-width:640px) {
+  .crm2-deal-summary { grid-template-columns:1fr; }
+  .crm2-inline-create { grid-template-columns:1fr; }
+  .crm2-opportunity-table > article { grid-template-columns:1fr; }
+  .crm2-opportunity-table > article > select { grid-column:1; grid-row:auto; }
+}

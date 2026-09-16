@@ -13,5 +13,6 @@
     <ProjectReference Include="..\BusinessOS.Crm\BusinessOS.Crm.csproj" />
     <ProjectReference Include="..\BusinessOS.Customers\BusinessOS.Customers.csproj" />
     <ProjectReference Include="..\BusinessOS.Identity\BusinessOS.Identity.csproj" />
+    <ProjectReference Include="..\BusinessOS.Sales\BusinessOS.Sales.csproj" />
   </ItemGroup>
 </Project>
