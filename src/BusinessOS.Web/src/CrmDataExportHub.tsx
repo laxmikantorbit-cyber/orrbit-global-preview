@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './CrmDemo.css'
 import './CrmAdvancedHub.css'
 import {
+  getCrmSession,
   listCrmAccounts,
   listCrmFollowUps,
   listCrmLeads,
@@ -69,9 +70,19 @@ export function CrmDataExportHub() {
   const [dataset, setDataset] = useState<Dataset>('leads')
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState('CSV / Excel export ready')
+  const [canExport, setCanExport] = useState(false)
+  const [message, setMessage] = useState('Checking export permission...')
+
+  useEffect(() => {
+    void getCrmSession().then(session => {
+      const allowed = session.member.permissions.includes('ExportData')
+      setCanExport(allowed)
+      setMessage(allowed ? 'CSV / Excel export ready' : 'ExportData permission is required.')
+    }).catch(error => setMessage(error instanceof Error ? error.message : String(error)))
+  }, [])
 
   async function run(format: 'csv' | 'excel') {
+    if (!canExport) { setMessage('ExportData permission is required.'); return }
     setBusy(true)
     try {
       const rows = filtered(await load(dataset), query)
@@ -83,13 +94,13 @@ export function CrmDataExportHub() {
   }
 
   return <div className="crm2-app crm-advanced-app">
-    <aside className="crm2-sidebar"><div className="crm2-brand"><div className="crm2-brand-mark">o</div><div><strong>oRRbit</strong><span>BusinessOS</span></div></div><nav className="crm2-nav"><a className="crm-advanced-back" href="/crm/manage"><span>←</span>CRM Management</a><a className="active" href="/crm/export"><span>⇩</span>Data Export</a></nav><div className="crm2-sidebar-foot"><strong>DATA PORTABILITY</strong><small>CSV · Excel · filtered export</small></div></aside>
+    <aside className="crm2-sidebar"><div className="crm2-brand"><div className="crm2-brand-mark">o</div><div><strong>oRRbit</strong><span>BusinessOS</span></div></div><nav className="crm2-nav"><a className="crm-advanced-back" href="/crm/manage"><span>←</span>CRM Management</a><a className="active" href="/crm/export"><span>⇩</span>Data Export</a></nav><div className="crm2-sidebar-foot"><strong>DATA PORTABILITY</strong><small>CSV · Excel · filtered export · permission controlled</small></div></aside>
     <main className="crm2-main">
       <header className="crm2-topbar"><div><span className="crm2-kicker">CRM IMPORT / EXPORT</span><h1>Business data export</h1></div></header>
       <section className="crm2-statusbar"><div><span className={busy ? 'pulse busy' : 'pulse'} />{message}</div><span>Role-scoped data only</span></section>
       <section className="crm-advanced-grid">
         <article className="crm2-table-card"><div className="crm2-section-head"><div><span>DATASET</span><h2>Select records</h2></div></div><div className="crm-advanced-form stacked"><select value={dataset} onChange={e => setDataset(e.target.value as Dataset)}><option value="leads">Leads</option><option value="accounts">Accounts / Customers</option><option value="opportunities">Opportunities / Deals</option><option value="followups">Follow-ups</option><option value="tasks">Tasks</option></select><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Optional filter: status, owner, product, name..."/><small>Filter matches any visible field before export.</small></div></article>
-        <article className="crm2-table-card"><div className="crm2-section-head"><div><span>FORMAT</span><h2>Download export</h2></div></div><div className="crm-advanced-form stacked"><button className="crm2-primary" disabled={busy} onClick={() => void run('csv')}>Export CSV</button><button className="crm2-primary" disabled={busy} onClick={() => void run('excel')}>Export Excel (.xls)</button><small>Excel export uses a spreadsheet-compatible workbook table and opens directly in Microsoft Excel.</small></div></article>
+        <article className="crm2-table-card"><div className="crm2-section-head"><div><span>FORMAT</span><h2>Download export</h2></div></div><div className="crm-advanced-form stacked"><button className="crm2-primary" disabled={busy || !canExport} onClick={() => void run('csv')}>Export CSV</button><button className="crm2-primary" disabled={busy || !canExport} onClick={() => void run('excel')}>Export Excel (.xls)</button><small>Requires ExportData permission. Excel export opens directly in Microsoft Excel.</small></div></article>
       </section>
     </main>
   </div>
