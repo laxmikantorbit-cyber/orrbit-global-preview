@@ -1,9 +1,9 @@
 # Commerce Foundation Verification
 
-Date: 2026-09-15
+Date: 2026-09-16
 Machine: DESKTOP-FOFADB8
-Runtime: PostgreSQL 18.6, isolated user-space cluster on 127.0.0.1:55432
-Database: `businessos_commerce`; latest isolated proof database: `businessos_commerce_iso_20260914_1850`; latest API persistence smoke database: `businessos_commerce_api_pg_20260914_2226`
+Runtime: local PostgreSQL proof environments plus Neon PostgreSQL free-staging on the dedicated BusinessOS Commerce project.
+Database: local Commerce proof databases plus Neon `businessos`; the Render secondary API uses Postgres while the primary free-staging API remains InMemory.
 
 ## Scope
 
@@ -11,16 +11,20 @@ Verified the Quote -> Order -> Subscription foundation and Subscription Renewal 
 
 ## Application verification
 
-- Full solution regression: 129/129 tests passed.
+- Full solution regression: 207/207 tests passed.
 - Commerce tests: 13/13 passed.
 - Application activation bridge tests: 3/3 passed.
-- API activation/checkout/webhook/Razorpay order/provider-route/checkout-success/reconciliation/payment-ledger/admin-status/manual-reconcile tests: 29/29 passed.
-- Tenancy/authentication/role-authorization/readiness tests: 12/12 passed.
+- API tests: 51/51 passed, including persistence, checkout, webhook, reconciliation, payment-ledger and admin flows.
+- CRM tests: 19/19 passed after the parallel role/ownership/runtime-role persistence hardening.
+- Tenancy/authentication/role-authorization/readiness/concurrency tests: 56/56 passed.
 - PostgreSQL API persistence smoke: initial activation, lookup, renewal extension and cross-tenant read block passed.
 - PostgreSQL checkout smoke: checkout order -> Razorpay order id persisted -> captured payment -> subscription/license activation passed.
 - PostgreSQL renewal checkout smoke: renewal checkout order -> Razorpay order id persisted -> captured payment -> same subscription extension passed.
 - PostgreSQL webhook activation smoke: pending order -> captured payment -> subscription/license activation passed.
 - PostgreSQL webhook renewal smoke: pending renewal order -> captured payment -> same subscription extension passed.
+- Neon free-staging smoke: subscription, renewal, provider route, payment and payment-event rows persisted and survived redeploy.
+- Restricted runtime-role proof: effective database role `businessos_rls`, `BYPASSRLS=false`, with Tenant A/Tenant B isolation verified.
+- Provider-order concurrency proof: simultaneous recurring webhook, ordinary payment webhook, webhook-vs-checkout-reconcile, and webhook-vs-admin-reconcile paths converge on one activation/renewal and one payment event.
 - Release build: 0 warnings, 0 errors.
 - Validity starts from captured payment date, not activation date.
 - Quote commercial snapshot is carried into Order and Subscription without rereading mutable plan pricing.
@@ -166,6 +170,9 @@ Payment webhook and reconciliation processing now uses `IPaymentEventStore`:
 - Duplicate event replay after a new store instance returns the existing payment instead of creating a second payment.
 - Pending payment records can be upgraded to captured when Razorpay later confirms capture.
 - Reusing the same provider payment id for a different provider order is rejected.
+- A provider-order concurrency gate serializes the complete payment-processing/activation critical section for webhook, checkout reconciliation, admin reconciliation and authenticated FreeTesting capture flows targeting the same provider order.
+- InMemory uses a keyed semaphore; PostgreSQL uses a session-level advisory lock keyed by provider + provider order id and held until activation/reconciliation completes.
+- Concurrent integration tests prove duplicate webhook delivery and webhook-vs-checkout-reconcile converge on one activation/subscription with exactly one non-duplicate payment event.
 - Local fallback keeps the existing in-memory `PaymentProcessor` behavior for development.
 
 ## Commerce admin status verification
@@ -219,14 +226,15 @@ Verification completed:
 
 ## Free staging readiness mode
 
-The Render-hosted testing deployment can run as `Staging` with `BusinessOS:DeploymentMode=FreeTesting`, `BusinessOS:StorageMode=InMemory`, and `BusinessOS:Payments:Mode=RazorpayTestPending`.
+Two Render-hosted `Staging` / `FreeTesting` modes are verified:
+- Primary API: `BusinessOS:StorageMode=InMemory` with `BusinessOS:Payments:Mode=RazorpayTestPending` for lightweight public UI testing.
+- Secondary API: `BusinessOS:StorageMode=Postgres` backed by the dedicated Neon BusinessOS database, with `BusinessOS:Storage:RuntimeRole=businessos_rls` for restricted RLS-enforced runtime access.
 
-This mode is intentionally for development and final testing before paid production migration.
-It does not require paid PostgreSQL or live Razorpay secrets, and `/health/ready` returns OK only for the current non-production testing mode.
+This is intentionally for development and final testing before paid production migration. Live Razorpay credentials are not required. When `StorageMode=Postgres`, `/health/ready` now requires `ConnectionStrings:Commerce`; a Postgres-labelled deployment cannot silently fall back to InMemory while reporting ready.
 
-Production readiness remains strict: when hosted as `Production`, the API still requires Commerce and Identity connection strings, Razorpay key id, Razorpay key secret, Razorpay webhook secret, and configured bearer tokens.
+Production readiness remains strict: when hosted as `Production`, the API still requires Commerce and Identity connection strings, Razorpay key id, Razorpay key secret, Razorpay webhook secret, and configured bearer tokens. FreeTesting-only smoke endpoints stay disabled in Production, and the Postgres commerce smoke additionally requires the explicit `BusinessOS:Testing:EnablePostgresSmoke=true` kill-switch.
 
-Verified by `Staging_FreeTesting_Readiness_Returns_Ok_Without_Paid_Db_Or_Live_Razorpay` plus the existing production missing-config and unsafe-POC checks.
+Verified by the FreeTesting InMemory/Postgres readiness tests, missing-Commerce-connection regression, production missing-config/unsafe-POC checks, and live Neon persistence/redeploy proof.
 
 ## Free staging Razorpay order simulation
 
@@ -236,7 +244,7 @@ FreeTesting checkout support added for staging development without live Razorpay
 - The checkout response uses public key id `rzp_test_free_testing` only when no configured Razorpay key id exists.
 - Production never uses this simulator, even if the payment mode flag is accidentally set.
 - Regression tests verify both staging simulator behavior and production strictness.
-- The free-staging smoke script now checks health, readiness, simulated checkout, activation, subscription lookup and admin status.
+- The reusable free-staging smoke script checks health, readiness, simulated checkout, activation, subscription lookup and admin status, and accepts `-ExpectedStorageMode InMemory|Postgres` so the same checks can target either staging API.
 
 ## FreeTesting payment capture simulator verification
 

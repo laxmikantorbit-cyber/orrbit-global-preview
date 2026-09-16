@@ -1,7 +1,9 @@
 param(
     [string]$ApiBaseUrl = "https://businessos-commerce-api-live.onrender.com",
     [Parameter(Mandatory = $true)]
-    [string]$BearerToken
+    [string]$BearerToken,
+    [ValidateSet("InMemory", "Postgres")]
+    [string]$ExpectedStorageMode = "InMemory"
 )
 
 $ErrorActionPreference = "Stop"
@@ -30,7 +32,7 @@ Assert-StatusCode $ready 200 "Readiness"
 $readyJson = $ready.Content | ConvertFrom-Json
 if ($readyJson.ready -ne $true) { throw "Readiness is not true: $($ready.Content)" }
 if ($readyJson.deploymentMode -ne "FreeTesting") { throw "Unexpected deployment mode: $($ready.Content)" }
-if ($readyJson.storageMode -ne "InMemory") { throw "Unexpected storage mode: $($ready.Content)" }
+if ($readyJson.storageMode -ne $ExpectedStorageMode) { throw "Unexpected storage mode. Expected $ExpectedStorageMode. Body: $($ready.Content)" }
 if ($readyJson.paymentsMode -ne "RazorpayTestPending") { throw "Unexpected payments mode: $($ready.Content)" }
 Write-Host "PASS readiness"
 
