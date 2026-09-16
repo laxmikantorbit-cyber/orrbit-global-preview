@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS businessos_crm.opportunities (
     originating_lead_id uuid NULL,
     owner_user_id uuid NULL,
     title text NOT NULL,
+    product_service text NULL,
     stage integer NOT NULL,
     estimated_value numeric(18,2) NOT NULL,
     currency_code varchar(3) NOT NULL,
@@ -99,6 +100,8 @@ CREATE TABLE IF NOT EXISTS businessos_crm.opportunities (
     expected_close_date date NULL,
     loss_reason text NULL
 );
+ALTER TABLE businessos_crm.opportunities
+    ADD COLUMN IF NOT EXISTS product_service text NULL;
 CREATE INDEX IF NOT EXISTS ix_businessos_crm_opportunities_tenant
     ON businessos_crm.opportunities(tenant_id, stage);
 
