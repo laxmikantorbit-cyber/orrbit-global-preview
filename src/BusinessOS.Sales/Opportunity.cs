@@ -9,7 +9,8 @@ public sealed class Opportunity
         string title,
         OpportunityForecast forecast,
         Guid? originatingLeadId = null,
-        Guid? ownerUserId = null)
+        Guid? ownerUserId = null,
+        string? productService = null)
     {
         if (id == Guid.Empty) throw new ArgumentException("Opportunity id is required.", nameof(id));
         if (tenantId == Guid.Empty) throw new ArgumentException("Tenant id is required.", nameof(tenantId));
@@ -24,6 +25,7 @@ public sealed class Opportunity
         Forecast = Normalize(forecast);
         OriginatingLeadId = originatingLeadId;
         OwnerUserId = ownerUserId;
+        ProductService = Clean(productService);
         Stage = OpportunityStage.Discovery;
     }
 
@@ -33,6 +35,7 @@ public sealed class Opportunity
     public Guid? OriginatingLeadId { get; }
     public Guid? OwnerUserId { get; private set; }
     public string Title { get; private set; }
+    public string? ProductService { get; private set; }
     public OpportunityStage Stage { get; private set; }
     public OpportunityForecast Forecast { get; private set; }
     public string? LossReason { get; private set; }
@@ -53,7 +56,7 @@ public sealed class Opportunity
         Forecast = Normalize(forecast);
     }
 
-    public void UpdateDetails(string title, OpportunityForecast forecast, Guid? ownerUserId)
+    public void UpdateDetails(string title, OpportunityForecast forecast, Guid? ownerUserId, string? productService = null)
     {
         EnsureOpen();
         if (string.IsNullOrWhiteSpace(title)) throw new ArgumentException("Opportunity title is required.", nameof(title));
@@ -61,12 +64,19 @@ public sealed class Opportunity
         Title = title.Trim();
         Forecast = Normalize(forecast);
         OwnerUserId = ownerUserId;
+        ProductService = Clean(productService);
     }
 
     public void AssignOwner(Guid? ownerUserId)
     {
         EnsureOpen();
         OwnerUserId = ownerUserId;
+    }
+
+    public void SetProductService(string? productService)
+    {
+        EnsureOpen();
+        ProductService = Clean(productService);
     }
 
     public void MarkWon()
@@ -104,4 +114,7 @@ public sealed class Opportunity
 
     private static OpportunityForecast Normalize(OpportunityForecast forecast) =>
         forecast with { CurrencyCode = forecast.CurrencyCode.Trim().ToUpperInvariant() };
+
+    private static string? Clean(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
