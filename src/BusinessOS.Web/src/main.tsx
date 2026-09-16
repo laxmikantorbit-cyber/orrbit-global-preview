@@ -5,6 +5,7 @@ import App from './App.tsx'
 import { CrmAdvancedHub } from './CrmAdvancedHub.tsx'
 import { CrmManagementHub } from './CrmManagementHub.tsx'
 import { CrmDataMaintenanceHub } from './CrmDataMaintenanceHub.tsx'
+import { CrmPipelineBoard } from './CrmPipelineBoard.tsx'
 
 const path = window.location.pathname
 const advancedLinkStyle = {
@@ -23,16 +24,23 @@ const maintenanceLinkStyle = {
   bottom: '110px',
   background: '#047857',
 } as const
+const pipelineLinkStyle = {
+  ...advancedLinkStyle,
+  bottom: '156px',
+  background: '#7c3aed',
+} as const
 
-const content = path === '/crm/maintenance'
-  ? <CrmDataMaintenanceHub />
-  : path === '/crm/manage'
-    ? <CrmManagementHub />
-    : path === '/crm/advanced'
-      ? <><CrmAdvancedHub /><a href="/crm/manage" style={managementLinkStyle}>CRM Settings & Audit →</a><a href="/crm/maintenance" style={maintenanceLinkStyle}>Data Maintenance →</a></>
-      : path === '/crm'
-        ? <><App /><a href="/crm/advanced" style={advancedLinkStyle}>Advanced CRM →</a><a href="/crm/manage" style={managementLinkStyle}>CRM Settings →</a><a href="/crm/maintenance" style={maintenanceLinkStyle}>Data Maintenance →</a></>
-        : <App />
+const content = path === '/crm/pipeline-board'
+  ? <CrmPipelineBoard />
+  : path === '/crm/maintenance'
+    ? <CrmDataMaintenanceHub />
+    : path === '/crm/manage'
+      ? <CrmManagementHub />
+      : path === '/crm/advanced'
+        ? <><CrmAdvancedHub /><a href="/crm/manage" style={managementLinkStyle}>CRM Settings & Audit →</a><a href="/crm/maintenance" style={maintenanceLinkStyle}>Data Maintenance →</a><a href="/crm/pipeline-board" style={pipelineLinkStyle}>Drag Pipeline →</a></>
+        : path === '/crm'
+          ? <><App /><a href="/crm/advanced" style={advancedLinkStyle}>Advanced CRM →</a><a href="/crm/manage" style={managementLinkStyle}>CRM Settings →</a><a href="/crm/maintenance" style={maintenanceLinkStyle}>Data Maintenance →</a><a href="/crm/pipeline-board" style={pipelineLinkStyle}>Drag Pipeline →</a></>
+          : <App />
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
