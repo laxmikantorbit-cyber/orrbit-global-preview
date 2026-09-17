@@ -21,6 +21,7 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
     private readonly Dictionary<(Guid TenantId, Guid SubscriptionId), LicenseActivationCodeResponse> _activationCodes = [];
     private readonly Dictionary<string, DesktopActivationRoute> _activationCodeIndex = [];
     private readonly Dictionary<(Guid TenantId, Guid SubscriptionId, string DeviceFingerprint), DeviceMetadata> _deviceMetadata = [];
+    private readonly Dictionary<(Guid TenantId, Guid OrderId), CommerceBillingSource> _billingOrders = [];
 
     public InMemoryCommerceActivationStore(
         PaymentSubscriptionActivationService activationService,
@@ -57,6 +58,19 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
             return Task.FromResult(new CommerceAdminSnapshot(
                 tenantId, DateTimeOffset.UtcNow,
                 pendingOrders, activations, renewals));
+        }
+    }
+
+    public Task<CommerceBillingSource?> FindOrderBillingSourceAsync(
+        Guid tenantId,
+        Guid orderId,
+        CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            return Task.FromResult(_billingOrders.TryGetValue((tenantId, orderId), out var source)
+                ? source
+                : null);
         }
     }
 
@@ -558,6 +572,8 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
 
         StoreActivation(tenantId, activation, request.ProductCode);
         StoreCommercialSnapshot(tenantId, activation.Subscription.Id, snapshot);
+        StoreBillingSource(ToBillingSource(
+            order, activation.Subscription.Id, request.ProductCode, isRenewal: false));
         return Task.FromResult(ToResponse(tenantId, activation, request.ProductCode));
     }
 
@@ -605,6 +621,8 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
 
         var response = ToRenewalResponse(tenantId, result);
         StoreCommercialSnapshot(tenantId, subscriptionId, snapshot);
+        StoreBillingSource(ToBillingSource(
+            order, subscriptionId, activation.ProductCode, isRenewal: true));
         return Task.FromResult<RenewalResponse?>(response);
     }
 
@@ -638,6 +656,8 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
                 _signer);
             StoreActivationUnsafe(tenantId, activation, pending.ProductCode);
             _subscriptionCommercialSnapshots[(tenantId, activation.Subscription.Id)] = pending.Order.Snapshot;
+            _billingOrders[(tenantId, orderId)] = ToBillingSource(
+                pending.Order, activation.Subscription.Id, pending.ProductCode, isRenewal: false);
             _pendingOrders.Remove((tenantId, orderId));
             return Task.FromResult<ActivationResponse?>(ToResponse(tenantId, activation, pending.ProductCode));
         }
@@ -673,9 +693,38 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
             var response = ToRenewalResponse(tenantId, result);
             _renewalsByOrder[(tenantId, orderId)] = response;
             _subscriptionCommercialSnapshots[(tenantId, subscriptionId)] = pending.Order.Snapshot;
+            _billingOrders[(tenantId, orderId)] = ToBillingSource(
+                pending.Order, subscriptionId, activation.ProductCode, isRenewal: true);
             _pendingOrders.Remove((tenantId, orderId));
             return Task.FromResult<RenewalResponse?>(response);
         }
+    }
+
+    private void StoreBillingSource(CommerceBillingSource source)
+    {
+        lock (_gate)
+            _billingOrders[(source.TenantId, source.OrderId)] = source;
+    }
+
+    private static CommerceBillingSource ToBillingSource(
+        Order order,
+        Guid subscriptionId,
+        string productCode,
+        bool isRenewal)
+    {
+        if (string.IsNullOrWhiteSpace(order.PaymentId) || order.PaidAtUtc is null)
+            throw new InvalidOperationException("Paid order is required for billing.");
+        return new CommerceBillingSource(
+            order.TenantId,
+            order.OrganisationId,
+            order.Id,
+            subscriptionId,
+            productCode.Trim(),
+            order.Snapshot.Billing.Amount,
+            order.Snapshot.Billing.CurrencyCode,
+            order.PaymentId,
+            order.PaidAtUtc.Value,
+            isRenewal);
     }
 
     private static Order CreatePendingOrder(

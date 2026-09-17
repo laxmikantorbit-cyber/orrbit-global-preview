@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { getAutoPayStatus, getEntitlement, getSubscription } from './businessosApi'
+import { createInvoice, getBillingReceipt, listBillingHistory, type BillingInvoice } from './billingApi'
 import {
   getActivationCode, getAdminStatus, getDevices, reconcileOrder,
   replaceDevice, revokeDevice, type CommerceAdminStatus, type DeviceInventory,
@@ -15,6 +16,9 @@ export function BusinessOSAdminHub() {
   const [entitlement, setEntitlement] = useState<Record<string, unknown> | null>(null)
   const [autopay, setAutopay] = useState<Record<string, unknown> | null>(null)
   const [activationCode, setActivationCode] = useState('')
+  const [billing, setBilling] = useState<BillingInvoice[]>([])
+  const [billingOrderId, setBillingOrderId] = useState('')
+  const [receiptText, setReceiptText] = useState('')
   const [replacementFingerprint, setReplacementFingerprint] = useState('')
   const [replacementName, setReplacementName] = useState('')
   const [replacementVersion, setReplacementVersion] = useState('')
@@ -47,6 +51,7 @@ export function BusinessOSAdminHub() {
   const loadAll = () => run(async () => {
     setStatus(await getAdminStatus(token))
     await loadSubscription()
+    setBilling(await listBillingHistory(token, subscriptionId ? { subscriptionId } : { take: 50 }))
   }, 'Control centre refreshed.')
 
   const revoke = (fingerprint: string) => run(async () => {
@@ -70,6 +75,16 @@ export function BusinessOSAdminHub() {
     setStatus(await getAdminStatus(token))
     await loadSubscription()
   }, 'Reconciliation completed.')
+
+  const generateInvoice = () => run(async () => {
+    if (!billingOrderId.trim()) throw new Error('Commerce order ID is required.')
+    await createInvoice(token, billingOrderId.trim())
+    setBilling(await listBillingHistory(token, subscriptionId ? { subscriptionId } : { take: 50 }))
+  }, 'Invoice generated / already available.')
+
+  const showReceipt = (invoiceId: string) => run(async () => {
+    setReceiptText(JSON.stringify(await getBillingReceipt(token, invoiceId), null, 2))
+  }, 'Receipt loaded.')
 
   return <main className="bos-shell">
     <header><p className="eyebrow">oRRbit.BusinessOS</p><h1>Commerce & Licensing Admin</h1>
@@ -119,6 +134,15 @@ export function BusinessOSAdminHub() {
         return <tr key={item.order.commerceOrderId}><td>{providerId || item.order.commerceOrderId}</td><td>{item.paymentStatus || item.order.orderStatus}</td>
           <td>{item.reconciliationStatus}</td><td>{item.order.subscriptionId || 'Initial purchase'}</td><td>{providerId && <button onClick={() => reconcile(providerId)}>Reconcile</button>}</td></tr> })}</tbody></table></div>
     </section>}
+    <section className="bos-card"><h2>Billing & GST invoices</h2>
+      <div className="bos-replace-grid"><input value={billingOrderId} onChange={e => setBillingOrderId(e.target.value)} placeholder="Paid commerce order ID" />
+        <button onClick={generateInvoice}>Generate / recover invoice</button></div>
+      <div className="bos-table-wrap"><table className="bos-table"><thead><tr><th>Invoice</th><th>Type</th><th>Gross</th><th>GST</th><th>Supply</th><th>Action</th></tr></thead>
+        <tbody>{billing.map(invoice => <tr key={invoice.id}><td>{invoice.invoiceNumber}</td><td>{invoice.invoiceType}</td>
+          <td>{invoice.currencyCode} {invoice.tax.grossAmount.toFixed(2)}</td><td>{invoice.tax.totalTax.toFixed(2)}</td><td>{invoice.tax.supplyType}</td>
+          <td><button onClick={() => showReceipt(invoice.id)}>Receipt</button></td></tr>)}</tbody></table></div>
+      {receiptText && <pre>{receiptText}</pre>}
+    </section>
     <nav><a href="/businessos/portal">Customer Portal →</a><a href="/crm">CRM →</a></nav>
   </main>
 }

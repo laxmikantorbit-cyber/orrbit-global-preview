@@ -9,6 +9,11 @@ public interface ICommerceActivationStore
         int take,
         CancellationToken cancellationToken = default);
 
+    Task<CommerceBillingSource?> FindOrderBillingSourceAsync(
+        Guid tenantId,
+        Guid orderId,
+        CancellationToken cancellationToken = default);
+
     Task<ActivationResponse?> FindActivationAsync(
         Guid tenantId,
         Guid subscriptionId,

@@ -1,4 +1,5 @@
 ﻿using BusinessOS.Api;
+using BusinessOS.Api.Billing;
 using BusinessOS.Api.Commerce;
 using BusinessOS.Api.Crm;
 using BusinessOS.Api.Customers;
@@ -29,6 +30,9 @@ builder.Services.AddCors(options =>
 });
 builder.Services.AddScoped<TenantContext>();
 builder.Services.AddScoped<CustomerStore>();
+builder.Services.Configure<BillingOptions>(
+    builder.Configuration.GetSection("BusinessOS:Billing"));
+builder.Services.AddScoped<BillingAutomationService>();
 var postgresRuntimeRole = builder.Configuration["BusinessOS:Storage:RuntimeRole"];
 var crmConnection = builder.Configuration.GetConnectionString("Crm");
 var useFreeTestingPostgres = string.Equals(
@@ -91,6 +95,7 @@ if (string.IsNullOrWhiteSpace(commerceConnection))
     builder.Services.AddSingleton<IPaymentEventStore, InMemoryPaymentEventStore>();
     builder.Services.AddSingleton<ICommerceActivationStore, InMemoryCommerceActivationStore>();
     builder.Services.AddSingleton<IProviderOrderConcurrencyGate, InMemoryProviderOrderConcurrencyGate>();
+    builder.Services.AddSingleton<IBillingStore, InMemoryBillingStore>();
 }
 else
 {
@@ -104,6 +109,11 @@ else
             postgresRuntimeRole));
     builder.Services.AddSingleton<IProviderOrderConcurrencyGate>(_ =>
         new PostgresProviderOrderConcurrencyGate(commerceConnection, postgresRuntimeRole));
+    builder.Services.AddSingleton<IBillingStore>(_ =>
+        new PostgresBillingStore(
+            commerceConnection,
+            postgresRuntimeRole,
+            allowSchemaBootstrap: useFreeTestingPostgres));
 }
 
 var identityConnection = builder.Configuration.GetConnectionString("Identity");
@@ -146,6 +156,7 @@ app.MapDeploymentReadinessEndpoints();
 app.MapCommerceActivationEndpoints();
 app.MapCommerceAdminEndpoints();
 app.MapDesktopLicenseEndpoints();
+app.MapBillingEndpoints();
 app.MapPaymentCheckoutEndpoints();
 app.MapFreeTestingPaymentEndpoints();
 app.MapFreeTestingPublicCheckoutEndpoints();

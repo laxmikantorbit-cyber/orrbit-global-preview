@@ -1,3 +1,4 @@
+using BusinessOS.Api.Billing;
 using BusinessOS.Api.Payments;
 using BusinessOS.Api.Tenancy;
 using BusinessOS.Payments;
@@ -59,6 +60,7 @@ public static class CommerceAdminEndpoints
             IPaymentEventStore paymentStore,
             IRazorpayPaymentClient paymentClient,
             IProviderOrderConcurrencyGate providerOrderGate,
+            BillingAutomationService billingAutomation,
             CancellationToken cancellationToken) =>
         {
             if (TenantRoleAuthorization.ForbidUnlessCommerceAdmin(tenant) is { } forbidden)
@@ -81,7 +83,7 @@ public static class CommerceAdminEndpoints
 
             return await ExecuteManualReconcileAsync(
                 normalizedOrderId, status, commerceStore,
-                paymentStore, paymentClient, cancellationToken);
+                paymentStore, paymentClient, billingAutomation, cancellationToken);
         });
 
         group.MapGet("/subscriptions/{subscriptionId:guid}/devices", async (
@@ -137,6 +139,7 @@ public static class CommerceAdminEndpoints
         ICommerceActivationStore commerceStore,
         IPaymentEventStore paymentStore,
         IRazorpayPaymentClient paymentClient,
+        BillingAutomationService billingAutomation,
         CancellationToken cancellationToken)
     {
         IReadOnlyList<RazorpayPaymentResult> providerPayments;
@@ -179,6 +182,7 @@ public static class CommerceAdminEndpoints
             processed,
             providerPayments.Count,
             commerceStore,
+            billingAutomation,
             cancellationToken);
     }
 
@@ -187,29 +191,34 @@ public static class CommerceAdminEndpoints
         PaymentProcessResult processed,
         int providerPaymentCount,
         ICommerceActivationStore commerceStore,
+        BillingAutomationService billingAutomation,
         CancellationToken cancellationToken)
     {
         if (route.SubscriptionId is Guid subscriptionId)
         {
             var renewal = await commerceStore.ActivateCapturedRenewalOrderAsync(
                 route.TenantId, subscriptionId, processed.Payment, cancellationToken);
-            return renewal is null
-                ? Results.NotFound(new ErrorResponse(
-                    "Renewal order or subscription was not found for this tenant."))
-                : Results.Ok(ToManualResponse(
-                    "provider_payment_captured", processed.Duplicate,
-                    new ProviderOrderStatus(route, "activated", null, renewal),
-                    processed.Payment, providerPaymentCount, null, renewal));
+            if (renewal is null)
+                return Results.NotFound(new ErrorResponse(
+                    "Renewal order or subscription was not found for this tenant."));
+            await billingAutomation.EnsureForOrderAsync(
+                route.TenantId, route.CommerceOrderId, cancellationToken);
+            return Results.Ok(ToManualResponse(
+                "provider_payment_captured", processed.Duplicate,
+                new ProviderOrderStatus(route, "activated", null, renewal),
+                processed.Payment, providerPaymentCount, null, renewal));
         }
 
         var activation = await commerceStore.ActivateCapturedInitialOrderAsync(
             route.TenantId, processed.Payment, route.ProductCode, cancellationToken);
-        return activation is null
-            ? Results.NotFound(new ErrorResponse("Initial commerce order was not found for this tenant."))
-            : Results.Ok(ToManualResponse(
-                "provider_payment_captured", processed.Duplicate,
-                new ProviderOrderStatus(route, "activated", activation, null),
-                processed.Payment, providerPaymentCount, activation, null));
+        if (activation is null)
+            return Results.NotFound(new ErrorResponse("Initial commerce order was not found for this tenant."));
+        await billingAutomation.EnsureForOrderAsync(
+            route.TenantId, route.CommerceOrderId, cancellationToken);
+        return Results.Ok(ToManualResponse(
+            "provider_payment_captured", processed.Duplicate,
+            new ProviderOrderStatus(route, "activated", activation, null),
+            processed.Payment, providerPaymentCount, activation, null));
     }
 
     private static async Task<IReadOnlyList<CommerceAdminPaymentItem>> LoadPaymentsAsync(

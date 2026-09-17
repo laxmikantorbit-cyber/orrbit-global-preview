@@ -185,6 +185,18 @@ public sealed record CommerceAdminPaymentItem(
     DateTimeOffset? CapturedAtUtc,
     DateTimeOffset UpdatedAtUtc);
 
+public sealed record CommerceBillingSource(
+    Guid TenantId,
+    Guid OrganisationId,
+    Guid OrderId,
+    Guid? SubscriptionId,
+    string ProductCode,
+    decimal GrossAmount,
+    string CurrencyCode,
+    string PaymentId,
+    DateTimeOffset PaidAtUtc,
+    bool IsRenewal);
+
 public sealed record ErrorResponse(string Error);
 
 public sealed record SubscriptionStateSnapshot(

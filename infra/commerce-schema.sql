@@ -290,3 +290,42 @@ CREATE TABLE IF NOT EXISTS commerce_provider_subscription_routes (
 );
 CREATE INDEX IF NOT EXISTS ix_provider_subscription_routes_tenant_subscription
   ON commerce_provider_subscription_routes(tenant_id, subscription_id);
+
+
+CREATE TABLE IF NOT EXISTS billing_invoice_sequences (
+    tenant_id uuid NOT NULL REFERENCES tenants(id),
+    financial_year text NOT NULL CHECK (length(btrim(financial_year)) > 0),
+    last_number integer NOT NULL CHECK (last_number > 0),
+    PRIMARY KEY (tenant_id, financial_year)
+);
+
+CREATE TABLE IF NOT EXISTS billing_invoices (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES tenants(id),
+    organisation_id uuid NOT NULL,
+    order_id uuid NOT NULL,
+    subscription_id uuid NULL,
+    invoice_number text NOT NULL CHECK (length(btrim(invoice_number)) > 0),
+    issued_at_utc timestamptz NOT NULL,
+    document_json jsonb NOT NULL CHECK (jsonb_typeof(document_json) = 'object'),
+    UNIQUE (tenant_id, order_id),
+    UNIQUE (tenant_id, invoice_number),
+    FOREIGN KEY (tenant_id, organisation_id) REFERENCES organisations(tenant_id, id),
+    FOREIGN KEY (tenant_id, order_id) REFERENCES commerce_orders(tenant_id, id),
+    FOREIGN KEY (tenant_id, subscription_id) REFERENCES commerce_subscriptions(tenant_id, id)
+);
+CREATE INDEX IF NOT EXISTS ix_billing_invoices_tenant_subscription
+  ON billing_invoices(tenant_id, subscription_id, issued_at_utc DESC);
+
+ALTER TABLE billing_invoice_sequences ENABLE ROW LEVEL SECURITY;
+ALTER TABLE billing_invoice_sequences FORCE ROW LEVEL SECURITY;
+ALTER TABLE billing_invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE billing_invoices FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS billing_sequence_tenant_policy ON billing_invoice_sequences;
+CREATE POLICY billing_sequence_tenant_policy ON billing_invoice_sequences
+USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
+WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
+DROP POLICY IF EXISTS billing_invoice_tenant_policy ON billing_invoices;
+CREATE POLICY billing_invoice_tenant_policy ON billing_invoices
+USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
+WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);

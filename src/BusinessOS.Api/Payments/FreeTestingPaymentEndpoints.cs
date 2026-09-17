@@ -1,3 +1,4 @@
+using BusinessOS.Api.Billing;
 using BusinessOS.Api.Commerce;
 using BusinessOS.Api.Tenancy;
 using BusinessOS.Payments;
@@ -22,6 +23,7 @@ public static class FreeTestingPaymentEndpoints
             ICommerceActivationStore commerceStore,
             IPaymentEventStore paymentStore,
             IProviderOrderConcurrencyGate providerOrderGate,
+            BillingAutomationService billingAutomation,
             CancellationToken cancellationToken) =>
         {
             if (!IsFreeTestingMode(configuration, environment))
@@ -70,6 +72,7 @@ public static class FreeTestingPaymentEndpoints
                 status.Route,
                 processed,
                 commerceStore,
+                billingAutomation,
                 cancellationToken);
         });
 
@@ -82,6 +85,7 @@ public static class FreeTestingPaymentEndpoints
             ICommerceActivationStore commerceStore,
             IPaymentEventStore paymentStore,
             IProviderOrderConcurrencyGate providerOrderGate,
+            BillingAutomationService billingAutomation,
             CancellationToken cancellationToken) =>
         {
             if (!IsFreeTestingMode(configuration, environment))
@@ -172,7 +176,7 @@ public static class FreeTestingPaymentEndpoints
                 ?? throw new InvalidOperationException(
                     "Simulated AutoPay provider order route disappeared.");
             return await ActivateAsync(
-                route, processed, commerceStore, cancellationToken);
+                route, processed, commerceStore, billingAutomation, cancellationToken);
         });
         return app;
     }
@@ -218,6 +222,7 @@ public static class FreeTestingPaymentEndpoints
         ProviderOrderRoute route,
         PaymentProcessResult processed,
         ICommerceActivationStore commerceStore,
+        BillingAutomationService billingAutomation,
         CancellationToken cancellationToken)
     {
         if (route.SubscriptionId is Guid subscriptionId)
@@ -228,16 +233,18 @@ public static class FreeTestingPaymentEndpoints
                 processed.Payment,
                 cancellationToken);
 
-            return renewal is null
-                ? Results.NotFound(new ErrorResponse(
-                    "Renewal order or subscription was not found for this tenant."))
-                : Results.Ok(ToResponse(
-                    "provider_payment_captured",
-                    processed.Duplicate,
-                    new ProviderOrderStatus(route, "activated", null, renewal),
-                    processed.Payment,
-                    null,
-                    renewal));
+            if (renewal is null)
+                return Results.NotFound(new ErrorResponse(
+                    "Renewal order or subscription was not found for this tenant."));
+            await billingAutomation.EnsureForOrderAsync(
+                route.TenantId, route.CommerceOrderId, cancellationToken);
+            return Results.Ok(ToResponse(
+                "provider_payment_captured",
+                processed.Duplicate,
+                new ProviderOrderStatus(route, "activated", null, renewal),
+                processed.Payment,
+                null,
+                renewal));
         }
 
         var activation = await commerceStore.ActivateCapturedInitialOrderAsync(
@@ -246,16 +253,18 @@ public static class FreeTestingPaymentEndpoints
             route.ProductCode,
             cancellationToken);
 
-        return activation is null
-            ? Results.NotFound(new ErrorResponse(
-                "Initial commerce order was not found for this tenant."))
-            : Results.Ok(ToResponse(
-                "provider_payment_captured",
-                processed.Duplicate,
-                new ProviderOrderStatus(route, "activated", activation, null),
-                processed.Payment,
-                activation,
-                null));
+        if (activation is null)
+            return Results.NotFound(new ErrorResponse(
+                "Initial commerce order was not found for this tenant."));
+        await billingAutomation.EnsureForOrderAsync(
+            route.TenantId, route.CommerceOrderId, cancellationToken);
+        return Results.Ok(ToResponse(
+            "provider_payment_captured",
+            processed.Duplicate,
+            new ProviderOrderStatus(route, "activated", activation, null),
+            processed.Payment,
+            activation,
+            null));
     }
 
     private static bool IsFreeTestingMode(

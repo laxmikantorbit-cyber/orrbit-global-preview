@@ -1,3 +1,4 @@
+using BusinessOS.Api.Billing;
 using BusinessOS.Api.Commerce;
 using BusinessOS.Api.Tenancy;
 using BusinessOS.Payments;
@@ -26,6 +27,7 @@ public static class FreeTestingPublicCheckoutEndpoints
             RazorpayCheckoutService checkoutService,
             ICommerceActivationStore commerceStore,
             IPaymentEventStore paymentStore,
+            BillingAutomationService billingAutomation,
             CancellationToken cancellationToken) =>
         {
             if (!IsFreeTestingMode(configuration, environment))
@@ -50,6 +52,8 @@ public static class FreeTestingPublicCheckoutEndpoints
                 if (activation is null)
                     return Results.NotFound(new ErrorResponse(
                         "Free-testing activation could not be completed."));
+                await billingAutomation.EnsureForOrderAsync(
+                    checkout.TenantId, checkout.CommerceOrderId, cancellationToken);
 
                 var state = await commerceStore.FindSubscriptionStateAsync(
                     activation.TenantId,

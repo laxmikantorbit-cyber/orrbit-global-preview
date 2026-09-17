@@ -1,4 +1,5 @@
 using System.Text;
+using BusinessOS.Api.Billing;
 using BusinessOS.Api.Commerce;
 using BusinessOS.Payments;
 
@@ -19,6 +20,7 @@ public static class PaymentWebhookEndpoints
             IPaymentEventStore paymentEvents,
             ICommerceActivationStore store,
             IProviderOrderConcurrencyGate providerOrderGate,
+            BillingAutomationService billingAutomation,
             CancellationToken cancellationToken) =>
         {
             var secret = configuration["Payments:RazorpayWebhookSecret"];
@@ -49,6 +51,7 @@ public static class PaymentWebhookEndpoints
                     paymentEvents,
                     store,
                     providerOrderGate,
+                    billingAutomation,
                     cancellationToken);
                 return subscriptionResult;
             }
@@ -95,13 +98,16 @@ public static class PaymentWebhookEndpoints
                     renewalSubscriptionId,
                     paymentResult.Payment,
                     cancellationToken);
-                return renewal is null
-                    ? Results.NotFound(new ErrorResponse("Renewal order or subscription was not found for this tenant."))
-                    : Results.Ok(new PaymentWebhookResponse(
-                        "renewal_activated",
-                        paymentResult.Duplicate,
-                        null,
-                        renewal));
+                if (renewal is null)
+                    return Results.NotFound(new ErrorResponse("Renewal order or subscription was not found for this tenant."));
+                if (route is not null)
+                    await billingAutomation.EnsureForOrderAsync(
+                        route.TenantId, route.CommerceOrderId, cancellationToken);
+                return Results.Ok(new PaymentWebhookResponse(
+                    "renewal_activated",
+                    paymentResult.Duplicate,
+                    null,
+                    renewal));
             }
 
             if (string.IsNullOrWhiteSpace(productCode))
@@ -113,13 +119,16 @@ public static class PaymentWebhookEndpoints
                 paymentResult.Payment,
                 productCode,
                 cancellationToken);
-            return activation is null
-                ? Results.NotFound(new ErrorResponse("Initial commerce order was not found for this tenant."))
-                : Results.Ok(new PaymentWebhookResponse(
-                    "initial_purchase_activated",
-                    paymentResult.Duplicate,
-                    activation,
-                    null));
+            if (activation is null)
+                return Results.NotFound(new ErrorResponse("Initial commerce order was not found for this tenant."));
+            if (route is not null)
+                await billingAutomation.EnsureForOrderAsync(
+                    route.TenantId, route.CommerceOrderId, cancellationToken);
+            return Results.Ok(new PaymentWebhookResponse(
+                "initial_purchase_activated",
+                paymentResult.Duplicate,
+                activation,
+                null));
         });
 
         return app;
@@ -131,6 +140,7 @@ public static class PaymentWebhookEndpoints
         IPaymentEventStore paymentEvents,
         ICommerceActivationStore store,
         IProviderOrderConcurrencyGate providerOrderGate,
+        BillingAutomationService billingAutomation,
         CancellationToken cancellationToken)
     {
         var binding = await store.FindProviderSubscriptionRouteAsync(
@@ -174,6 +184,7 @@ public static class PaymentWebhookEndpoints
                 RazorpayProvider,
                 paymentWebhook.ProviderOrderId,
                 cancellationToken);
+            Guid? billingOrderId = route?.CommerceOrderId;
             if (route is not null &&
                 (route.TenantId != binding.TenantId ||
                  route.SubscriptionId != binding.SubscriptionId))
@@ -236,6 +247,7 @@ public static class PaymentWebhookEndpoints
                         checkout.ProductCode,
                         binding.SubscriptionId,
                         cancellationToken);
+                    billingOrderId = checkout.CommerceOrderId;
                 }
 
                 renewalActivation = await store.ActivateCapturedRenewalOrderAsync(
@@ -246,6 +258,9 @@ public static class PaymentWebhookEndpoints
                 if (renewalActivation is null)
                     return Results.NotFound(new ErrorResponse(
                         "AutoPay renewal order was not found after recurring charge."));
+                if (billingOrderId is Guid paidOrderId)
+                    await billingAutomation.EnsureForOrderAsync(
+                        binding.TenantId, paidOrderId, cancellationToken);
                 outcome = paymentResult.Duplicate
                     ? "subscription_charge_already_renewed"
                     : "subscription_charge_renewed";

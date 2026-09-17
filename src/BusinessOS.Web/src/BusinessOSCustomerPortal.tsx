@@ -4,6 +4,7 @@ import {
   type AutoPayStatus, type EntitlementResponse,
 } from './businessosApi'
 import { getActivationCode } from './commerceAdminApi'
+import { getBillingReceipt, listBillingHistory, type BillingInvoice } from './billingApi'
 import './BusinessOSHub.css'
 
 export function BusinessOSCustomerPortal() {
@@ -13,6 +14,8 @@ export function BusinessOSCustomerPortal() {
   const [entitlement, setEntitlement] = useState<EntitlementResponse | null>(null)
   const [autopay, setAutopay] = useState<AutoPayStatus | null>(null)
   const [activationCode, setActivationCode] = useState('')
+  const [billing, setBilling] = useState<BillingInvoice[]>([])
+  const [receiptText, setReceiptText] = useState('')
   const [message, setMessage] = useState('')
 
   const load = async () => {
@@ -24,6 +27,7 @@ export function BusinessOSCustomerPortal() {
         getActivationCode(token, subscriptionId),
       ])
       setSubscription(sub); setEntitlement(ent); setActivationCode(code.activationCode)
+      setBilling(await listBillingHistory(token, { subscriptionId }))
       try { setAutopay(await getAutoPayStatus(token, subscriptionId)) } catch { setAutopay(null) }
       setMessage('Subscription loaded.')
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)) }
@@ -40,6 +44,13 @@ export function BusinessOSCustomerPortal() {
       const setup = await setupAutoPay(token, subscriptionId)
       setMessage(setup.authorizationUrl ? 'AutoPay setup created. Complete authorization using the provider link.' : 'AutoPay setup created.')
       try { setAutopay(await getAutoPayStatus(token, subscriptionId)) } catch { setAutopay(null) }
+    } catch (error) { setMessage(error instanceof Error ? error.message : String(error)) }
+  }
+
+  const showReceipt = async (invoiceId: string) => {
+    try {
+      setReceiptText(JSON.stringify(await getBillingReceipt(token, invoiceId), null, 2))
+      setMessage('Receipt loaded.')
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)) }
   }
 
@@ -73,6 +84,14 @@ export function BusinessOSCustomerPortal() {
         <div><dt>Cancel at period end</dt><dd>{autopay.cancelAtPeriodEnd ? 'Yes' : 'No'}</dd></div></dl> : <p>AutoPay is not configured for this subscription.</p>}
         {!entitlement?.cancelAtPeriodEnd && <button onClick={enableAutoPay}>Set up / refresh AutoPay</button>}</section>
     </div>
+    <section className="bos-card"><h2>Billing history</h2>
+      <div className="bos-table-wrap"><table className="bos-table"><thead><tr><th>Invoice</th><th>Type</th><th>Gross</th><th>GST</th><th>Paid</th><th>Action</th></tr></thead>
+        <tbody>{billing.map(invoice => <tr key={invoice.id}><td>{invoice.invoiceNumber}</td><td>{invoice.invoiceType}</td>
+          <td>{invoice.currencyCode} {invoice.tax.grossAmount.toFixed(2)}</td><td>{invoice.tax.totalTax.toFixed(2)}</td><td>{invoice.paidAtUtc}</td>
+          <td><button onClick={() => showReceipt(invoice.id)}>View receipt</button></td></tr>)}</tbody></table></div>
+      {billing.length === 0 && <p>No billing documents found for this subscription.</p>}
+      {receiptText && <pre>{receiptText}</pre>}
+    </section>
     <section className="bos-card"><h2>Software handoff</h2><p>Your activated subscription and licence remain tied to this account. Continue to the software/download area when a build is available for your plan.</p>
       <a className="bos-link-button" href="/">Software / Download handoff →</a></section>
     <nav><a href="/businessos/admin">Admin Control Centre →</a><a href="/crm">CRM →</a></nav>

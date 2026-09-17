@@ -1,3 +1,4 @@
+using BusinessOS.Api.Billing;
 using BusinessOS.Api.Commerce;
 using BusinessOS.Payments;
 
@@ -45,6 +46,7 @@ public static class PaymentCheckoutEndpoints
             IRazorpayPaymentClient paymentClient,
             IPaymentEventStore paymentEvents,
             IProviderOrderConcurrencyGate providerOrderGate,
+            BillingAutomationService billingAutomation,
             CancellationToken cancellationToken) =>
         {
             var preflight = await VerifyAndLoadStatusAsync(
@@ -85,12 +87,14 @@ public static class PaymentCheckoutEndpoints
                     subscriptionId,
                     paymentResult.Payment,
                     cancellationToken);
-                return renewal is null
-                    ? Results.NotFound(new ErrorResponse("Renewal order or subscription was not found for this tenant."))
-                    : Results.Ok(ToReconciliationResponse(
-                        "provider_payment_captured",
-                        paymentResult.Duplicate,
-                        new ProviderOrderStatus(route, "activated", null, renewal)));
+                if (renewal is null)
+                    return Results.NotFound(new ErrorResponse("Renewal order or subscription was not found for this tenant."));
+                await billingAutomation.EnsureForOrderAsync(
+                    route.TenantId, route.CommerceOrderId, cancellationToken);
+                return Results.Ok(ToReconciliationResponse(
+                    "provider_payment_captured",
+                    paymentResult.Duplicate,
+                    new ProviderOrderStatus(route, "activated", null, renewal)));
             }
 
             var activation = await store.ActivateCapturedInitialOrderAsync(
@@ -98,12 +102,14 @@ public static class PaymentCheckoutEndpoints
                 paymentResult.Payment,
                 route.ProductCode,
                 cancellationToken);
-            return activation is null
-                ? Results.NotFound(new ErrorResponse("Initial commerce order was not found for this tenant."))
-                : Results.Ok(ToReconciliationResponse(
-                    "provider_payment_captured",
-                    paymentResult.Duplicate,
-                    new ProviderOrderStatus(route, "activated", activation, null)));
+            if (activation is null)
+                return Results.NotFound(new ErrorResponse("Initial commerce order was not found for this tenant."));
+            await billingAutomation.EnsureForOrderAsync(
+                route.TenantId, route.CommerceOrderId, cancellationToken);
+            return Results.Ok(ToReconciliationResponse(
+                "provider_payment_captured",
+                paymentResult.Duplicate,
+                new ProviderOrderStatus(route, "activated", activation, null)));
         });
 
         return app;
