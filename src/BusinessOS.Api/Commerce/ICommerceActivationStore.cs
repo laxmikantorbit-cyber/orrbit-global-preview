@@ -36,6 +36,23 @@ public interface ICommerceActivationStore
         DesktopDeviceValidationRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<DesktopDeviceActivationSnapshot>> ListDesktopDevicesAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> RevokeDesktopDeviceAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        string deviceFingerprint,
+        CancellationToken cancellationToken = default);
+
+    Task<DesktopDeviceLicenseResponse?> ReplaceDesktopDeviceAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        DesktopDeviceReplaceRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<LicenseActivationCodeResponse?> GetOrCreateDesktopActivationCodeAsync(
         Guid tenantId,
         Guid subscriptionId,

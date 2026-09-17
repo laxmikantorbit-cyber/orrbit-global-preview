@@ -148,6 +148,68 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
         }
     }
 
+    public Task<IReadOnlyList<DesktopDeviceActivationSnapshot>> ListDesktopDevicesAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            if (!_activations.TryGetValue((tenantId, subscriptionId), out var stored))
+                return Task.FromResult<IReadOnlyList<DesktopDeviceActivationSnapshot>>([]);
+            var devices = stored.License.Activations
+                .Select(x =>
+                {
+                    _deviceMetadata.TryGetValue((tenantId, subscriptionId, x.DeviceFingerprint), out var metadata);
+                    return new DesktopDeviceActivationSnapshot(
+                        x.Id, x.DeviceFingerprint, metadata?.DeviceName, metadata?.AppVersion,
+                        x.Active, x.ActivatedAt, metadata?.LastValidatedAtUtc);
+                })
+                .OrderByDescending(x => x.Active)
+                .ThenByDescending(x => x.ActivatedAtUtc)
+                .ToList();
+            return Task.FromResult<IReadOnlyList<DesktopDeviceActivationSnapshot>>(devices);
+        }
+    }
+
+    public Task<bool> RevokeDesktopDeviceAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        string deviceFingerprint,
+        CancellationToken cancellationToken = default)
+    {
+        var fingerprint = NormalizeDeviceFingerprint(deviceFingerprint);
+        lock (_gate)
+        {
+            if (!_activations.TryGetValue((tenantId, subscriptionId), out var stored))
+                return Task.FromResult(false);
+            return Task.FromResult(stored.License.DeactivateDevice(fingerprint));
+        }
+    }
+
+    public Task<DesktopDeviceLicenseResponse?> ReplaceDesktopDeviceAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        DesktopDeviceReplaceRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var oldFingerprint = NormalizeDeviceFingerprint(request.OldDeviceFingerprint);
+        var newFingerprint = NormalizeDeviceFingerprint(request.NewDeviceFingerprint);
+        if (string.Equals(oldFingerprint, newFingerprint, StringComparison.Ordinal))
+            throw new ArgumentException("Old and new device fingerprints must be different.");
+        lock (_gate)
+        {
+            if (!_activations.TryGetValue((tenantId, subscriptionId), out var stored))
+                return Task.FromResult<DesktopDeviceLicenseResponse?>(null);
+            var now = DateTimeOffset.UtcNow;
+            var lease = stored.License.ReplaceDevice(oldFingerprint, newFingerprint, now);
+            var metadata = new DeviceMetadata(request.DeviceName?.Trim(), request.AppVersion?.Trim(), now);
+            _deviceMetadata[(tenantId, subscriptionId, newFingerprint)] = metadata;
+            return Task.FromResult<DesktopDeviceLicenseResponse?>(ToDesktopResponse(
+                tenantId, stored, newFingerprint, metadata, lease, now, true, "device_replaced"));
+        }
+    }
     public Task<LicenseActivationCodeResponse?> GetOrCreateDesktopActivationCodeAsync(
         Guid tenantId,
         Guid subscriptionId,

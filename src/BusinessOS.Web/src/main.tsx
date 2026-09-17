@@ -16,6 +16,8 @@ import { CrmIntelligenceHub } from './CrmIntelligenceHub.tsx'
 import { CrmDataExportHub } from './CrmDataExportHub.tsx'
 import { CrmContactDirectoryHub } from './CrmContactDirectoryHub.tsx'
 import { CrmDealAgingHub } from './CrmDealAgingHub.tsx'
+import { BusinessOSAdminHub } from './BusinessOSAdminHub.tsx'
+import { BusinessOSCustomerPortal } from './BusinessOSCustomerPortal.tsx'
 
 const path = window.location.pathname
 const advancedLinkStyle = {
@@ -55,7 +57,11 @@ const utilityLinks = <>
   <a href="/crm/deal-aging" style={dealAgingLinkStyle}>Deal Aging →</a>
 </>
 
-const content = path === '/crm/deal-aging'
+const content = path === '/businessos/admin'
+  ? <BusinessOSAdminHub />
+  : path === '/businessos/portal'
+    ? <BusinessOSCustomerPortal />
+    : path === '/crm/deal-aging'
   ? <CrmDealAgingHub />
   : path === '/crm/contacts'
     ? <CrmContactDirectoryHub />

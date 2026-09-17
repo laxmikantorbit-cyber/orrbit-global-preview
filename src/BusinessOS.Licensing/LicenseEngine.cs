@@ -106,6 +106,17 @@ public sealed class LicenseEngine
         return Activate(newFingerprint, now);
     }
 
+    public bool DeactivateDevice(string deviceFingerprint)
+    {
+        if (string.IsNullOrWhiteSpace(deviceFingerprint))
+            throw new ArgumentException("Device fingerprint is required.");
+        var index = _activations.FindLastIndex(
+            x => x.Active && x.DeviceFingerprint == deviceFingerprint);
+        if (index < 0) return false;
+        _activations[index] = _activations[index] with { Active = false };
+        return true;
+    }
+
     public void AddDesktopSystems(int quantity)
     {
         if (quantity <= 0)

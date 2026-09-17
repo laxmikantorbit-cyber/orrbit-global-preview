@@ -47,6 +47,26 @@ public sealed partial class PostgresCommerceActivationStore
                 connection, transaction, tenantId, subscriptionId,
                 existing, cancellationToken);
         }
+        else if (!existing.Active)
+        {
+            var activeCount = await CountActiveDesktopDevicesAsync(
+                connection, transaction, tenantId, subscriptionId,
+                cancellationToken);
+            if (activeCount >= persisted.Subscription.Entitlements.DesktopSystems)
+                throw new InvalidOperationException(
+                    "No desktop device entitlement is available.");
+            existing = existing with
+            {
+                DeviceName = request.DeviceName?.Trim() ?? existing.DeviceName,
+                AppVersion = request.AppVersion?.Trim() ?? existing.AppVersion,
+                Active = true,
+                ActivatedAtUtc = now,
+                LastValidatedAtUtc = now
+            };
+            await UpdateDesktopDeviceStateAsync(
+                connection, transaction, tenantId, subscriptionId,
+                existing, cancellationToken);
+        }
         else
         {
             existing = existing with
@@ -121,6 +141,120 @@ public sealed partial class PostgresCommerceActivationStore
         return response;
     }
 
+    public async Task<IReadOnlyList<DesktopDeviceActivationSnapshot>> ListDesktopDevicesAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await BusinessOS.Api.PostgresRuntimeRole.ApplyAsync(connection, _runtimeRole, cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
+        const string sql = """
+            SELECT id,device_fingerprint,device_name,app_version,active,
+                   activated_at_utc,last_validated_at_utc
+            FROM commerce_desktop_device_activations
+            WHERE tenant_id=@tenant_id AND subscription_id=@subscription_id
+            ORDER BY active DESC, activated_at_utc DESC
+            """;
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("tenant_id", tenantId);
+        command.Parameters.AddWithValue("subscription_id", subscriptionId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var rows = new List<DesktopDeviceActivationSnapshot>();
+        while (await reader.ReadAsync(cancellationToken))
+            rows.Add(new DesktopDeviceActivationSnapshot(
+                reader.GetGuid(0), reader.GetString(1),
+                reader.IsDBNull(2) ? null : reader.GetString(2),
+                reader.IsDBNull(3) ? null : reader.GetString(3),
+                reader.GetBoolean(4), reader.GetFieldValue<DateTimeOffset>(5),
+                reader.IsDBNull(6) ? null : reader.GetFieldValue<DateTimeOffset>(6)));
+        await reader.DisposeAsync();
+        await transaction.CommitAsync(cancellationToken);
+        return rows;
+    }
+
+    public async Task<bool> RevokeDesktopDeviceAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        string deviceFingerprint,
+        CancellationToken cancellationToken = default)
+    {
+        var fingerprint = NormalizeDeviceFingerprint(deviceFingerprint);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await BusinessOS.Api.PostgresRuntimeRole.ApplyAsync(connection, _runtimeRole, cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
+        const string sql = """
+            UPDATE commerce_desktop_device_activations
+            SET active=false
+            WHERE tenant_id=@tenant_id AND subscription_id=@subscription_id
+              AND device_fingerprint=@device_fingerprint AND active=true
+            """;
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("tenant_id", tenantId);
+        command.Parameters.AddWithValue("subscription_id", subscriptionId);
+        command.Parameters.AddWithValue("device_fingerprint", fingerprint);
+        var affected = await command.ExecuteNonQueryAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return affected == 1;
+    }
+
+    public async Task<DesktopDeviceLicenseResponse?> ReplaceDesktopDeviceAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        DesktopDeviceReplaceRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var oldFingerprint = NormalizeDeviceFingerprint(request.OldDeviceFingerprint);
+        var newFingerprint = NormalizeDeviceFingerprint(request.NewDeviceFingerprint);
+        if (string.Equals(oldFingerprint, newFingerprint, StringComparison.Ordinal))
+            throw new ArgumentException("Old and new device fingerprints must be different.");
+        var now = DateTimeOffset.UtcNow;
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await BusinessOS.Api.PostgresRuntimeRole.ApplyAsync(connection, _runtimeRole, cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
+        var persisted = await LoadSubscriptionAsync(
+            connection, transaction, tenantId, subscriptionId, true, cancellationToken);
+        if (persisted is null)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return null;
+        }
+        var oldDevice = await LoadDesktopDeviceAsync(
+            connection, transaction, tenantId, subscriptionId, oldFingerprint, cancellationToken);
+        if (oldDevice is null || !oldDevice.Active)
+            throw new InvalidOperationException("Old device is not active.");
+        var newDevice = await LoadDesktopDeviceAsync(
+            connection, transaction, tenantId, subscriptionId, newFingerprint, cancellationToken);
+        if (newDevice?.Active == true)
+            throw new InvalidOperationException("New device is already active.");
+        var newDeviceExisted = newDevice is not null;
+        await SetDesktopDeviceActiveAsync(
+            connection, transaction, tenantId, subscriptionId, oldFingerprint, false, cancellationToken);
+        newDevice = newDevice is null
+            ? new DesktopDeviceActivationSnapshot(
+                Guid.NewGuid(), newFingerprint, request.DeviceName?.Trim(), request.AppVersion?.Trim(), true, now, now)
+            : newDevice with
+            {
+                DeviceName = request.DeviceName?.Trim() ?? newDevice.DeviceName,
+                AppVersion = request.AppVersion?.Trim() ?? newDevice.AppVersion,
+                Active = true,
+                ActivatedAtUtc = now,
+                LastValidatedAtUtc = now
+            };
+        if (newDeviceExisted)
+            await UpdateDesktopDeviceStateAsync(connection, transaction, tenantId, subscriptionId, newDevice, cancellationToken);
+        else
+            await InsertDesktopDeviceAsync(connection, transaction, tenantId, subscriptionId, newDevice, cancellationToken);
+        var response = await ToDesktopResponseAsync(
+            connection, transaction, tenantId, persisted, newDevice,
+            true, "device_replaced", now, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return response;
+    }
     private static async Task<DesktopDeviceActivationSnapshot?> LoadDesktopDeviceAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
@@ -219,6 +353,48 @@ public sealed partial class PostgresCommerceActivationStore
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    private static async Task UpdateDesktopDeviceStateAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid tenantId,
+        Guid subscriptionId,
+        DesktopDeviceActivationSnapshot device,
+        CancellationToken cancellationToken)
+    {
+        const string sql = """
+            UPDATE commerce_desktop_device_activations
+            SET device_name=@device_name, app_version=@app_version, active=@active,
+                activated_at_utc=@activated_at_utc, last_validated_at_utc=@last_validated_at_utc
+            WHERE tenant_id=@tenant_id AND subscription_id=@subscription_id
+              AND device_fingerprint=@device_fingerprint
+            """;
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        AddDesktopDeviceParameters(command, tenantId, subscriptionId, device);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task SetDesktopDeviceActiveAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid tenantId,
+        Guid subscriptionId,
+        string fingerprint,
+        bool active,
+        CancellationToken cancellationToken)
+    {
+        const string sql = """
+            UPDATE commerce_desktop_device_activations
+            SET active=@active
+            WHERE tenant_id=@tenant_id AND subscription_id=@subscription_id
+              AND device_fingerprint=@device_fingerprint
+            """;
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("active", active);
+        command.Parameters.AddWithValue("tenant_id", tenantId);
+        command.Parameters.AddWithValue("subscription_id", subscriptionId);
+        command.Parameters.AddWithValue("device_fingerprint", fingerprint);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
     private static void AddDesktopDeviceParameters(
         NpgsqlCommand command,
         Guid tenantId,

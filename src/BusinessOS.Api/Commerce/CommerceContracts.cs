@@ -257,6 +257,21 @@ public sealed record DesktopDeviceActivationSnapshot(
     DateTimeOffset ActivatedAtUtc,
     DateTimeOffset? LastValidatedAtUtc);
 
+public sealed record DesktopDeviceInventoryResponse(
+    Guid TenantId,
+    Guid SubscriptionId,
+    int ActiveDesktopDevices,
+    int DesktopDeviceLimit,
+    IReadOnlyList<DesktopDeviceActivationSnapshot> Devices);
+
+public sealed record DesktopDeviceRevokeRequest(string DeviceFingerprint);
+
+public sealed record DesktopDeviceReplaceRequest(
+    string OldDeviceFingerprint,
+    string NewDeviceFingerprint,
+    string? DeviceName,
+    string? AppVersion);
+
 public sealed record LicenseActivationCodeResponse(
     Guid TenantId,
     Guid OrganisationId,

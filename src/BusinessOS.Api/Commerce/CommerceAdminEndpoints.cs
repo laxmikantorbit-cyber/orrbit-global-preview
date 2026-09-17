@@ -84,6 +84,50 @@ public static class CommerceAdminEndpoints
                 paymentStore, paymentClient, cancellationToken);
         });
 
+        group.MapGet("/subscriptions/{subscriptionId:guid}/devices", async (
+            Guid subscriptionId, TenantContext tenant, ICommerceActivationStore commerceStore,
+            CancellationToken cancellationToken) =>
+        {
+            if (TenantRoleAuthorization.ForbidUnlessCommerceAdmin(tenant) is { } forbidden) return forbidden;
+            var subscription = await commerceStore.FindSubscriptionStateAsync(tenant.TenantId, subscriptionId, cancellationToken);
+            if (subscription is null) return Results.NotFound(new ErrorResponse("Subscription was not found for this tenant."));
+            var devices = await commerceStore.ListDesktopDevicesAsync(tenant.TenantId, subscriptionId, cancellationToken);
+            return Results.Ok(new DesktopDeviceInventoryResponse(
+                tenant.TenantId, subscriptionId, devices.Count(x => x.Active),
+                subscription.Entitlements.DesktopSystems, devices));
+        });
+
+        group.MapPost("/subscriptions/{subscriptionId:guid}/devices/revoke", async (
+            Guid subscriptionId, DesktopDeviceRevokeRequest request, TenantContext tenant,
+            ICommerceActivationStore commerceStore, CancellationToken cancellationToken) =>
+        {
+            if (TenantRoleAuthorization.ForbidUnlessCommerceAdmin(tenant) is { } forbidden) return forbidden;
+            try
+            {
+                var revoked = await commerceStore.RevokeDesktopDeviceAsync(
+                    tenant.TenantId, subscriptionId, request.DeviceFingerprint, cancellationToken);
+                return revoked ? Results.Ok(new { subscriptionId, revoked = true })
+                    : Results.NotFound(new ErrorResponse("Active device was not found for this subscription."));
+            }
+            catch (ArgumentException ex) { return Results.BadRequest(new ErrorResponse(ex.Message)); }
+        });
+
+        group.MapPost("/subscriptions/{subscriptionId:guid}/devices/replace", async (
+            Guid subscriptionId, DesktopDeviceReplaceRequest request, TenantContext tenant,
+            ICommerceActivationStore commerceStore, CancellationToken cancellationToken) =>
+        {
+            if (TenantRoleAuthorization.ForbidUnlessCommerceAdmin(tenant) is { } forbidden) return forbidden;
+            try
+            {
+                var result = await commerceStore.ReplaceDesktopDeviceAsync(
+                    tenant.TenantId, subscriptionId, request, cancellationToken);
+                return result is null
+                    ? Results.NotFound(new ErrorResponse("Subscription was not found for this tenant."))
+                    : Results.Ok(result);
+            }
+            catch (ArgumentException ex) { return Results.BadRequest(new ErrorResponse(ex.Message)); }
+            catch (InvalidOperationException ex) { return Results.BadRequest(new ErrorResponse(ex.Message)); }
+        });
         return app;
     }
 
