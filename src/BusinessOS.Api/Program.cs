@@ -113,7 +113,7 @@ else
         new PostgresBillingStore(
             commerceConnection,
             postgresRuntimeRole,
-            allowSchemaBootstrap: useFreeTestingPostgres));
+            allowSchemaBootstrap: false));
 }
 
 var identityConnection = builder.Configuration.GetConnectionString("Identity");
