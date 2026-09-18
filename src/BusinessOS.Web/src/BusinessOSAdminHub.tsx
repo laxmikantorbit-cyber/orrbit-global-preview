@@ -32,7 +32,7 @@ export function BusinessOSAdminHub() {
     x.order.subscriptionId === subscriptionId) ?? null, [status, subscriptionId])
 
   const run = async (action: () => Promise<void>, success = 'Updated successfully.') => {
-    setMessage('Workingâ€¦')
+    setMessage('Working…')
     try { await action(); setMessage(success) }
     catch (error) { setMessage(error instanceof Error ? error.message : String(error)) }
   }
@@ -163,6 +163,6 @@ export function BusinessOSAdminHub() {
           <td><button onClick={() => showReceipt(invoice.id)}>Receipt</button></td></tr>)}</tbody></table></div>
       {receiptText && <pre>{receiptText}</pre>}
     </section>
-    <nav><a href="/businessos/portal">Customer Portal â†’</a><a href="/crm">CRM â†’</a></nav>
+    <nav><a href="/businessos/portal">Customer Portal →</a><a href="/crm">CRM →</a></nav>
   </main>
 }
