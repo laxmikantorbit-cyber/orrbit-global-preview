@@ -18,7 +18,7 @@ public static class CustomerSeed
             Guid.NewGuid(), "Alpha Contact", "alpha@example.test", null, true));
         alpha.AddAddress(new OrganisationAddress(
             Guid.NewGuid(), "FreeTesting Address", null, "Raipur",
-            "Chhattisgarh", "492001", "IN", true));
+            "Chhattisgarh", "492001", "IN", true, "22"));
 
         var beta = new Organisation(
             CustomerStore.TenantBCustomerId,

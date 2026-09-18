@@ -30,4 +30,5 @@ public sealed record OrganisationAddress(
     string State,
     string PostalCode,
     string CountryCode,
-    bool IsPrimary);
+    bool IsPrimary,
+    string? StateCode = null);

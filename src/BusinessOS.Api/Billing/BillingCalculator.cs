@@ -21,7 +21,7 @@ public static class BillingCalculator
             request.SellerStateCode ?? options.SellerStateCode,
             "Seller state code");
         var buyerStateCode = NormalizeStateCode(
-            request.BuyerStateCode ?? StateCodeFromGstin(buyerOrganisation.Gstin),
+            request.BuyerStateCode ?? StateCodeFromGstin(buyerOrganisation.Gstin) ?? buyerOrganisation.PrimaryAddress?.StateCode,
             "Buyer state code");
         var tax = CalculateInclusiveTax(
             source.GrossAmount, options.DefaultGstRate,

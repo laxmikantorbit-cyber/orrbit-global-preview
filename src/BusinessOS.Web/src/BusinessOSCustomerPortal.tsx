@@ -5,6 +5,7 @@ import {
 } from './businessosApi'
 import { getActivationCode } from './commerceAdminApi'
 import { getBillingReceipt, listBillingHistory, type BillingInvoice } from './billingApi'
+import { OrganisationProfileCard } from './OrganisationProfileCard'
 import './BusinessOSHub.css'
 
 export function BusinessOSCustomerPortal() {
@@ -69,6 +70,8 @@ export function BusinessOSCustomerPortal() {
       <article><span>Renewal</span><strong>{entitlement?.renewalStatus || '—'}</strong></article>
       <article><span>AutoPay</span><strong>{autopay?.status || entitlement?.autoPayProviderStatus || 'Not configured'}</strong></article>
     </section>}
+
+    {subscription && <OrganisationProfileCard token={token} subscriptionId={subscriptionId} />}
 
     {activationCode && <section className="bos-card"><h2>Desktop activation</h2><strong className="code">{activationCode}</strong>
       <p>Use this code in the BusinessOS desktop activation screen. Keep it private.</p></section>}

@@ -1,4 +1,4 @@
-﻿using BusinessOS.Api;
+using BusinessOS.Api;
 using BusinessOS.Api.Billing;
 using BusinessOS.Api.Commerce;
 using BusinessOS.Api.Crm;
@@ -23,7 +23,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy(BusinessOsCorsPolicy, policy =>
     {
         policy.WithOrigins(ResolveAllowedCorsOrigins(builder.Configuration, builder.Environment))
-            .WithMethods("GET", "POST", "OPTIONS")
+            .WithMethods("GET", "POST", "PUT", "OPTIONS")
             .AllowAnyHeader()
             .SetPreflightMaxAge(TimeSpan.FromHours(1));
     });
@@ -71,7 +71,6 @@ else
     builder.Services.AddSingleton<ICrmNotificationStore, PostgresCrmNotificationStore>();
     builder.Services.AddSingleton<ICrmEntityActivityStore, PostgresCrmEntityActivityStore>();
 }
-builder.Services.AddSingleton<IOrganisationRepository>(_ => CustomerSeed.CreateRepository());
 builder.Services.AddSingleton<LeaseSigner>();
 builder.Services.AddSingleton<PaymentProcessor>();
 builder.Services.AddSingleton<PaymentSubscriptionActivationService>();
@@ -96,6 +95,7 @@ if (string.IsNullOrWhiteSpace(commerceConnection))
     builder.Services.AddSingleton<ICommerceActivationStore, InMemoryCommerceActivationStore>();
     builder.Services.AddSingleton<IProviderOrderConcurrencyGate, InMemoryProviderOrderConcurrencyGate>();
     builder.Services.AddSingleton<IBillingStore, InMemoryBillingStore>();
+    builder.Services.AddSingleton<IOrganisationRepository>(_ => CustomerSeed.CreateRepository());
 }
 else
 {
@@ -114,6 +114,8 @@ else
             commerceConnection,
             postgresRuntimeRole,
             allowSchemaBootstrap: false));
+    builder.Services.AddSingleton<IOrganisationRepository>(_ =>
+        new PostgresOrganisationRepository(commerceConnection, postgresRuntimeRole));
 }
 
 var identityConnection = builder.Configuration.GetConnectionString("Identity");
@@ -157,6 +159,7 @@ app.MapCommerceActivationEndpoints();
 app.MapCommerceAdminEndpoints();
 app.MapDesktopLicenseEndpoints();
 app.MapBillingEndpoints();
+app.MapOrganisationProfileEndpoints();
 app.MapPaymentCheckoutEndpoints();
 app.MapFreeTestingPaymentEndpoints();
 app.MapFreeTestingPublicCheckoutEndpoints();

@@ -3,6 +3,7 @@ namespace BusinessOS.Customers;
 public interface IOrganisationRepository
 {
     Task AddAsync(Organisation organisation, CancellationToken cancellationToken = default);
+    Task UpdateAsync(Organisation organisation, CancellationToken cancellationToken = default);
     Task<Organisation?> GetAsync(Guid tenantId, Guid organisationId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Organisation>> ListAsync(Guid tenantId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Organisation>> ListByRoleAsync(
@@ -26,6 +27,19 @@ public sealed class InMemoryOrganisationRepository : IOrganisationRepository
         ArgumentNullException.ThrowIfNull(organisation);
         cancellationToken.ThrowIfCancellationRequested();
         lock (_gate) AddInternal(organisation);
+        return Task.CompletedTask;
+    }
+
+    public Task UpdateAsync(Organisation organisation, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(organisation);
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            if (!_items.TryGetValue(organisation.Id, out var existing) || existing.TenantId != organisation.TenantId)
+                throw new InvalidOperationException("Organisation does not exist.");
+            _items[organisation.Id] = organisation;
+        }
         return Task.CompletedTask;
     }
 

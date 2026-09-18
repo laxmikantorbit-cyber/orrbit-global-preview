@@ -133,7 +133,8 @@ public sealed class Organisation
         string state,
         string postalCode,
         string countryCode,
-        bool isPrimary)
+        bool isPrimary,
+        string? stateCode = null)
     {
         if (addressId == Guid.Empty) throw new ArgumentException("Address id is required.", nameof(addressId));
         ValidateAddress(line1, city, state, postalCode, countryCode);
@@ -145,7 +146,7 @@ public sealed class Organisation
                 _addresses[i] = _addresses[i] with { IsPrimary = false };
         }
         _addresses[index] = NormalizeAddress(new OrganisationAddress(
-            addressId, line1, line2, city, state, postalCode, countryCode, isPrimary));
+            addressId, line1, line2, city, state, postalCode, countryCode, isPrimary, stateCode));
     }
 
     public void RemoveAddress(Guid addressId)
@@ -187,7 +188,8 @@ public sealed class Organisation
         City = address.City.Trim(),
         State = address.State.Trim(),
         PostalCode = address.PostalCode.Trim(),
-        CountryCode = address.CountryCode.Trim().ToUpperInvariant()
+        CountryCode = address.CountryCode.Trim().ToUpperInvariant(),
+        StateCode = Clean(address.StateCode)
     };
 
     private static string? Clean(string? value) =>

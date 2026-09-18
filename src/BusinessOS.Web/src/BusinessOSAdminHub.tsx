@@ -5,6 +5,7 @@ import {
   getActivationCode, getAdminStatus, getDevices, reconcileOrder,
   replaceDevice, revokeDevice, type CommerceAdminStatus, type DeviceInventory,
 } from './commerceAdminApi'
+import { OrganisationProfileCard } from './OrganisationProfileCard'
 import './BusinessOSHub.css'
 
 export function BusinessOSAdminHub() {
@@ -103,6 +104,8 @@ export function BusinessOSAdminHub() {
       <article><span>Needs reconciliation</span><strong>{status.counts.needsReconciliation}</strong></article>
       <article><span>Failed payments</span><strong>{status.counts.failedPayments}</strong></article>
     </section>}
+
+    {subscription && <OrganisationProfileCard token={token} subscriptionId={subscriptionId} title="Customer organisation & GST profile" />}
 
     {(subscription || entitlement || autopay) && <div className="bos-grid">
       {subscription && <section className="bos-card"><h2>Subscription</h2><pre>{JSON.stringify(subscription, null, 2)}</pre></section>}

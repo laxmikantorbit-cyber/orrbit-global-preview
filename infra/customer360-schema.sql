@@ -31,10 +31,14 @@ CREATE TABLE IF NOT EXISTS organisation_contacts (
     name text NOT NULL CHECK (length(btrim(name)) > 0),
     email text NULL,
     phone text NULL,
+    designation text NULL,
     is_primary boolean NOT NULL DEFAULT false,
     FOREIGN KEY (tenant_id, organisation_id)
         REFERENCES organisations(tenant_id, id) ON DELETE CASCADE
 );
+
+ALTER TABLE organisation_contacts
+    ADD COLUMN IF NOT EXISTS designation text NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_org_contacts_one_primary
     ON organisation_contacts (tenant_id, organisation_id)
@@ -53,10 +57,27 @@ CREATE TABLE IF NOT EXISTS organisation_addresses (
     state text NOT NULL,
     postal_code text NOT NULL,
     country_code text NOT NULL CHECK (length(btrim(country_code)) = 2),
+    state_code text NULL CHECK (state_code IS NULL OR state_code ~ '^[0-9]{2}$'),
     is_primary boolean NOT NULL DEFAULT false,
     FOREIGN KEY (tenant_id, organisation_id)
         REFERENCES organisations(tenant_id, id) ON DELETE CASCADE
 );
+
+ALTER TABLE organisation_addresses
+    ADD COLUMN IF NOT EXISTS state_code text NULL;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'ck_organisation_addresses_state_code'
+          AND conrelid = 'organisation_addresses'::regclass
+    ) THEN
+        ALTER TABLE organisation_addresses
+            ADD CONSTRAINT ck_organisation_addresses_state_code
+            CHECK (state_code IS NULL OR state_code ~ '^[0-9]{2}$');
+    END IF;
+END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_org_addresses_one_primary
     ON organisation_addresses (tenant_id, organisation_id)
