@@ -181,10 +181,87 @@ export function CrmDemo() {
     URL.revokeObjectURL(url)
   }
 
+
+  function parseCsv(text: string) {
+    const rows: string[][] = []
+    let row: string[] = [], cell = '', quoted = false
+    for (let i = 0; i < text.length; i += 1) {
+      const ch = text[i]
+      if (ch === '"' && quoted && text[i + 1] === '"') { cell += '"'; i += 1; continue }
+      if (ch === '"') { quoted = !quoted; continue }
+      if (ch === ',' && !quoted) { row.push(cell.trim()); cell = ''; continue }
+      if ((ch === '\n' || ch === '\r') && !quoted) {
+        if (ch === '\r' && text[i + 1] === '\n') i += 1
+        row.push(cell.trim()); cell = ''
+        if (row.some(Boolean)) rows.push(row)
+        row = []
+        continue
+      }
+      cell += ch
+    }
+    row.push(cell.trim())
+    if (row.some(Boolean)) rows.push(row)
+    return rows
+  }
+
+  function pickCsvFile(onText: (text: string) => void) {
+    const input = document.createElement('input')
+    input.type = 'file'; input.accept = '.csv,text/csv'
+    input.onchange = () => {
+      const file = input.files?.[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = () => onText(String(reader.result || ''))
+      reader.readAsText(file)
+    }
+    input.click()
+  }
+
   function exportLeadsCsv() {
     downloadCsv('crm-leads.csv', ['Name', 'Company', 'Email', 'Phone', 'Source', 'Status', 'Priority', 'Product', 'Next Follow-up'],
       filteredLeads.map((lead) => [lead.contactName || lead.title, lead.title, lead.email || '', lead.mobileNumber || '', lead.leadSource || '', lead.status, lead.priority || '', lead.productInterest || '', lead.nextFollowUpAtUtc || '']))
     setMessage(`Exported ${filteredLeads.length} lead(s) to CSV`)
+  }
+
+
+  function importLeadsCsv() {
+    pickCsvFile((text) => {
+      const [header, ...rows] = parseCsv(text)
+      if (!header || rows.length === 0) { setMessage('CSV has no lead rows'); return }
+      const keys = header.map((x) => x.toLowerCase().replace(/[^a-z0-9]/g, ''))
+      const value = (row: string[], names: string[]) => {
+        const index = names.map((n) => keys.indexOf(n)).find((i) => i >= 0) ?? -1
+        return index >= 0 ? row[index] : ''
+      }
+      void (async () => {
+        setLoading(true)
+        let created = 0
+        try {
+          for (const row of rows) {
+            const company = value(row, ['company','business','name','customer','lead'])
+            const person = value(row, ['contact','contactperson','person','owner'])
+            const phone = value(row, ['phone','mobile','mobilenumber'])
+            const mail = value(row, ['email','mail'])
+            if (!company && !person && !phone && !mail) continue
+            await createCrmLead({
+              title: company || person || phone || mail,
+              contactName: person || undefined,
+              mobileNumber: phone || undefined,
+              email: mail || undefined,
+              leadSource: value(row, ['source','leadsource']) || 'Import',
+              productInterest: value(row, ['product','requirement','interest']) || undefined,
+              priority: value(row, ['priority']) || 'Normal',
+              notes: value(row, ['notes','remark','remarks']) || undefined,
+            })
+            created += 1
+          }
+          setMessage(`Imported ${created} lead(s) from CSV`)
+          await refresh()
+        } catch (error) {
+          setMessage(error instanceof Error ? error.message : String(error))
+        } finally { setLoading(false) }
+      })()
+    })
   }
 
   function toggleSelectedLead(id: string, checked: boolean) {
@@ -447,7 +524,7 @@ export function CrmDemo() {
           <section className="crm2-ref-list-page">
             <div className="crm2-ref-action-row">
               <button className="crm2-ref-primary" onClick={() => setShowAddLead(true)}>+ New Lead</button>
-              <button className="crm2-ref-primary" onClick={() => setMessage('Import leads is scheduled for the next backend block')}>Import Leads</button>
+              <button className="crm2-ref-primary" onClick={importLeadsCsv}>Import Leads</button>
               <button className={`crm2-ref-square ${leadViewMode === 'list' ? 'active' : ''}`} onClick={() => setLeadViewMode('list')}>☰</button>
               <button className={`crm2-ref-square ${leadViewMode === 'grid' ? 'active' : ''}`} onClick={() => setLeadViewMode('grid')}>▦</button>
             </div>

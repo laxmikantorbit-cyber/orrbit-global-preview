@@ -21,6 +21,55 @@ type Props = {
 
 const stages = ['Discovery', 'SolutionFit', 'Proposal', 'Negotiation', 'Won', 'Lost']
 
+
+function csvCell(value: unknown) {
+  const text = value == null ? '' : String(value)
+  return `"${text.replaceAll('"', '""')}"`
+}
+
+function downloadCsv(filename: string, headers: string[], rows: unknown[][]) {
+  const csv = [headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url; link.download = filename; link.click(); URL.revokeObjectURL(url)
+}
+
+function parseCsv(text: string) {
+  const rows: string[][] = []
+  let row: string[] = [], cell = '', quoted = false
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i]
+    if (ch === '"' && quoted && text[i + 1] === '"') { cell += '"'; i += 1; continue }
+    if (ch === '"') { quoted = !quoted; continue }
+    if (ch === ',' && !quoted) { row.push(cell.trim()); cell = ''; continue }
+    if ((ch === '\n' || ch === '\r') && !quoted) {
+      if (ch === '\r' && text[i + 1] === '\n') i += 1
+      row.push(cell.trim()); cell = ''
+      if (row.some(Boolean)) rows.push(row)
+      row = []
+      continue
+    }
+    cell += ch
+  }
+  row.push(cell.trim())
+  if (row.some(Boolean)) rows.push(row)
+  return rows
+}
+
+function pickCsvFile(onText: (text: string) => void) {
+  const input = document.createElement('input')
+  input.type = 'file'; input.accept = '.csv,text/csv'
+  input.onchange = () => {
+    const file = input.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => onText(String(reader.result || ''))
+    reader.readAsText(file)
+  }
+  input.click()
+}
+
 function money(value: number, currency: string) {
   try { return new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value) }
   catch { return `${currency} ${value.toLocaleString('en-IN')}` }
@@ -92,6 +141,39 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
     }, 'Contact added')
   }
 
+
+  function exportCustomersCsv() {
+    downloadCsv('crm-customers.csv', ['Company', 'Primary Contact', 'Email', 'Phone', 'GSTIN', 'Status', 'Contacts'],
+      accounts.map((account) => [account.name, account.primaryContact?.name || '', account.primaryContact?.email || '', account.primaryContact?.phone || '', account.gstin || '', account.status, account.contacts.length]))
+    notify(`Exported ${accounts.length} customer(s) to CSV`)
+  }
+
+  function importCustomersCsv() {
+    pickCsvFile((text) => {
+      const [header, ...rows] = parseCsv(text)
+      if (!header || rows.length === 0) { notify('CSV has no customer rows'); return }
+      const keys = header.map((x) => x.toLowerCase().replace(/[^a-z0-9]/g, ''))
+      const value = (row: string[], names: string[]) => {
+        const index = names.map((n) => keys.indexOf(n)).find((i) => i >= 0) ?? -1
+        return index >= 0 ? row[index] : ''
+      }
+      void perform(async () => {
+        for (const row of rows) {
+          const company = value(row, ['company','business','name','customer'])
+          if (!company) continue
+          await createCrmAccount({
+            name: company,
+            legalName: value(row, ['legalname']) || undefined,
+            contactName: value(row, ['contact','contactperson','primarycontact','person']) || undefined,
+            phone: value(row, ['phone','mobile','mobilenumber']) || undefined,
+            email: value(row, ['email','mail']) || undefined,
+            gstin: value(row, ['gstin']) || undefined,
+          })
+        }
+      }, `Imported ${rows.length} customer row(s) from CSV`)
+    })
+  }
+
   if (view === 'accounts') {
     const activeCustomers = accounts.filter((account) => account.status !== 'Inactive').length
     const activeContacts = accounts.reduce((sum, account) => sum + account.contacts.length, 0)
@@ -99,7 +181,7 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
       <section className="crm2-ref-list-page">
         <div className="crm2-ref-action-row">
           {canManageAccounts ? <button className="crm2-ref-primary" onClick={() => setShowAccount(true)}>+ New Customer</button> : null}
-          <button className="crm2-ref-primary" onClick={() => notify('Import customers is scheduled for the next backend block')}>Import Customers</button>
+          <button className="crm2-ref-primary" onClick={importCustomersCsv}>Import Customers</button>
           <button className="crm2-ref-outline" onClick={() => accounts[0] && setSelectedAccountId(accounts[0].id)}>Contacts</button>
           <button className="crm2-filter-button">Filter</button>
         </div>
@@ -109,7 +191,7 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
         </section>
         <section className="crm2-ref-table-card">
           <label className="crm2-ref-check"><input type="checkbox" defaultChecked /> Exclude Inactive Customers</label>
-          <div className="crm2-ref-table-tools"><select><option>25</option><option>50</option></select><button>Export</button><button>Bulk Actions</button><button onClick={refresh}>Refresh</button><span /><label><b>⌕</b><input placeholder="Search..." /></label></div>
+          <div className="crm2-ref-table-tools"><select><option>25</option><option>50</option></select><button onClick={exportCustomersCsv}>Export</button><button>Bulk Actions</button><button onClick={refresh}>Refresh</button><span /><label><b>⌕</b><input placeholder="Search..." /></label></div>
           <div className="crm2-ref-customers-head"><span><input type="checkbox" /></span><span>#</span><span>Company</span><span>Primary Contact</span><span>Primary Email</span><span>Phone</span><span>Active</span><span>Groups</span></div>
           {accounts.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : accounts.map((account, index) => (
             <article className="crm2-ref-customers-row" key={account.id} onClick={() => setSelectedAccountId(account.id)}>
