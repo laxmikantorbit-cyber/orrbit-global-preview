@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   addCrmContact,
   changeCrmOpportunityStage,
@@ -93,25 +93,30 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
   }
 
   if (view === 'accounts') {
+    const activeCustomers = accounts.filter((account) => account.status !== 'Inactive').length
+    const activeContacts = accounts.reduce((sum, account) => sum + account.contacts.length, 0)
     return (
-      <section className="crm2-sales-module">
-        <div className="crm2-module-head">
-          <div><span className="crm2-kicker">CUSTOMER CRM</span><h2>Accounts & contacts</h2><p>Converted customers and their decision makers.</p></div>
-          {canManageAccounts ? <button className="crm2-primary" onClick={() => setShowAccount(true)}>＋ New account</button> : <span className="crm2-readonly-badge">Read only</span>}
+      <section className="crm2-ref-list-page">
+        <div className="crm2-ref-action-row">
+          {canManageAccounts ? <button className="crm2-ref-primary" onClick={() => setShowAccount(true)}>+ New Customer</button> : null}
+          <button className="crm2-ref-primary" onClick={() => notify('Import customers is scheduled for the next backend block')}>Import Customers</button>
+          <button className="crm2-ref-outline" onClick={() => accounts[0] && setSelectedAccountId(accounts[0].id)}>Contacts</button>
+          <button className="crm2-filter-button">Filter</button>
         </div>
-        <div className="crm2-account-grid">
-          {accounts.length === 0 ? <div className="crm2-empty-card"><strong>No customer accounts yet</strong><span>Convert a qualified lead or create an account manually.</span></div> : accounts.map((account) => (
-            <article key={account.id} className="crm2-account-card" onClick={() => setSelectedAccountId(account.id)}>
-              <div className="crm2-account-avatar">{account.name.slice(0, 1).toUpperCase()}</div>
-              <div className="crm2-account-body">
-                <div><strong>{account.name}</strong><em>{account.status}</em></div>
-                <span>{account.primaryContact?.name || 'No primary contact'}</span>
-                <small>{account.primaryContact?.phone || account.primaryContact?.email || `${account.contacts.length} contact(s)`}</small>
-              </div>
-              <button className="crm2-more">›</button>
+        <section className="crm2-ref-summary-card">
+          <h2>Customers Summary</h2>
+          <div className="crm2-ref-summary-line"><strong>{accounts.length}</strong><span>Total Customers</span><strong>{activeCustomers}</strong><span className="good">Active Customers</span><strong>{accounts.length - activeCustomers}</strong><span className="bad">Inactive Customers</span><strong>{activeContacts}</strong><span>Active Contacts</span><strong>0</strong><span>Contacts Logged In...</span></div>
+        </section>
+        <section className="crm2-ref-table-card">
+          <label className="crm2-ref-check"><input type="checkbox" defaultChecked /> Exclude Inactive Customers</label>
+          <div className="crm2-ref-table-tools"><select><option>25</option><option>50</option></select><button>Export</button><button>Bulk Actions</button><button onClick={refresh}>Refresh</button><span /><label><b>⌕</b><input placeholder="Search..." /></label></div>
+          <div className="crm2-ref-customers-head"><span><input type="checkbox" /></span><span>#</span><span>Company</span><span>Primary Contact</span><span>Primary Email</span><span>Phone</span><span>Active</span><span>Groups</span></div>
+          {accounts.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : accounts.map((account, index) => (
+            <article className="crm2-ref-customers-row" key={account.id} onClick={() => setSelectedAccountId(account.id)}>
+              <span><input type="checkbox" onClick={(e) => e.stopPropagation()} /></span><span>{176 - index}</span><span><a>{account.name}</a></span><span>{account.primaryContact?.name || '-'}</span><span><a>{account.primaryContact?.email || '-'}</a></span><span>{account.primaryContact?.phone || '-'}</span><span><label className="crm2-ref-switch"><input type="checkbox" checked={account.status !== 'Inactive'} readOnly /><i /></label></span><span><em>{account.status === 'Active' ? 'Customer' : account.status}</em></span>
             </article>
           ))}
-        </div>
+        </section>
 
         {showAccount && canManageAccounts ? (
           <div className="crm2-overlay" onMouseDown={() => setShowAccount(false)}>
@@ -135,7 +140,6 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
                 <div><span>GSTIN</span><strong>{selectedAccount.gstin || '—'}</strong></div>
                 <div><span>Code</span><strong>{selectedAccount.displayCode || '—'}</strong></div>
               </div>
-              <div className="crm2-module-head compact"><div><span className="crm2-kicker">CONTACTS</span><h3>People</h3></div></div>
               <div className="crm2-contact-list">
                 {selectedAccount.contacts.length === 0 ? <p className="crm2-muted">No contacts yet.</p> : selectedAccount.contacts.map((contact) => (
                   <article key={contact.id}><div><strong>{contact.name}</strong><span>{contact.phone || contact.email || 'No contact details'}</span></div>{contact.isPrimary ? <em>Primary</em> : null}</article>

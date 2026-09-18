@@ -101,13 +101,6 @@ function initialWorkSummary(): CrmWorkSummary {
   return { openFollowUps: 0, overdueFollowUps: 0, dueTodayFollowUps: 0, openTasks: 0, overdueTasks: 0 }
 }
 
-function formatCreated(value?: string | null) {
-  if (!value) return '—'
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return value
-  return new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(parsed)
-}
-
 export function CrmDemo() {
   const [view, setView] = useState<CrmView>('overview')
   const [leads, setLeads] = useState<CrmLead[]>([])
@@ -363,28 +356,31 @@ export function CrmDemo() {
           </>
         ) : null}
         {view === 'leads' ? (
-          <section className="crm2-table-card crm2-module-table">
-            <div className="crm2-table-tools">
-              <div><span className="crm2-kicker">CUSTOMER ENQUIRIES</span><h2>{session?.canViewAllOwnedRecords ? 'All customer enquiries' : 'My customer enquiries'}</h2><p className="crm2-help-text">Click one customer row. Then call, change progress, add note or set next reminder.</p></div>
-              <div className="crm2-filters">
-                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search customer, mobile, business..." />
-                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="All">All stages</option>{statuses.map((status) => <option key={status}>{status}</option>)}</select>
-              </div>
+          <section className="crm2-ref-list-page">
+            <div className="crm2-ref-action-row">
+              <button className="crm2-ref-primary" onClick={() => setShowAddLead(true)}>+ New Lead</button>
+              <button className="crm2-ref-primary" onClick={() => setMessage('Import leads is scheduled for the next backend block')}>Import Leads</button>
+              <button className="crm2-ref-square active">☰</button>
+              <button className="crm2-ref-square">▦</button>
             </div>
-            <div className="crm2-table-head crm2-rich-head"><span>Customer</span><span>Mobile / Contact</span><span>Requirement</span><span>Progress</span><span>Next call</span><span /></div>
-            <div className="crm2-table-body">
-              {filteredLeads.length === 0 ? <div className="crm2-empty"><strong>No customer enquiry found</strong><span>Clear the filter or add a new enquiry.</span></div> : filteredLeads.map((lead) => (
-                <article className="crm2-row crm2-rich-row" key={lead.id} onClick={() => setSelectedLeadId(lead.id)}>
-                  <div className="crm2-lead-name"><i>{lead.title.slice(0, 1).toUpperCase()}</i><span><strong>{lead.title}</strong><small>{lead.leadSource || 'Direct'} - {lead.priority || 'Normal'}</small></span></div>
-                  <span><b className="crm2-cell-main">{lead.contactName || '—'}</b><small>{lead.mobileNumber || lead.email || 'Mobile not added'}</small></span>
-                  <span>{lead.productInterest || '—'}</span>
-                  <span><em className={`crm2-stage stage-${lead.status.toLowerCase()}`}>{statusLabels[lead.status] || lead.status}</em></span>
-                  <span className="crm2-created">{formatCreated(lead.nextFollowUpAtUtc)}</span>
-                  <button className="crm2-more">›</button>
+            <section className="crm2-ref-filter-card">
+              <strong>Filter by</strong>
+              <div className="crm2-ref-filter-grid">
+                <select><option>Assigned</option><option>CRM Owner</option><option>Sales QA</option></select>
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="All">New Lead, Follow Up, Demo...</option>{statuses.map((status) => <option key={status} value={status}>{statusLabels[status] || status}</option>)}</select>
+                <select><option>Source</option><option>WhatsApp</option><option>Website</option><option>Calling</option><option>Referral</option></select>
+                <select><option>Additional Filters</option><option>High priority</option><option>With mobile</option><option>With next follow-up</option></select>
+              </div>
+            </section>
+            <section className="crm2-ref-table-card">
+              <div className="crm2-ref-table-tools"><select><option>25</option><option>50</option></select><button>Export</button><button>Bulk Actions</button><button onClick={refresh}>Refresh</button><span /><label><b>⌕</b><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search..." /></label></div>
+              <div className="crm2-ref-leads-head"><span><input type="checkbox" /></span><span>#</span><span>Name</span><span>Company</span><span>Email</span><span>Phone</span><span>Value</span><span>Tags</span><span>Assigned</span><span>Status</span></div>
+              {filteredLeads.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : filteredLeads.map((lead, index) => (
+                <article className="crm2-ref-leads-row" key={lead.id} onClick={() => setSelectedLeadId(lead.id)}>
+                  <span><input type="checkbox" onClick={(e) => e.stopPropagation()} /></span><span>{1261 - index}</span><span><a>{lead.contactName || lead.title}</a></span><span>{lead.title}</span><span>{lead.email || '-'}</span><span>{lead.mobileNumber || '-'}</span><span>{lead.productInterest ? '₹29,999.00' : '-'}</span><span><em>{lead.priority || 'Normal'}</em></span><span><i className="crm2-ref-avatar-mini">{(lead.contactName || lead.title).slice(0,1).toUpperCase()}</i></span><span><select value={lead.status} onClick={(e) => e.stopPropagation()} onChange={(e) => void moveLead(lead.id, e.target.value)}>{statuses.map((status) => <option key={status}>{status}</option>)}</select></span>
                 </article>
               ))}
-            </div>
-            <div className="crm2-table-foot">Showing {filteredLeads.length} of {leads.length} enquiries</div>
+            </section>
           </section>
         ) : null}
         {referenceModuleContent[view] ? (
