@@ -32,6 +32,25 @@ if ($file.Name.Length -gt 160) {
     throw "Installer file name must be 160 characters or fewer."
 }
 
+if ($file.Name -match '(?i)(source|src|dev-ready|wpf-ready|recovered|backup)') {
+    throw "Installer file name looks like a source/developer/backup package, not a customer installer."
+}
+
+if ($file.Extension.ToLowerInvariant() -eq '.zip') {
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $zip = [IO.Compression.ZipFile]::OpenRead($file.FullName)
+    try {
+        $sourceEntries = $zip.Entries | Where-Object {
+            $_.FullName -match '(?i)(\.sln$|\.csproj$|\.vbproj$|\.fsproj$|\.cs$|\.xaml$|\.resx$|\.designer\.cs$)'
+        } | Select-Object -First 10
+        if ($sourceEntries) {
+            $examples = ($sourceEntries | ForEach-Object { $_.FullName }) -join ', '
+            throw "ZIP contains source/project files and cannot be published: $examples"
+        }
+    }
+    finally { $zip.Dispose() }
+}
+
 if ($DownloadUrl -notmatch '^https://') {
     throw "DownloadUrl must be an absolute HTTPS URL."
 }

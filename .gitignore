@@ -12,3 +12,6 @@
 TestResults/
 coverage/
 artifacts/
+
+.release-artifacts/
+.release-test/
