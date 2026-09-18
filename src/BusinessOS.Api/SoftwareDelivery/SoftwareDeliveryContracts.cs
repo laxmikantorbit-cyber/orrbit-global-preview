@@ -151,6 +151,110 @@ public sealed class InMemorySoftwareReleaseStore : ISoftwareReleaseStore
         }
     }
 }
+
+public sealed record SoftwareDeliveryEventCreateRequest(
+    Guid SubscriptionId,
+    Guid? ReleaseId,
+    string ProductCode,
+    string Channel,
+    string Platform,
+    string Architecture,
+    string Action,
+    bool DownloadEntitled,
+    string? UnavailableReason,
+    DateTimeOffset? OccurredAtUtc = null);
+
+public sealed record SoftwareDeliveryEventRecord(
+    Guid Id,
+    Guid TenantId,
+    Guid SubscriptionId,
+    Guid? ReleaseId,
+    string ProductCode,
+    string Channel,
+    string Platform,
+    string Architecture,
+    string Action,
+    bool DownloadEntitled,
+    string? UnavailableReason,
+    DateTimeOffset OccurredAtUtc);
+
+public interface ISoftwareDeliveryEventStore
+{
+    Task<SoftwareDeliveryEventRecord> AddAsync(
+        Guid tenantId,
+        SoftwareDeliveryEventCreateRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<SoftwareDeliveryEventRecord>> ListAsync(
+        Guid tenantId,
+        Guid? subscriptionId,
+        int take,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class InMemorySoftwareDeliveryEventStore : ISoftwareDeliveryEventStore
+{
+    private readonly List<SoftwareDeliveryEventRecord> _items = [];
+    private readonly object _gate = new();
+
+    public Task<SoftwareDeliveryEventRecord> AddAsync(
+        Guid tenantId,
+        SoftwareDeliveryEventCreateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var item = Normalize(tenantId, request);
+        lock (_gate) _items.Add(item);
+        return Task.FromResult(item);
+    }
+
+    public Task<IReadOnlyList<SoftwareDeliveryEventRecord>> ListAsync(
+        Guid tenantId,
+        Guid? subscriptionId,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        take = Math.Clamp(take, 1, 200);
+        lock (_gate)
+        {
+            return Task.FromResult<IReadOnlyList<SoftwareDeliveryEventRecord>>(
+                _items.Where(x => x.TenantId == tenantId)
+                    .Where(x => subscriptionId is null || x.SubscriptionId == subscriptionId)
+                    .OrderByDescending(x => x.OccurredAtUtc)
+                    .Take(take)
+                    .ToArray());
+        }
+    }
+
+    private static SoftwareDeliveryEventRecord Normalize(
+        Guid tenantId,
+        SoftwareDeliveryEventCreateRequest request)
+    {
+        if (tenantId == Guid.Empty) throw new ArgumentException("Tenant id is required.");
+        if (request.SubscriptionId == Guid.Empty) throw new ArgumentException("Subscription id is required.");
+        var action = string.IsNullOrWhiteSpace(request.Action) ? "delivery_viewed" : request.Action.Trim();
+        return new SoftwareDeliveryEventRecord(
+            Guid.NewGuid(),
+            tenantId,
+            request.SubscriptionId,
+            request.ReleaseId,
+            Required(request.ProductCode, "Product code").ToUpperInvariant(),
+            Required(request.Channel, "Channel"),
+            Required(request.Platform, "Platform"),
+            Required(request.Architecture, "Architecture"),
+            action,
+            request.DownloadEntitled,
+            string.IsNullOrWhiteSpace(request.UnavailableReason) ? null : request.UnavailableReason.Trim(),
+            request.OccurredAtUtc ?? DateTimeOffset.UtcNow);
+    }
+
+    private static string Required(string? value, string field) =>
+        string.IsNullOrWhiteSpace(value)
+            ? throw new ArgumentException($"{field} is required.")
+            : value.Trim();
+}
+
 public static class SoftwareReleaseValidator
 {
     private static readonly string[] SupportedChannels = ["Stable", "Beta", "Internal"];

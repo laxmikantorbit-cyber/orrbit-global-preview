@@ -16,6 +16,9 @@ public static class SoftwareDeliveryEndpoints
         admin.MapGet("", ListReleasesAsync);
         admin.MapPost("", PublishReleaseAsync);
         admin.MapPost("/{releaseId:guid}/deactivate", DeactivateReleaseAsync);
+
+        var deliveryAdmin = app.MapGroup("/api/software/admin/delivery-events");
+        deliveryAdmin.MapGet("", ListDeliveryEventsAsync);
         return app;
     }
 
@@ -27,6 +30,7 @@ public static class SoftwareDeliveryEndpoints
         TenantContext tenant,
         ICommerceActivationStore commerce,
         ISoftwareReleaseStore releases,
+        ISoftwareDeliveryEventStore deliveryEvents,
         CancellationToken cancellationToken)
     {
         var state = await commerce.FindSubscriptionStateAsync(
@@ -65,6 +69,20 @@ public static class SoftwareDeliveryEndpoints
         if (activationEntitled)
             activation = await commerce.GetOrCreateDesktopActivationCodeAsync(
                 tenant.TenantId, subscriptionId, cancellationToken);
+
+        await deliveryEvents.AddAsync(
+            tenant.TenantId,
+            new SoftwareDeliveryEventCreateRequest(
+                state.SubscriptionId,
+                downloadEntitled ? release?.Id : null,
+                state.ProductCode,
+                selectedChannel,
+                selectedPlatform,
+                selectedArchitecture,
+                "delivery_viewed",
+                downloadEntitled,
+                reason),
+            cancellationToken);
 
         return Results.Ok(new SoftwareDeliveryResponse(
             tenant.TenantId,
@@ -133,6 +151,19 @@ public static class SoftwareDeliveryEndpoints
             : Results.NotFound(new ErrorResponse("Software release was not found."));
     }
 
+    private static async Task<IResult> ListDeliveryEventsAsync(
+        Guid? subscriptionId,
+        int? take,
+        TenantContext tenant,
+        ISoftwareDeliveryEventStore deliveryEvents,
+        CancellationToken cancellationToken)
+    {
+        if (TenantRoleAuthorization.ForbidUnlessCommerceAdmin(tenant) is { } forbidden)
+            return forbidden;
+        var items = await deliveryEvents.ListAsync(
+            tenant.TenantId, subscriptionId, take ?? 100, cancellationToken);
+        return Results.Ok(items);
+    }
     private static string? ResolveUnavailableReason(
         string subscriptionStatus,
         bool allowedByStatus,
@@ -162,3 +193,4 @@ public static class SoftwareDeliveryEndpoints
     private static string? Clean(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
+

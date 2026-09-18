@@ -116,6 +116,43 @@ public sealed class SoftwareDeliveryTests
         Assert.Contains("Channel", error.Message);
     }
 
+
+    [Fact]
+    public async Task Delivery_Event_Store_Is_Tenant_Isolated()
+    {
+        var tenantA = Guid.NewGuid();
+        var tenantB = Guid.NewGuid();
+        var subscriptionId = Guid.NewGuid();
+        var store = new InMemorySoftwareDeliveryEventStore();
+
+        await store.AddAsync(tenantA, new SoftwareDeliveryEventCreateRequest(
+            subscriptionId, null, "AI_REPAIR", "Stable", "Windows", "x64",
+            "delivery_viewed", false, "No release"));
+
+        Assert.Single(await store.ListAsync(tenantA, subscriptionId, 50));
+        Assert.Empty(await store.ListAsync(tenantB, null, 50));
+    }
+
+    [Fact]
+    public async Task Delivery_Event_Store_Returns_Newest_First_And_Filters_Subscription()
+    {
+        var tenantId = Guid.NewGuid();
+        var subscriptionA = Guid.NewGuid();
+        var subscriptionB = Guid.NewGuid();
+        var store = new InMemorySoftwareDeliveryEventStore();
+        await store.AddAsync(tenantId, Event(subscriptionA, "2026-09-01T00:00:00Z"));
+        await store.AddAsync(tenantId, Event(subscriptionB, "2026-09-03T00:00:00Z"));
+        await store.AddAsync(tenantId, Event(subscriptionA, "2026-09-05T00:00:00Z"));
+
+        var filtered = await store.ListAsync(tenantId, subscriptionA, 50);
+        Assert.Equal(2, filtered.Count);
+        Assert.True(filtered[0].OccurredAtUtc > filtered[1].OccurredAtUtc);
+    }
+
+    private static SoftwareDeliveryEventCreateRequest Event(Guid subscriptionId, string occurredAtUtc) =>
+        new(subscriptionId, Guid.NewGuid(), "AI_REPAIR", "Stable", "Windows", "x64",
+            "delivery_viewed", true, null, DateTimeOffset.Parse(occurredAtUtc));
+
     private static SoftwareReleaseCreateRequest Request(
         string version,
         string url,

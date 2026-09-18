@@ -97,6 +97,7 @@ if (string.IsNullOrWhiteSpace(commerceConnection))
     builder.Services.AddSingleton<IProviderOrderConcurrencyGate, InMemoryProviderOrderConcurrencyGate>();
     builder.Services.AddSingleton<IBillingStore, InMemoryBillingStore>();
     builder.Services.AddSingleton<ISoftwareReleaseStore, InMemorySoftwareReleaseStore>();
+    builder.Services.AddSingleton<ISoftwareDeliveryEventStore, InMemorySoftwareDeliveryEventStore>();
     builder.Services.AddSingleton<IOrganisationRepository>(_ => CustomerSeed.CreateRepository());
 }
 else
@@ -120,6 +121,8 @@ else
         new PostgresOrganisationRepository(commerceConnection, postgresRuntimeRole));
     builder.Services.AddSingleton<ISoftwareReleaseStore>(_ =>
         new PostgresSoftwareReleaseStore(commerceConnection, postgresRuntimeRole));
+    builder.Services.AddSingleton<ISoftwareDeliveryEventStore>(_ =>
+        new PostgresSoftwareDeliveryEventStore(commerceConnection, postgresRuntimeRole));
 }
 
 var identityConnection = builder.Configuration.GetConnectionString("Identity");

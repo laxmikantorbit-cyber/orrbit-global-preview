@@ -17,6 +17,21 @@ export type SoftwareRelease = {
   active: boolean
 }
 
+export type SoftwareDeliveryEvent = {
+  id: string
+  tenantId: string
+  subscriptionId: string
+  releaseId?: string | null
+  productCode: string
+  channel: string
+  platform: string
+  architecture: string
+  action: string
+  downloadEntitled: boolean
+  unavailableReason?: string | null
+  occurredAtUtc: string
+}
+
 export type SoftwareDelivery = {
   tenantId: string
   organisationId: string
@@ -110,4 +125,18 @@ export async function deactivateSoftwareRelease(token: string, releaseId: string
     const data = text ? JSON.parse(text) : null
     throw new Error(data?.error || data?.detail || data?.title || `HTTP ${response.status}`)
   }
+}
+
+
+export async function listSoftwareDeliveryEvents(
+  token: string,
+  options?: { subscriptionId?: string; take?: number },
+) {
+  const query = new URLSearchParams({ take: String(options?.take ?? 100) })
+  if (options?.subscriptionId) query.set('subscriptionId', options.subscriptionId)
+  const response = await fetch(
+    `${apiBase}/api/software/admin/delivery-events?${query.toString()}`,
+    { headers: headers(token) },
+  )
+  return parse<SoftwareDeliveryEvent[]>(response)
 }

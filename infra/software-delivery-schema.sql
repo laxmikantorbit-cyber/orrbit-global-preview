@@ -88,3 +88,35 @@ CREATE POLICY software_releases_tenant_policy ON software_releases
     WITH CHECK (
         tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid
     );
+
+
+CREATE TABLE IF NOT EXISTS software_delivery_events (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES tenants(id),
+    subscription_id uuid NOT NULL,
+    release_id uuid NULL,
+    product_code text NOT NULL CHECK (product_code ~ '^[A-Z0-9_-]{1,64}$'),
+    channel text NOT NULL CHECK (channel IN ('Stable','Beta','Internal')),
+    platform text NOT NULL CHECK (platform IN ('Windows')),
+    architecture text NOT NULL CHECK (architecture IN ('x64','x86','arm64')),
+    action text NOT NULL CHECK (length(btrim(action)) > 0 AND length(action) <= 80),
+    download_entitled boolean NOT NULL,
+    unavailable_reason text NULL CHECK (unavailable_reason IS NULL OR length(unavailable_reason) <= 500),
+    occurred_at_utc timestamptz NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ix_software_delivery_events_tenant_subscription
+    ON software_delivery_events(tenant_id, subscription_id, occurred_at_utc DESC);
+
+ALTER TABLE software_delivery_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE software_delivery_events FORCE ROW LEVEL SECURITY;
+
+
+DROP POLICY IF EXISTS software_delivery_events_tenant_policy ON software_delivery_events;
+CREATE POLICY software_delivery_events_tenant_policy ON software_delivery_events
+    USING (
+        tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid
+    )
+    WITH CHECK (
+        tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid
+    );

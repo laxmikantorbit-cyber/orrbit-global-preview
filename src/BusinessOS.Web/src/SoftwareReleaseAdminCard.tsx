@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import {
   deactivateSoftwareRelease,
+  listSoftwareDeliveryEvents,
   listSoftwareReleases,
   publishSoftwareRelease,
+  type SoftwareDeliveryEvent,
   type SoftwareRelease,
   type SoftwareReleaseCreate,
 } from './softwareDeliveryApi'
@@ -27,13 +29,19 @@ const emptyForm: SoftwareReleaseCreate = {
 
 export function SoftwareReleaseAdminCard({ token }: Props) {
   const [items, setItems] = useState<SoftwareRelease[]>([])
+  const [events, setEvents] = useState<SoftwareDeliveryEvent[]>([])
   const [form, setForm] = useState<SoftwareReleaseCreate>(emptyForm)
   const [message, setMessage] = useState('')
 
   const load = async () => {
     if (!token) return
     try {
-      setItems(await listSoftwareReleases(token))
+      const [releaseItems, deliveryEvents] = await Promise.all([
+        listSoftwareReleases(token),
+        listSoftwareDeliveryEvents(token, { take: 25 }),
+      ])
+      setItems(releaseItems)
+      setEvents(deliveryEvents)
       setMessage('Software release registry refreshed.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
@@ -46,7 +54,7 @@ export function SoftwareReleaseAdminCard({ token }: Props) {
   }, [token])
 
   const publish = async () => {
-    setMessage('Publishing release metadata…')
+    setMessage('Publishing release metadataâ€¦')
     try {
       await publishSoftwareRelease(token, {
         ...form,
@@ -69,7 +77,7 @@ export function SoftwareReleaseAdminCard({ token }: Props) {
   }
 
   const deactivate = async (id: string) => {
-    setMessage('Deactivating release…')
+    setMessage('Deactivating releaseâ€¦')
     try {
       await deactivateSoftwareRelease(token, id)
       await load()
@@ -126,11 +134,25 @@ export function SoftwareReleaseAdminCard({ token }: Props) {
       <th>Product</th><th>Version</th><th>Target</th><th>Published</th><th>Status</th><th>Action</th>
     </tr></thead><tbody>{items.map(item => <tr key={item.id}>
       <td>{item.productCode}</td><td>{item.version}</td>
-      <td>{item.channel} · {item.platform}/{item.architecture}</td>
+      <td>{item.channel} Â· {item.platform}/{item.architecture}</td>
       <td>{new Date(item.publishedAtUtc).toLocaleString()}</td>
       <td><span className={item.active ? 'pill ok' : 'pill muted'}>{item.active ? 'Active' : 'Inactive'}</span></td>
       <td>{item.active && <button className="danger" onClick={() => deactivate(item.id)}>Deactivate</button>}</td>
     </tr>)}</tbody></table></div>
     {items.length === 0 && <p>No software releases have been published yet.</p>}
+
+    <h3>Recent delivery checks</h3>
+    <div className="bos-table-wrap"><table className="bos-table"><thead><tr>
+      <th>Time</th><th>Subscription</th><th>Product</th><th>Target</th><th>Result</th><th>Reason</th>
+    </tr></thead><tbody>{events.map(item => <tr key={item.id}>
+      <td>{new Date(item.occurredAtUtc).toLocaleString()}</td>
+      <td><code>{item.subscriptionId.slice(0, 8)}…</code></td>
+      <td>{item.productCode}</td>
+      <td>{item.channel} · {item.platform}/{item.architecture}</td>
+      <td><span className={item.downloadEntitled ? 'pill ok' : 'pill muted'}>{item.downloadEntitled ? 'Allowed' : 'Blocked'}</span></td>
+      <td>{item.unavailableReason || 'Ready'}</td>
+    </tr>)}</tbody></table></div>
+    {events.length === 0 && <p>No delivery checks have been recorded yet.</p>}
+
   </section>
 }
