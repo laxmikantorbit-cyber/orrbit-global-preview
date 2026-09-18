@@ -249,12 +249,10 @@ export function CrmDemo() {
   }
 
   useEffect(() => { void refresh() }, [])
-  const pageTitle = referenceModuleContent[view]?.title ?? (view === 'overview' ? "Today's business summary" : view === 'accounts' ? 'Customers' : view === 'opportunities' ? 'Deals to close' : view === 'followups' ? 'Calls and follow-ups' : view === 'tasks' ? "Today's work" : view === 'reports' ? 'Reports' : view === 'team' ? 'Staff and access' : view === 'pipeline' ? 'Sales progress' : 'Leads')
-  const pageSubtitle = referenceModuleContent[view]?.subtitle ?? 'A simple daily system for customers, sales, follow-ups, reminders and deal closing.'
   return (
     <div className="crm2-app">
       <aside className="crm2-sidebar">
-        <div className="crm2-brand"><div className="crm2-brand-mark">o</div><div><strong>oRRbit</strong><span>BusinessOS CRM</span></div></div>
+        <div className="crm2-brand crm2-ref-brand"><div className="crm2-ref-tree"><i></i><i></i><i></i><i></i><b></b></div></div>
         <nav className="crm2-nav crm2-reference-nav" aria-label="CRM navigation">
           <button className={view === 'overview' ? 'active' : ''} onClick={() => setView('overview')}><span>⌂</span>Dashboard</button>
           <button className={view === 'accounts' ? 'active' : ''} onClick={() => setView('accounts')}><span>○</span>Customers <b>{accounts.length}</b></button>
@@ -292,14 +290,18 @@ export function CrmDemo() {
       </aside>
 
       <main className="crm2-main">
-        <header className="crm2-topbar">
-          <div className="crm2-title-block"><span className="crm2-kicker">BUSINESSOS CRM WORKSPACE</span><h1>{pageTitle}</h1><p>{pageSubtitle}</p></div>
-          <div className="crm2-top-actions">
-            {session && teamMembers.length > 0 ? <select className="crm2-user-switch" value={session.member.id} disabled={loading} onChange={(e) => void switchUser(e.target.value)} aria-label="Select staff user">{teamMembers.filter((member) => member.active).map((member) => <option key={member.id} value={member.id}>{member.displayName} · {member.role}</option>)}</select> : null}
-            <button className="crm2-refresh" disabled={loading} onClick={refresh}>Refresh</button>
-            {can('CreateLead') ? <button className="crm2-primary" onClick={() => setShowAddLead(true)}>+ Add customer enquiry</button> : null}
-          </div>
+        <header className="crm2-topbar crm2-ref-topbar">
+          <button className="crm2-ref-menu" aria-label="Toggle menu">☰</button>
+          <label className="crm2-ref-search"><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search..." /><span>⌕</span></label>
+          <button className="crm2-ref-plus" onClick={() => setShowAddLead(true)} aria-label="Add new">+</button>
+          <div className="crm2-ref-toolbar-spacer" />
+          <button className="crm2-ref-icon" title="Share">⌯</button>
+          <button className="crm2-ref-icon" title="Tasks">✓</button>
+          <button className="crm2-ref-avatar" title={session?.member.displayName ?? 'User'} onDoubleClick={() => session ? void switchUser(session.member.id) : undefined}></button>
+          <button className="crm2-ref-icon" title="Timer">◷</button>
+          <button className="crm2-ref-icon crm2-ref-bell" title="Notifications">♢<b>1</b></button>
         </header>
+        <div className="crm2-ref-options"><button>⚙ Dashboard Options</button></div>
         <section className="crm2-statusbar"><div><span className={loading ? 'pulse busy' : 'pulse'} />{message}</div><span>{session ? `${session.member.displayName} · ${session.member.role} · ${session.canViewAllOwnedRecords ? 'Team view' : 'My view'} · ` : ''}Testing mode · {storageLabel}</span></section>
         <section className="crm2-workflow-board" aria-label="Simple working process">
           <div className="crm2-workflow-title">
