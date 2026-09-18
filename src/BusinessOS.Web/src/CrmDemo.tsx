@@ -207,6 +207,23 @@ export function CrmDemo() {
           {can('ViewReports') ? <button className={view === 'reports' ? 'active' : ''} onClick={() => setView('reports')}><span>↗</span>Reports</button> : null}
           {can('ViewTeam') ? <button className={view === 'team' ? 'active' : ''} onClick={() => setView('team')}><span>U</span>Team <b>{teamMembers.filter((member) => member.active).length}</b></button> : null}
         </nav>
+        <div className="crm2-module-nav" aria-label="Advanced CRM modules">
+          <span className="crm2-module-title">Advanced Modules</span>
+          <a href="/crm/advanced">Advanced CRM</a>
+          <a href="/crm/manage">CRM Settings</a>
+          <a href="/crm/maintenance">Data Maintenance</a>
+          <a href="/crm/pipeline-board">Drag Pipeline</a>
+          <a href="/crm/addresses">Customer Addresses</a>
+          <a href="/crm/leads-query">Advanced Lead Search</a>
+          <a href="/crm/analytics">Detailed Analytics</a>
+          <a href="/crm/opportunity-products">Deal Products</a>
+          <a href="/crm/inbox">My CRM Day</a>
+          <a href="/crm/communications">Communications</a>
+          <a href="/crm/intelligence">AI Sales Command</a>
+          <a href="/crm/export">CSV / Excel Export</a>
+          <a href="/crm/contacts">Contact Directory</a>
+          <a href="/crm/deal-aging">Deal Aging</a>
+        </div>
         <div className="crm2-sidebar-foot"><strong>CRM DEVELOPMENT</strong><small>Licensing is paused until CRM completion.</small></div>
       </aside>
 

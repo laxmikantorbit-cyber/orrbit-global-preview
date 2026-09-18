@@ -20,42 +20,6 @@ import { BusinessOSAdminHub } from './BusinessOSAdminHub.tsx'
 import { BusinessOSCustomerPortal } from './BusinessOSCustomerPortal.tsx'
 
 const path = window.location.pathname
-const advancedLinkStyle = {
-  position: 'fixed', right: '18px', bottom: '18px', zIndex: 9999,
-  padding: '11px 16px', borderRadius: '12px', background: '#111827', color: '#fff',
-  textDecoration: 'none', fontFamily: 'Inter, system-ui, sans-serif', fontSize: '13px', fontWeight: 800,
-  boxShadow: '0 12px 30px rgba(15,23,42,.22)',
-} as const
-const managementLinkStyle = { ...advancedLinkStyle, bottom: '64px', background: '#1d4ed8' } as const
-const maintenanceLinkStyle = { ...advancedLinkStyle, bottom: '110px', background: '#047857' } as const
-const pipelineLinkStyle = { ...advancedLinkStyle, bottom: '156px', background: '#7c3aed' } as const
-const addressLinkStyle = { ...advancedLinkStyle, bottom: '202px', background: '#b45309' } as const
-const queryLinkStyle = { ...advancedLinkStyle, bottom: '248px', background: '#0f766e' } as const
-const analyticsLinkStyle = { ...advancedLinkStyle, bottom: '294px', background: '#be123c' } as const
-const productsLinkStyle = { ...advancedLinkStyle, bottom: '340px', background: '#4338ca' } as const
-const inboxLinkStyle = { ...advancedLinkStyle, bottom: '386px', background: '#0369a1' } as const
-const communicationLinkStyle = { ...advancedLinkStyle, bottom: '432px', background: '#a21caf' } as const
-const intelligenceLinkStyle = { ...advancedLinkStyle, bottom: '478px', background: '#c2410c' } as const
-const exportLinkStyle = { ...advancedLinkStyle, bottom: '524px', background: '#334155' } as const
-const contactsLinkStyle = { ...advancedLinkStyle, bottom: '570px', background: '#0e7490' } as const
-const dealAgingLinkStyle = { ...advancedLinkStyle, bottom: '616px', background: '#9f1239' } as const
-
-const utilityLinks = <>
-  <a href="/crm/advanced" style={advancedLinkStyle}>Advanced CRM →</a>
-  <a href="/crm/manage" style={managementLinkStyle}>CRM Settings →</a>
-  <a href="/crm/maintenance" style={maintenanceLinkStyle}>Data Maintenance →</a>
-  <a href="/crm/pipeline-board" style={pipelineLinkStyle}>Drag Pipeline →</a>
-  <a href="/crm/addresses" style={addressLinkStyle}>Customer Addresses →</a>
-  <a href="/crm/leads-query" style={queryLinkStyle}>Advanced Lead Search →</a>
-  <a href="/crm/analytics" style={analyticsLinkStyle}>Detailed Analytics →</a>
-  <a href="/crm/opportunity-products" style={productsLinkStyle}>Deal Products →</a>
-  <a href="/crm/inbox" style={inboxLinkStyle}>My CRM Day →</a>
-  <a href="/crm/communications" style={communicationLinkStyle}>Communications →</a>
-  <a href="/crm/intelligence" style={intelligenceLinkStyle}>AI Sales Command →</a>
-  <a href="/crm/export" style={exportLinkStyle}>CSV / Excel Export →</a>
-  <a href="/crm/contacts" style={contactsLinkStyle}>Contact Directory →</a>
-  <a href="/crm/deal-aging" style={dealAgingLinkStyle}>Deal Aging →</a>
-</>
 
 const content = path === '/businessos/admin'
   ? <BusinessOSAdminHub />
@@ -88,9 +52,9 @@ const content = path === '/businessos/admin'
                         : path === '/crm/manage'
                           ? <CrmManagementHub />
                           : path === '/crm/advanced'
-                            ? <><CrmAdvancedHub />{utilityLinks}</>
+                            ? <CrmAdvancedHub />
                             : path === '/crm'
-                              ? <><App />{utilityLinks}</>
+                              ? <App />
                               : <App />
 
 createRoot(document.getElementById('root')!).render(

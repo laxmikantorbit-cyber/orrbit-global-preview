@@ -400,3 +400,47 @@
   .crm2-permissions { grid-column:auto; }
   .crm2-team-list > article > button { justify-self:start; }
 }
+
+
+.crm2-module-nav {
+  display: grid;
+  gap: 7px;
+  margin-top: 14px;
+  padding: 14px 10px 4px;
+  border-top: 1px solid rgba(255,255,255,.08);
+  max-height: 230px;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.crm2-module-title {
+  color: #7d88a8;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.crm2-module-nav a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 31px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  color: #c7cde0;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 800;
+  background: rgba(255,255,255,.035);
+  border: 1px solid rgba(255,255,255,.04);
+}
+
+.crm2-module-nav a::after { content: '›'; opacity: .65; }
+.crm2-module-nav a:hover { background: rgba(255,255,255,.09); color: #fff; }
+
+@media (max-width: 860px) {
+  .crm2-module-nav { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); max-height: none; width: 100%; }
+}
