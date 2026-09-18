@@ -279,6 +279,22 @@ public sealed record DesktopDeviceActivationSnapshot(
     DateTimeOffset ActivatedAtUtc,
     DateTimeOffset? LastValidatedAtUtc);
 
+public sealed record DesktopDeviceLifecycleEvent(
+    Guid Id,
+    Guid TenantId,
+    Guid SubscriptionId,
+    string DeviceFingerprint,
+    string? PreviousDeviceFingerprint,
+    string Action,
+    string Outcome,
+    string? DeviceName,
+    string? AppVersion,
+    DateTimeOffset OccurredAtUtc);
+public sealed record DesktopDeviceLifecycleResponse(
+    Guid TenantId,
+    Guid SubscriptionId,
+    IReadOnlyList<DesktopDeviceLifecycleEvent> Events);
+
 public sealed record DesktopDeviceInventoryResponse(
     Guid TenantId,
     Guid SubscriptionId,

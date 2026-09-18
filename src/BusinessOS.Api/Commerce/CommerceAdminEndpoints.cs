@@ -99,6 +99,18 @@ public static class CommerceAdminEndpoints
                 subscription.Entitlements.DesktopSystems, devices));
         });
 
+        group.MapGet("/subscriptions/{subscriptionId:guid}/devices/events", async (
+            Guid subscriptionId, int? take, TenantContext tenant, ICommerceActivationStore commerceStore,
+            CancellationToken cancellationToken) =>
+        {
+            if (TenantRoleAuthorization.ForbidUnlessCommerceAdmin(tenant) is { } forbidden) return forbidden;
+            var subscription = await commerceStore.FindSubscriptionStateAsync(tenant.TenantId, subscriptionId, cancellationToken);
+            if (subscription is null) return Results.NotFound(new ErrorResponse("Subscription was not found for this tenant."));
+            var events = await commerceStore.ListDesktopDeviceEventsAsync(
+                tenant.TenantId, subscriptionId, Math.Clamp(take ?? 50, 1, 200), cancellationToken);
+            return Results.Ok(new DesktopDeviceLifecycleResponse(tenant.TenantId, subscriptionId, events));
+        });
+
         group.MapPost("/subscriptions/{subscriptionId:guid}/devices/revoke", async (
             Guid subscriptionId, DesktopDeviceRevokeRequest request, TenantContext tenant,
             ICommerceActivationStore commerceStore, CancellationToken cancellationToken) =>

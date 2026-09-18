@@ -80,6 +80,10 @@ public sealed partial class PostgresCommerceActivationStore
                 fingerprint, existing, cancellationToken);
         }
 
+        await InsertDeviceEventAsync(
+            connection, transaction, tenantId, subscriptionId, fingerprint, null,
+            "activate", "device_activated", existing.DeviceName, existing.AppVersion,
+            now, cancellationToken);
         var response = await ToDesktopResponseAsync(
             connection, transaction, tenantId, persisted,
             existing, true, "device_activated", now, cancellationToken);
@@ -119,6 +123,10 @@ public sealed partial class PostgresCommerceActivationStore
             var inactive = new DesktopDeviceActivationSnapshot(
                 Guid.Empty, fingerprint, null, null, false,
                 DateTimeOffset.MinValue, null);
+            await InsertDeviceEventAsync(
+                connection, transaction, tenantId, subscriptionId, fingerprint, null,
+                "validate", "device_not_activated", null, null,
+                now, cancellationToken);
             var inactiveResponse = await ToDesktopResponseAsync(
                 connection, transaction, tenantId, persisted,
                 inactive, false, "device_not_activated",
@@ -133,6 +141,10 @@ public sealed partial class PostgresCommerceActivationStore
             fingerprint, existing, cancellationToken);
         var validToday = DateOnly.FromDateTime(now.UtcDateTime) <=
             persisted.Subscription.ValidUntil!.Value;
+        await InsertDeviceEventAsync(
+            connection, transaction, tenantId, subscriptionId, fingerprint, null,
+            "validate", validToday ? "license_valid" : "subscription_expired",
+            existing.DeviceName, existing.AppVersion, now, cancellationToken);
         var response = await ToDesktopResponseAsync(
             connection, transaction, tenantId, persisted, existing,
             validToday, validToday ? "license_valid" : "subscription_expired",
@@ -196,6 +208,11 @@ public sealed partial class PostgresCommerceActivationStore
         command.Parameters.AddWithValue("subscription_id", subscriptionId);
         command.Parameters.AddWithValue("device_fingerprint", fingerprint);
         var affected = await command.ExecuteNonQueryAsync(cancellationToken);
+        if (affected == 1)
+            await InsertDeviceEventAsync(
+                connection, transaction, tenantId, subscriptionId, fingerprint, null,
+                "revoke", "device_revoked", null, null,
+                DateTimeOffset.UtcNow, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return affected == 1;
     }
@@ -249,6 +266,10 @@ public sealed partial class PostgresCommerceActivationStore
             await UpdateDesktopDeviceStateAsync(connection, transaction, tenantId, subscriptionId, newDevice, cancellationToken);
         else
             await InsertDesktopDeviceAsync(connection, transaction, tenantId, subscriptionId, newDevice, cancellationToken);
+        await InsertDeviceEventAsync(
+            connection, transaction, tenantId, subscriptionId, newFingerprint,
+            oldFingerprint, "replace", "device_replaced",
+            newDevice.DeviceName, newDevice.AppVersion, now, cancellationToken);
         var response = await ToDesktopResponseAsync(
             connection, transaction, tenantId, persisted, newDevice,
             true, "device_replaced", now, cancellationToken);

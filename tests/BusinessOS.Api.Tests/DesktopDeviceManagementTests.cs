@@ -71,6 +71,37 @@ public sealed class DesktopDeviceManagementTests
         Assert.Empty(await store.ListDesktopDevicesAsync(Guid.NewGuid(), activation.SubscriptionId));
     }
 
+
+    [Fact]
+    public async Task Device_Lifecycle_Events_Are_Recorded_In_Order()
+    {
+        using var signer = new LeaseSigner();
+        ICommerceActivationStore store = new InMemoryCommerceActivationStore(
+            new PaymentSubscriptionActivationService(), signer);
+        var activation = await store.ActivateInitialPurchaseAsync(
+            TenantId, InitialRequest("pay_device_audit"));
+
+        await store.ActivateDesktopDeviceAsync(TenantId, activation.SubscriptionId,
+            new DesktopDeviceActivationRequest("device-a", "Front Desk", "1.0.0"));
+        await store.ValidateDesktopDeviceAsync(TenantId, activation.SubscriptionId,
+            new DesktopDeviceValidationRequest("device-a", null));
+        var replacement = await store.ReplaceDesktopDeviceAsync(TenantId, activation.SubscriptionId,
+            new DesktopDeviceReplaceRequest("device-a", "device-b", "Back Office", "1.1.0"));
+        Assert.NotNull(replacement);
+        Assert.True(await store.RevokeDesktopDeviceAsync(
+            TenantId, activation.SubscriptionId, "device-b"));
+
+        var events = await store.ListDesktopDeviceEventsAsync(
+            TenantId, activation.SubscriptionId, 10);
+        Assert.Equal(new[] { "revoke", "replace", "validate", "activate" },
+            events.Select(x => x.Action).ToArray());
+        Assert.Contains(events, x =>
+            x.Action == "replace" &&
+            x.DeviceFingerprint == "device-b" &&
+            x.PreviousDeviceFingerprint == "device-a");
+        Assert.All(events, x => Assert.Equal(TenantId, x.TenantId));
+    }
+
     private static InitialActivationRequest InitialRequest(string paymentId) => new(
         OrganisationId,
         "AI_REPAIR",

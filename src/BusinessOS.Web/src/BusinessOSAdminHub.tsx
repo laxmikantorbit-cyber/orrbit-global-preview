@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react'
 import { getAutoPayStatus, getEntitlement, getSubscription } from './businessosApi'
 import { createInvoice, getBillingReceipt, listBillingHistory, type BillingInvoice } from './billingApi'
 import {
-  getActivationCode, getAdminStatus, getDevices, reconcileOrder,
-  replaceDevice, revokeDevice, type CommerceAdminStatus, type DeviceInventory,
+  getActivationCode, getAdminStatus, getDeviceEvents, getDevices, reconcileOrder,
+  replaceDevice, revokeDevice, type CommerceAdminStatus,
+  type DeviceInventory, type DeviceLifecycleEvent,
 } from './commerceAdminApi'
 import { OrganisationProfileCard } from './OrganisationProfileCard'
 import { SoftwareReleaseAdminCard } from './SoftwareReleaseAdminCard'
@@ -14,6 +15,7 @@ export function BusinessOSAdminHub() {
   const [subscriptionId, setSubscriptionId] = useState('')
   const [status, setStatus] = useState<CommerceAdminStatus | null>(null)
   const [devices, setDevices] = useState<DeviceInventory | null>(null)
+  const [deviceEvents, setDeviceEvents] = useState<DeviceLifecycleEvent[]>([])
   const [subscription, setSubscription] = useState<Record<string, unknown> | null>(null)
   const [entitlement, setEntitlement] = useState<Record<string, unknown> | null>(null)
   const [autopay, setAutopay] = useState<Record<string, unknown> | null>(null)
@@ -30,7 +32,7 @@ export function BusinessOSAdminHub() {
     x.order.subscriptionId === subscriptionId) ?? null, [status, subscriptionId])
 
   const run = async (action: () => Promise<void>, success = 'Updated successfully.') => {
-    setMessage('Working…')
+    setMessage('Workingâ€¦')
     try { await action(); setMessage(success) }
     catch (error) { setMessage(error instanceof Error ? error.message : String(error)) }
   }
@@ -45,6 +47,7 @@ export function BusinessOSAdminHub() {
     setSubscription(sub as unknown as Record<string, unknown>)
     setEntitlement(ent as unknown as Record<string, unknown>)
     setDevices(deviceList)
+    setDeviceEvents((await getDeviceEvents(token, subscriptionId)).events)
     setActivationCode(code.activationCode)
     try { setAutopay(await getAutoPayStatus(token, subscriptionId) as unknown as Record<string, unknown>) }
     catch { setAutopay(null) }
@@ -59,6 +62,7 @@ export function BusinessOSAdminHub() {
   const revoke = (fingerprint: string) => run(async () => {
     await revokeDevice(token, subscriptionId, fingerprint)
     setDevices(await getDevices(token, subscriptionId))
+    setDeviceEvents((await getDeviceEvents(token, subscriptionId)).events)
   }, 'Device revoked.')
 
   const replace = (oldDeviceFingerprint: string) => run(async () => {
@@ -71,6 +75,7 @@ export function BusinessOSAdminHub() {
     })
     setReplacementFingerprint(''); setReplacementName(''); setReplacementVersion('')
     setDevices(await getDevices(token, subscriptionId))
+    setDeviceEvents((await getDeviceEvents(token, subscriptionId)).events)
   }, 'Device replaced.')
   const reconcile = (providerOrderId: string) => run(async () => {
     await reconcileOrder(token, providerOrderId)
@@ -131,6 +136,15 @@ export function BusinessOSAdminHub() {
         {device.active && <div className="bos-actions"><button onClick={() => replace(device.deviceFingerprint)}>Replace</button>
           <button className="danger" onClick={() => revoke(device.deviceFingerprint)}>Revoke</button></div>}
       </article>)}</div>
+      {deviceEvents.length > 0 && <div className="bos-table-wrap"><table className="bos-table"><thead><tr>
+        <th>Time</th><th>Action</th><th>Outcome</th><th>Device</th><th>Previous</th><th>App</th>
+      </tr></thead><tbody>{deviceEvents.map(event => <tr key={event.id}>
+        <td>{new Date(event.occurredAtUtc).toLocaleString()}</td>
+        <td>{event.action}</td><td>{event.outcome}</td>
+        <td>{event.deviceName || event.deviceFingerprint}</td>
+        <td>{event.previousDeviceFingerprint || '—'}</td>
+        <td>{event.appVersion || '—'}</td>
+      </tr>)}</tbody></table></div>}
     </section>}
 
     {selectedOrder && <section className="bos-card"><h2>Selected order</h2><pre>{JSON.stringify(selectedOrder, null, 2)}</pre></section>}
@@ -149,6 +163,6 @@ export function BusinessOSAdminHub() {
           <td><button onClick={() => showReceipt(invoice.id)}>Receipt</button></td></tr>)}</tbody></table></div>
       {receiptText && <pre>{receiptText}</pre>}
     </section>
-    <nav><a href="/businessos/portal">Customer Portal →</a><a href="/crm">CRM →</a></nav>
+    <nav><a href="/businessos/portal">Customer Portal â†’</a><a href="/crm">CRM â†’</a></nav>
   </main>
 }

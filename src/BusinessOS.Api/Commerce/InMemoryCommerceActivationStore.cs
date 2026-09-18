@@ -21,6 +21,7 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
     private readonly Dictionary<(Guid TenantId, Guid SubscriptionId), LicenseActivationCodeResponse> _activationCodes = [];
     private readonly Dictionary<string, DesktopActivationRoute> _activationCodeIndex = [];
     private readonly Dictionary<(Guid TenantId, Guid SubscriptionId, string DeviceFingerprint), DeviceMetadata> _deviceMetadata = [];
+    private readonly List<DesktopDeviceLifecycleEvent> _deviceEvents = [];
     private readonly Dictionary<(Guid TenantId, Guid OrderId), CommerceBillingSource> _billingOrders = [];
 
     public InMemoryCommerceActivationStore(
@@ -151,6 +152,8 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
             var metadata = new DeviceMetadata(
                 request.DeviceName?.Trim(), request.AppVersion?.Trim(), now);
             _deviceMetadata[(tenantId, subscriptionId, fingerprint)] = metadata;
+            AddDeviceEventUnsafe(tenantId, subscriptionId, fingerprint, null,
+                "activate", "device_activated", metadata, now);
             return Task.FromResult<DesktopDeviceLicenseResponse?>(ToDesktopResponse(
                 tenantId, stored, fingerprint, metadata, lease, now, true, "device_activated"));
         }
@@ -177,6 +180,8 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
             _deviceMetadata.TryGetValue((tenantId, subscriptionId, fingerprint), out var metadata);
             var refreshed = (metadata ?? DeviceMetadata.Empty) with { LastValidatedAtUtc = now };
             _deviceMetadata[(tenantId, subscriptionId, fingerprint)] = refreshed;
+            AddDeviceEventUnsafe(tenantId, subscriptionId, fingerprint, null,
+                "validate", "license_valid", refreshed, now);
             return Task.FromResult<DesktopDeviceLicenseResponse?>(ToDesktopResponse(
                 tenantId, stored, fingerprint, refreshed, lease, now, true, "license_valid"));
         }
@@ -206,6 +211,25 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
         }
     }
 
+    public Task<IReadOnlyList<DesktopDeviceLifecycleEvent>> ListDesktopDeviceEventsAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        int take = 50,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var limit = Math.Clamp(take, 1, 200);
+        lock (_gate)
+        {
+            return Task.FromResult<IReadOnlyList<DesktopDeviceLifecycleEvent>>(
+                _deviceEvents
+                    .Where(x => x.TenantId == tenantId && x.SubscriptionId == subscriptionId)
+                    .OrderByDescending(x => x.OccurredAtUtc)
+                    .Take(limit)
+                    .ToArray());
+        }
+    }
+
     public Task<bool> RevokeDesktopDeviceAsync(
         Guid tenantId,
         Guid subscriptionId,
@@ -217,7 +241,15 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
         {
             if (!_activations.TryGetValue((tenantId, subscriptionId), out var stored))
                 return Task.FromResult(false);
-            return Task.FromResult(stored.License.DeactivateDevice(fingerprint));
+            var revoked = stored.License.DeactivateDevice(fingerprint);
+            if (revoked)
+            {
+                _deviceMetadata.TryGetValue((tenantId, subscriptionId, fingerprint), out var metadata);
+                AddDeviceEventUnsafe(tenantId, subscriptionId, fingerprint, null,
+                    "revoke", "device_revoked", metadata ?? DeviceMetadata.Empty,
+                    DateTimeOffset.UtcNow);
+            }
+            return Task.FromResult(revoked);
         }
     }
 
@@ -240,6 +272,8 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
             var lease = stored.License.ReplaceDevice(oldFingerprint, newFingerprint, now);
             var metadata = new DeviceMetadata(request.DeviceName?.Trim(), request.AppVersion?.Trim(), now);
             _deviceMetadata[(tenantId, subscriptionId, newFingerprint)] = metadata;
+            AddDeviceEventUnsafe(tenantId, subscriptionId, newFingerprint, oldFingerprint,
+                "replace", "device_replaced", metadata, now);
             return Task.FromResult<DesktopDeviceLicenseResponse?>(ToDesktopResponse(
                 tenantId, stored, newFingerprint, metadata, lease, now, true, "device_replaced"));
         }
@@ -1044,6 +1078,22 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
         DateTimeOffset createdAtUtc) =>
         new(tenantId, stored.Subscription.OrganisationId, stored.Subscription.Id,
             stored.License.LicenseId, stored.ProductCode, code, createdAtUtc);
+
+    private void AddDeviceEventUnsafe(
+        Guid tenantId,
+        Guid subscriptionId,
+        string deviceFingerprint,
+        string? previousDeviceFingerprint,
+        string action,
+        string outcome,
+        DeviceMetadata metadata,
+        DateTimeOffset occurredAtUtc)
+    {
+        _deviceEvents.Add(new DesktopDeviceLifecycleEvent(
+            Guid.NewGuid(), tenantId, subscriptionId, deviceFingerprint,
+            previousDeviceFingerprint, action, outcome, metadata.DeviceName,
+            metadata.AppVersion, occurredAtUtc));
+    }
 
     private static string NormalizeDeviceFingerprint(string value)
     {

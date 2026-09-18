@@ -29,6 +29,25 @@ export type DeviceInventory = {
   desktopDeviceLimit: number
   devices: DeviceItem[]
 }
+
+export type DeviceLifecycleEvent = {
+  id: string
+  tenantId: string
+  subscriptionId: string
+  deviceFingerprint: string
+  previousDeviceFingerprint?: string | null
+  action: string
+  outcome: string
+  deviceName?: string | null
+  appVersion?: string | null
+  occurredAtUtc: string
+}
+
+export type DeviceLifecycleResponse = {
+  tenantId: string
+  subscriptionId: string
+  events: DeviceLifecycleEvent[]
+}
 export type CommerceAdminCounts = {
   pendingOrders: number
   capturedPayments: number
@@ -79,6 +98,13 @@ export async function reconcileOrder(token: string, providerOrderId: string) {
 export async function getDevices(token: string, subscriptionId: string) {
   return read<DeviceInventory>(await fetch(
     `${apiBase}/api/commerce/admin/subscriptions/${subscriptionId}/devices`,
+    { headers: headers(token) },
+  ))
+}
+
+export async function getDeviceEvents(token: string, subscriptionId: string) {
+  return read<DeviceLifecycleResponse>(await fetch(
+    `${apiBase}/api/commerce/admin/subscriptions/${subscriptionId}/devices/events?take=100`,
     { headers: headers(token) },
   ))
 }

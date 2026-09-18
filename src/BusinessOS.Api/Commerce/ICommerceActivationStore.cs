@@ -51,6 +51,12 @@ public interface ICommerceActivationStore
         Guid subscriptionId,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<DesktopDeviceLifecycleEvent>> ListDesktopDeviceEventsAsync(
+        Guid tenantId,
+        Guid subscriptionId,
+        int take = 50,
+        CancellationToken cancellationToken = default);
+
     Task<bool> RevokeDesktopDeviceAsync(
         Guid tenantId,
         Guid subscriptionId,
