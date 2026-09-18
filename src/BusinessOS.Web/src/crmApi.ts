@@ -460,3 +460,19 @@ export async function updateCrmLeadTag(leadId: string, tag: string, remove = fal
   return parseResponse<{ leadId: string; tags: string[] }>(response)
 }
 
+
+export type CrmNotificationItem = {
+  type: string
+  title: string
+  detail: string
+  leadId?: string | null
+  recordId: string
+  dueAtUtc?: string | null
+  severity: string
+}
+
+export async function getCrmNotifications() {
+  const response = await crmFetch(`/notifications`)
+  return parseResponse<{ items: CrmNotificationItem[] }>(response)
+}
+

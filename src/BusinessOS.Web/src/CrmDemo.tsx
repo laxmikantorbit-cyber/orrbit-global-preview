@@ -11,6 +11,7 @@ import {
   crmWorkSummary,
   getCrmSession,
   globalCrmSearch,
+  getCrmNotifications,
   setCrmDemoUserId,
   listCrmAccounts,
   listCrmFollowUps,
@@ -23,6 +24,7 @@ import {
   type CrmDashboard,
   type CrmFollowUp,
   type CrmGlobalSearchHit,
+  type CrmNotificationItem,
   type CrmLead,
   type CrmOpportunity,
   type CrmRole,
@@ -123,6 +125,8 @@ export function CrmDemo() {
   const [globalQuery, setGlobalQuery] = useState('')
   const [globalHits, setGlobalHits] = useState<CrmGlobalSearchHit[]>([])
   const [globalSearching, setGlobalSearching] = useState(false)
+  const [notifications, setNotifications] = useState<CrmNotificationItem[]>([])
+  const [showNotifications, setShowNotifications] = useState(false)
   const [statusFilter, setStatusFilter] = useState('All')
   const [sourceFilter, setSourceFilter] = useState('All')
   const [assignedFilter, setAssignedFilter] = useState('All')
@@ -295,6 +299,18 @@ export function CrmDemo() {
     }
   }
 
+
+  async function openNotifications() {
+    try {
+      const result = await getCrmNotifications()
+      setNotifications(result.items)
+      setShowNotifications((value) => !value)
+      setMessage(`Loaded ${result.items.length} notification(s)`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error))
+    }
+  }
+
   async function refresh() {
     setLoading(true)
     try {
@@ -452,13 +468,14 @@ export function CrmDemo() {
           <label className="crm2-ref-search"><input value={globalQuery} onChange={(e) => setGlobalQuery(e.target.value)} placeholder="Search customers, leads, opportunities..." /><span>{globalSearching ? '...' : '⌕'}</span></label>
           <button className="crm2-ref-plus" onClick={() => setShowAddLead(true)} aria-label="Add new">+</button>
           <div className="crm2-ref-toolbar-spacer" />
-          <button className="crm2-ref-icon" title="Share">⌯</button>
-          <button className="crm2-ref-icon" title="Tasks">✓</button>
+          <button className="crm2-ref-icon" title="Export leads" onClick={exportLeadsCsv}>⌯</button>
+          <button className="crm2-ref-icon" title="Tasks" onClick={() => setView('tasks')}>✓</button>
           <button className="crm2-ref-avatar" title={session?.member.displayName ?? 'User'} onDoubleClick={() => session ? void switchUser(session.member.id) : undefined}></button>
           <button className="crm2-ref-icon" title="Timer">◷</button>
-          <button className="crm2-ref-icon crm2-ref-bell" title="Notifications">♢<b>1</b></button>
+          <button className="crm2-ref-icon crm2-ref-bell" title="Notifications" onClick={() => void openNotifications()}>♢<b>{notifications.length || 1}</b></button>
         </header>
         {globalHits.length > 0 ? <div className="crm2-global-results">{globalHits.map((hit) => <button key={`${hit.type}-${hit.id}`} onClick={() => openSearchHit(hit)}><strong>{hit.title}</strong><span>{hit.type} · {hit.status}</span><small>{hit.subtitle || hit.secondary || ''}</small></button>)}</div> : null}
+        {showNotifications ? <div className="crm2-notification-panel">{notifications.length === 0 ? <p>No notifications right now</p> : notifications.map((item) => <button key={`${item.type}-${item.recordId}`} onClick={() => { if (item.leadId) { setSelectedLeadId(item.leadId); setView('leads') } setShowNotifications(false) }}><strong>{item.title}</strong><span>{item.detail}</span><small>{item.severity}</small></button>)}</div> : null}
         <div className="crm2-ref-options"><button>⚙ Dashboard Options</button></div>
         <section className="crm2-statusbar"><div><span className={loading ? 'pulse busy' : 'pulse'} />{message}</div><span>{session ? `${session.member.displayName} · ${session.member.role} · ${session.canViewAllOwnedRecords ? 'Team view' : 'My view'} · ` : ''}Testing mode · {storageLabel}</span></section>
         <section className="crm2-workflow-board" aria-label="Simple working process">
