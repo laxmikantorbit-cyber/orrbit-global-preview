@@ -939,3 +939,15 @@
 .crm2-ref-avatar-mini{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:999px;background:#e9b36b;color:#fff;font-style:normal;font-weight:800}
 .crm2-ref-switch input{display:none}.crm2-ref-switch i{display:inline-block;width:50px;height:22px;border-radius:999px;background:#3b82f6;position:relative}.crm2-ref-switch i:after{content:'';position:absolute;right:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff}
 @media(max-width:1100px){.crm2-ref-filter-grid{grid-template-columns:1fr 1fr}.crm2-ref-customers-head,.crm2-ref-customers-row{min-width:980px}.crm2-ref-leads-head,.crm2-ref-leads-row{min-width:1120px}.crm2-ref-table-card{overflow:auto}}
+
+
+.crm2-global-results{
+  position:absolute;top:64px;left:300px;right:260px;z-index:40;background:#fff;border:1px solid #d8e0ea;border-radius:4px;box-shadow:0 18px 40px rgba(17,24,39,.16);padding:8px;display:grid;gap:6px
+}
+.crm2-global-results button{display:grid;grid-template-columns:1fr auto;gap:2px 12px;text-align:left;background:#fff;border:0;border-bottom:1px solid #eef2f7;padding:10px 12px;cursor:pointer;color:#1f2c3f}
+.crm2-global-results button:last-child{border-bottom:0}.crm2-global-results button:hover{background:#f6f8fb}.crm2-global-results strong{font-size:13px}.crm2-global-results span{font-size:12px;color:#64748b}.crm2-global-results small{grid-column:1/-1;color:#94a3b8}
+.crm2-ref-lead-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;padding:14px;border-top:1px solid #eef2f7}
+.crm2-ref-lead-grid article{background:#fff;border:1px solid #e5ebf3;border-radius:4px;padding:14px;display:grid;gap:7px;cursor:pointer;box-shadow:0 2px 0 rgba(15,23,42,.03)}
+.crm2-ref-lead-grid article:hover{border-color:#b7c8dd;box-shadow:0 8px 22px rgba(15,23,42,.08)}.crm2-ref-lead-grid strong{color:#26415f;font-size:14px}.crm2-ref-lead-grid span,.crm2-ref-lead-grid small{color:#64748b}.crm2-ref-lead-grid em{justify-self:start;background:#e8f1fb;color:#2f5d89;border-radius:999px;padding:4px 8px;font-style:normal;font-size:12px}
+.crm2-ref-table-tools select{height:32px;border:1px solid #d6dee8;background:#fff;color:#334155;padding:0 8px;border-radius:3px}
+@media(max-width:900px){.crm2-global-results{left:12px;right:12px;top:118px}}

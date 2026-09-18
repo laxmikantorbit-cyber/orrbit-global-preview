@@ -1,4 +1,4 @@
-﻿import { apiBase } from './businessosApi'
+import { apiBase } from './businessosApi'
 
 async function parseResponse<T>(response: Response): Promise<T> {
   const text = await response.text()
@@ -423,3 +423,40 @@ export async function assignCrmLead(leadId: string, ownerUserId?: string | null)
   })
   return parseResponse<CrmLead>(response)
 }
+
+export type CrmGlobalSearchHit = {
+  type: string
+  id: string
+  title: string
+  status: string
+  subtitle?: string | null
+  secondary?: string | null
+}
+
+export async function globalCrmSearch(q: string) {
+  const response = await crmFetch(`/global-search?q=${encodeURIComponent(q)}`)
+  return parseResponse<{ results: CrmGlobalSearchHit[] }>(response)
+}
+
+export async function bulkUpdateCrmLeads(input: {
+  leadIds: string[]
+  status?: string
+  priority?: string
+  changeOwner?: boolean
+  ownerUserId?: string | null
+  reason?: string
+  note?: string
+}) {
+  const response = await crmFetch(`/leads/bulk`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  })
+  return parseResponse<{ updated: string[]; failed: Array<{ leadId: string; reason: string }> }>(response)
+}
+
+export async function updateCrmLeadTag(leadId: string, tag: string, remove = false) {
+  const response = await crmFetch(`/leads/${leadId}/tags`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tag, remove }),
+  })
+  return parseResponse<{ leadId: string; tags: string[] }>(response)
+}
+
