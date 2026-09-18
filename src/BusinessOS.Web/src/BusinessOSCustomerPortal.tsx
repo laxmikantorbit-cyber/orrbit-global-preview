@@ -3,9 +3,9 @@ import {
   cancelAtPeriodEnd, getAutoPayStatus, getEntitlement, getSubscription, setupAutoPay,
   type AutoPayStatus, type EntitlementResponse,
 } from './businessosApi'
-import { getActivationCode } from './commerceAdminApi'
 import { getBillingReceipt, listBillingHistory, type BillingInvoice } from './billingApi'
 import { OrganisationProfileCard } from './OrganisationProfileCard'
+import { SoftwareDeliveryCard } from './SoftwareDeliveryCard'
 import './BusinessOSHub.css'
 
 export function BusinessOSCustomerPortal() {
@@ -14,7 +14,6 @@ export function BusinessOSCustomerPortal() {
   const [subscription, setSubscription] = useState<Awaited<ReturnType<typeof getSubscription>> | null>(null)
   const [entitlement, setEntitlement] = useState<EntitlementResponse | null>(null)
   const [autopay, setAutopay] = useState<AutoPayStatus | null>(null)
-  const [activationCode, setActivationCode] = useState('')
   const [billing, setBilling] = useState<BillingInvoice[]>([])
   const [receiptText, setReceiptText] = useState('')
   const [message, setMessage] = useState('')
@@ -22,12 +21,11 @@ export function BusinessOSCustomerPortal() {
   const load = async () => {
     setMessage('Loading…')
     try {
-      const [sub, ent, code] = await Promise.all([
+      const [sub, ent] = await Promise.all([
         getSubscription(token, subscriptionId),
         getEntitlement(token, subscriptionId),
-        getActivationCode(token, subscriptionId),
       ])
-      setSubscription(sub); setEntitlement(ent); setActivationCode(code.activationCode)
+      setSubscription(sub); setEntitlement(ent)
       setBilling(await listBillingHistory(token, { subscriptionId }))
       try { setAutopay(await getAutoPayStatus(token, subscriptionId)) } catch { setAutopay(null) }
       setMessage('Subscription loaded.')
@@ -72,9 +70,7 @@ export function BusinessOSCustomerPortal() {
     </section>}
 
     {subscription && <OrganisationProfileCard token={token} subscriptionId={subscriptionId} />}
-
-    {activationCode && <section className="bos-card"><h2>Desktop activation</h2><strong className="code">{activationCode}</strong>
-      <p>Use this code in the BusinessOS desktop activation screen. Keep it private.</p></section>}
+    {subscription && <SoftwareDeliveryCard token={token} subscriptionId={subscriptionId} />}
     <div className="bos-grid">
       {subscription && <section className="bos-card"><h2>Subscription</h2><pre>{JSON.stringify(subscription, null, 2)}</pre></section>}
       {entitlement && <section className="bos-card"><h2>Entitlement & renewal</h2>
@@ -95,8 +91,6 @@ export function BusinessOSCustomerPortal() {
       {billing.length === 0 && <p>No billing documents found for this subscription.</p>}
       {receiptText && <pre>{receiptText}</pre>}
     </section>
-    <section className="bos-card"><h2>Software handoff</h2><p>Your activated subscription and licence remain tied to this account. Continue to the software/download area when a build is available for your plan.</p>
-      <a className="bos-link-button" href="/">Software / Download handoff →</a></section>
     <nav><a href="/businessos/admin">Admin Control Centre →</a><a href="/crm">CRM →</a></nav>
   </main>
 }

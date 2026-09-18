@@ -6,6 +6,7 @@ import {
   replaceDevice, revokeDevice, type CommerceAdminStatus, type DeviceInventory,
 } from './commerceAdminApi'
 import { OrganisationProfileCard } from './OrganisationProfileCard'
+import { SoftwareReleaseAdminCard } from './SoftwareReleaseAdminCard'
 import './BusinessOSHub.css'
 
 export function BusinessOSAdminHub() {
@@ -95,6 +96,8 @@ export function BusinessOSAdminHub() {
       <label>Subscription ID<input value={subscriptionId} onChange={e => setSubscriptionId(e.target.value)} placeholder="GUID" /></label>
       <button onClick={loadAll}>Refresh control centre</button><span className="bos-message">{message}</span>
     </section>
+
+    <SoftwareReleaseAdminCard token={token} />
 
     {status && <section className="bos-metrics">
       <article><span>Pending orders</span><strong>{status.counts.pendingOrders}</strong></article>

@@ -4,6 +4,7 @@ using BusinessOS.Api.Commerce;
 using BusinessOS.Api.Crm;
 using BusinessOS.Api.Customers;
 using BusinessOS.Api.Payments;
+using BusinessOS.Api.SoftwareDelivery;
 using BusinessOS.Api.Tenancy;
 using BusinessOS.Application;
 using BusinessOS.Crm;
@@ -95,6 +96,7 @@ if (string.IsNullOrWhiteSpace(commerceConnection))
     builder.Services.AddSingleton<ICommerceActivationStore, InMemoryCommerceActivationStore>();
     builder.Services.AddSingleton<IProviderOrderConcurrencyGate, InMemoryProviderOrderConcurrencyGate>();
     builder.Services.AddSingleton<IBillingStore, InMemoryBillingStore>();
+    builder.Services.AddSingleton<ISoftwareReleaseStore, InMemorySoftwareReleaseStore>();
     builder.Services.AddSingleton<IOrganisationRepository>(_ => CustomerSeed.CreateRepository());
 }
 else
@@ -116,6 +118,8 @@ else
             allowSchemaBootstrap: false));
     builder.Services.AddSingleton<IOrganisationRepository>(_ =>
         new PostgresOrganisationRepository(commerceConnection, postgresRuntimeRole));
+    builder.Services.AddSingleton<ISoftwareReleaseStore>(_ =>
+        new PostgresSoftwareReleaseStore(commerceConnection, postgresRuntimeRole));
 }
 
 var identityConnection = builder.Configuration.GetConnectionString("Identity");
@@ -160,6 +164,7 @@ app.MapCommerceAdminEndpoints();
 app.MapDesktopLicenseEndpoints();
 app.MapBillingEndpoints();
 app.MapOrganisationProfileEndpoints();
+app.MapSoftwareDeliveryEndpoints();
 app.MapPaymentCheckoutEndpoints();
 app.MapFreeTestingPaymentEndpoints();
 app.MapFreeTestingPublicCheckoutEndpoints();

@@ -1,0 +1,105 @@
+using BusinessOS.Api.SoftwareDelivery;
+
+namespace BusinessOS.Api.Tests;
+
+public sealed class SoftwareDeliveryTests
+{
+    [Fact]
+    public void Release_Validator_Normalizes_A_Valid_Https_Release()
+    {
+        var tenantId = Guid.NewGuid();
+        var item = SoftwareReleaseValidator.Normalize(
+            tenantId,
+            Request("1.2.3", "https://downloads.example.test/repair-1.2.3.exe"));
+
+        Assert.Equal(tenantId, item.TenantId);
+        Assert.Equal("AI_REPAIR", item.ProductCode);
+        Assert.Equal("1.2.3", item.Version);
+        Assert.Equal("Stable", item.Channel);
+        Assert.True(item.Active);
+    }
+
+    [Fact]
+    public void Release_Validator_Rejects_Invalid_Sha256()
+    {
+        var request = Request("1.0.0", "https://downloads.example.test/repair.exe") with
+        {
+            Sha256 = "not-a-sha"
+        };
+
+        var error = Assert.Throws<ArgumentException>(
+            () => SoftwareReleaseValidator.Normalize(Guid.NewGuid(), request));
+
+        Assert.Contains("SHA-256", error.Message);
+    }
+
+    [Fact]
+    public void Release_Validator_Rejects_NonHttps_Download_Url()
+    {
+        var error = Assert.Throws<ArgumentException>(
+            () => SoftwareReleaseValidator.Normalize(
+                Guid.NewGuid(),
+                Request("1.0.0", "http://downloads.example.test/repair.exe")));
+
+        Assert.Contains("HTTPS", error.Message);
+    }
+
+    [Fact]
+    public async Task Store_Returns_Latest_Active_Release_And_Honours_Deactivation()
+    {
+        var tenantId = Guid.NewGuid();
+        var store = new InMemorySoftwareReleaseStore();
+
+        var oldRelease = await store.AddAsync(
+            tenantId,
+            Request("1.0.0", "https://downloads.example.test/repair-1.0.0.exe",
+                DateTimeOffset.Parse("2026-09-01T00:00:00Z")));
+        var latest = await store.AddAsync(
+            tenantId,
+            Request("1.1.0", "https://downloads.example.test/repair-1.1.0.exe",
+                DateTimeOffset.Parse("2026-09-10T00:00:00Z")));
+
+        var selected = await store.FindLatestActiveAsync(
+            tenantId, "AI_REPAIR", "Stable", "Windows", "x64");
+        Assert.Equal(latest.Id, selected!.Id);
+
+        Assert.True(await store.DeactivateAsync(tenantId, latest.Id));
+
+        selected = await store.FindLatestActiveAsync(
+            tenantId, "AI_REPAIR", "Stable", "Windows", "x64");
+        Assert.Equal(oldRelease.Id, selected!.Id);
+    }
+
+    [Fact]
+    public async Task Store_Is_Tenant_Isolated()
+    {
+        var tenantA = Guid.NewGuid();
+        var tenantB = Guid.NewGuid();
+        var store = new InMemorySoftwareReleaseStore();
+
+        await store.AddAsync(
+            tenantA,
+            Request("1.0.0", "https://downloads.example.test/a.exe"));
+
+        Assert.Null(await store.FindLatestActiveAsync(
+            tenantB, "AI_REPAIR", "Stable", "Windows", "x64"));
+        Assert.Empty(await store.ListAsync(tenantB, null, 50));
+    }
+
+    private static SoftwareReleaseCreateRequest Request(
+        string version,
+        string url,
+        DateTimeOffset? published = null) =>
+        new(
+            "AI_REPAIR",
+            version,
+            "Stable",
+            "Windows",
+            "x64",
+            $"oRRbit-AI-Repair-{version}.exe",
+            url,
+            new string('a', 64),
+            123456,
+            "FreeTesting release metadata",
+            published);
+}
