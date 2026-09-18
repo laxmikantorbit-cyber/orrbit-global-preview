@@ -70,6 +70,41 @@ public sealed partial class PostgresCommerceActivationStore : ICommerceActivatio
         return persisted is null ? null : ToStateSnapshot(persisted);
     }
 
+    public async Task<IReadOnlyList<SubscriptionStateSnapshot>> ListSubscriptionStatesAsync(
+        Guid tenantId,
+        int take = 50,
+        CancellationToken cancellationToken = default)
+    {
+        var limit = Math.Clamp(take, 1, 200);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await BusinessOS.Api.PostgresRuntimeRole.ApplyAsync(connection, _runtimeRole, cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await SetTenantAsync(connection, transaction, tenantId, cancellationToken);
+
+        const string sql = """
+            SELECT id,tenant_id,organisation_id,order_id,plan_id,plan_version_id,
+                   starts_on,valid_until,entitlement_snapshot,status,license_id,product_code
+            FROM commerce_subscriptions
+            WHERE tenant_id=@tenant_id
+              AND license_id IS NOT NULL AND product_code IS NOT NULL
+            ORDER BY valid_until DESC NULLS LAST, starts_on DESC
+            LIMIT @take
+            """;
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("tenant_id", tenantId);
+        command.Parameters.AddWithValue("take", limit);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var items = new List<SubscriptionStateSnapshot>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var persisted = ReadPersistedActivation(reader);
+            items.Add(ToStateSnapshot(persisted));
+        }
+        await reader.DisposeAsync();
+        await transaction.CommitAsync(cancellationToken);
+        return items;
+    }
+
     public async Task<SubscriptionStateSnapshot?> CancelSubscriptionAtPeriodEndAsync(
         Guid tenantId,
         Guid subscriptionId,
@@ -446,26 +481,7 @@ public sealed partial class PostgresCommerceActivationStore : ICommerceActivatio
         if (!await reader.ReadAsync(cancellationToken))
             return null;
 
-        var entitlementSnapshot = Deserialize(reader.GetString(8));
-        var subscription = SubscriptionEntitlement.Rehydrate(
-            reader.GetGuid(0),
-            reader.GetGuid(1),
-            reader.GetGuid(2),
-            reader.GetGuid(3),
-            reader.GetGuid(4),
-            reader.GetGuid(5),
-            reader.GetFieldValue<DateOnly>(6),
-            reader.IsDBNull(7) ? null : reader.GetFieldValue<DateOnly>(7),
-            entitlementSnapshot,
-            (SubscriptionStatus)reader.GetInt32(9));
-
-        if (subscription.ValidUntil is null)
-            throw new InvalidOperationException("A finite subscription term is required.");
-
-        return new PersistedActivation(
-            subscription,
-            reader.GetGuid(10),
-            reader.GetString(11));
+        return ReadPersistedActivation(reader);
     }
 
     private static void AddQuoteParameters(

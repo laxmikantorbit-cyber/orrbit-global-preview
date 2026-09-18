@@ -212,6 +212,16 @@ public sealed record SubscriptionStateSnapshot(
     EntitlementSnapshot Entitlements,
     SubscriptionStatus SubscriptionStatus);
 
+public sealed record SubscriptionListItemResponse(
+    Guid SubscriptionId,
+    Guid OrganisationId,
+    string ProductCode,
+    DateOnly StartsOn,
+    DateOnly ValidUntil,
+    string Status,
+    string RenewalStatus,
+    bool CancelAtPeriodEnd);
+
 public sealed record EntitlementStatusResponse(
     Guid TenantId,
     Guid OrganisationId,

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
-  cancelAtPeriodEnd, getAutoPayStatus, getEntitlement, getSubscription, setupAutoPay,
-  type AutoPayStatus, type EntitlementResponse,
+  cancelAtPeriodEnd, getAutoPayStatus, getEntitlement, getSubscription, listSubscriptions, setupAutoPay,
+  type AutoPayStatus, type EntitlementResponse, type SubscriptionListItem,
 } from './businessosApi'
 import { getBillingReceipt, listBillingHistory, type BillingInvoice } from './billingApi'
 import { OrganisationProfileCard } from './OrganisationProfileCard'
@@ -11,6 +11,7 @@ import './BusinessOSHub.css'
 export function BusinessOSCustomerPortal() {
   const [token, setToken] = useState('')
   const [subscriptionId, setSubscriptionId] = useState('')
+  const [subscriptions, setSubscriptions] = useState<SubscriptionListItem[]>([])
   const [subscription, setSubscription] = useState<Awaited<ReturnType<typeof getSubscription>> | null>(null)
   const [entitlement, setEntitlement] = useState<EntitlementResponse | null>(null)
   const [autopay, setAutopay] = useState<AutoPayStatus | null>(null)
@@ -18,7 +19,34 @@ export function BusinessOSCustomerPortal() {
   const [receiptText, setReceiptText] = useState('')
   const [message, setMessage] = useState('')
 
+  const discover = async () => {
+    if (!token.trim()) {
+      setMessage('Enter the staging access token first.')
+      return
+    }
+    setMessage('Finding your subscriptions…')
+    try {
+      const items = await listSubscriptions(token.trim())
+      setSubscriptions(items)
+      setSubscription(null); setEntitlement(null); setAutopay(null); setBilling([])
+      if (items.length === 0) {
+        setSubscriptionId('')
+        setMessage('No subscriptions were found for this account.')
+        return
+      }
+      const selected = items.some(x => x.subscriptionId === subscriptionId)
+        ? subscriptionId
+        : items[0].subscriptionId
+      setSubscriptionId(selected)
+      setMessage(`${items.length} subscription${items.length === 1 ? '' : 's'} found. Select one and load it.`)
+    } catch (error) { setMessage(error instanceof Error ? error.message : String(error)) }
+  }
+
   const load = async () => {
+    if (!subscriptionId) {
+      setMessage('Select a subscription first.')
+      return
+    }
     setMessage('Loading…')
     try {
       const [sub, ent] = await Promise.all([
@@ -57,9 +85,18 @@ export function BusinessOSCustomerPortal() {
     <header><p className="eyebrow">oRRbit.BusinessOS</p><h1>Customer Self-Service Portal</h1>
       <p>Subscription, entitlement, licence, AutoPay and renewal control in one place.</p></header>
     <section className="bos-card bos-form">
-      <label>Bearer token<input value={token} onChange={e => setToken(e.target.value)} placeholder="Customer JWT" /></label>
-      <label>Subscription ID<input value={subscriptionId} onChange={e => setSubscriptionId(e.target.value)} placeholder="GUID" /></label>
-      <button onClick={load}>Load subscription</button><span className="bos-message">{message}</span>
+      <label>Staging access token<input type="password" autoComplete="off" value={token}
+        onChange={e => setToken(e.target.value)} placeholder="FreeTesting access token" /></label>
+      <label>Subscription<select value={subscriptionId} disabled={subscriptions.length === 0}
+        onChange={e => setSubscriptionId(e.target.value)}>
+        {subscriptions.length === 0 && <option value="">Find subscriptions first</option>}
+        {subscriptions.map(item => <option key={item.subscriptionId} value={item.subscriptionId}>
+          {item.productCode} · {item.status} · valid to {item.validUntil}
+        </option>)}
+      </select></label>
+      <div className="bos-actions"><button onClick={discover}>Find subscriptions</button>
+        <button onClick={load} disabled={!subscriptionId}>Load selected</button></div>
+      <span className="bos-message">{message}</span>
     </section>
 
     {subscription && <section className="bos-metrics">

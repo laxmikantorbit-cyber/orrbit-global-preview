@@ -60,6 +60,17 @@ export type EntitlementResponse = {
   autoPayProviderStatus?: string | null
 }
 
+export type SubscriptionListItem = {
+  subscriptionId: string
+  organisationId: string
+  productCode: string
+  startsOn: string
+  validUntil: string
+  status: string
+  renewalStatus: string
+  cancelAtPeriodEnd: boolean
+}
+
 export type AutoPaySetupResponse = {
   tenantId: string
   subscriptionId: string
@@ -148,6 +159,14 @@ export async function captureFreePayment(token: string, razorpayOrderId: string)
   )
   return parseResponse<CaptureResponse>(response)
 }
+export async function listSubscriptions(token: string) {
+  const response = await fetch(
+    `${apiBase}/api/commerce/subscriptions?take=100`,
+    { headers: authHeaders(token) },
+  )
+  return parseResponse<SubscriptionListItem[]>(response)
+}
+
 export async function getSubscription(token: string, subscriptionId: string) {
   const response = await fetch(
     `${apiBase}/api/commerce/subscriptions/${subscriptionId}`,

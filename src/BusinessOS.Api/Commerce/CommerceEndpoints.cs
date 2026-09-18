@@ -9,6 +9,30 @@ public static class CommerceEndpoints
     {
         var group = app.MapGroup("/api/commerce");
 
+        group.MapGet("/subscriptions", async (
+            int? take,
+            TenantContext tenant,
+            ICommerceActivationStore store,
+            CancellationToken cancellationToken) =>
+        {
+            var states = await store.ListSubscriptionStatesAsync(
+                tenant.TenantId, take ?? 50, cancellationToken);
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            return Results.Ok(states.Select(state =>
+            {
+                var status = EntitlementStatusEvaluator.Evaluate(state, today);
+                return new SubscriptionListItemResponse(
+                    state.SubscriptionId,
+                    state.OrganisationId,
+                    state.ProductCode,
+                    state.StartsOn,
+                    state.ValidUntil,
+                    status.Status,
+                    status.RenewalStatus,
+                    status.CancelAtPeriodEnd);
+            }).ToArray());
+        });
+
         group.MapGet("/subscriptions/{subscriptionId:guid}", async (
             Guid subscriptionId,
             TenantContext tenant,

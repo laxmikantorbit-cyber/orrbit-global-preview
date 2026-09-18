@@ -24,6 +24,11 @@ public interface ICommerceActivationStore
         Guid subscriptionId,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<SubscriptionStateSnapshot>> ListSubscriptionStatesAsync(
+        Guid tenantId,
+        int take = 50,
+        CancellationToken cancellationToken = default);
+
     Task<SubscriptionStateSnapshot?> CancelSubscriptionAtPeriodEndAsync(
         Guid tenantId,
         Guid subscriptionId,

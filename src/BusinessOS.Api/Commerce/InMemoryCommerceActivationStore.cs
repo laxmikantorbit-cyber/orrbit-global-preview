@@ -100,6 +100,26 @@ public sealed class InMemoryCommerceActivationStore : ICommerceActivationStore
         }
     }
 
+    public Task<IReadOnlyList<SubscriptionStateSnapshot>> ListSubscriptionStatesAsync(
+        Guid tenantId,
+        int take = 50,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var limit = Math.Clamp(take, 1, 200);
+        lock (_gate)
+        {
+            return Task.FromResult<IReadOnlyList<SubscriptionStateSnapshot>>(
+                _activations
+                    .Where(x => x.Key.TenantId == tenantId)
+                    .Select(x => ToStateSnapshot(tenantId, x.Value))
+                    .OrderByDescending(x => x.ValidUntil)
+                    .ThenByDescending(x => x.StartsOn)
+                    .Take(limit)
+                    .ToArray());
+        }
+    }
+
     public Task<SubscriptionStateSnapshot?> CancelSubscriptionAtPeriodEndAsync(
         Guid tenantId,
         Guid subscriptionId,

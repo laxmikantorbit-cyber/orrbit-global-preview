@@ -32,6 +32,28 @@ public sealed class CommerceActivationStoreTests
     }
 
     [Fact]
+    public async Task Subscription_List_Is_Tenant_Scoped()
+    {
+        using var signer = new LeaseSigner();
+        ICommerceActivationStore store = new InMemoryCommerceActivationStore(
+            new PaymentSubscriptionActivationService(),
+            signer);
+
+        var first = await store.ActivateInitialPurchaseAsync(
+            TenantA, InitialRequest("pay_list_1"));
+        var second = await store.ActivateInitialPurchaseAsync(
+            TenantA, InitialRequest("pay_list_2"));
+
+        var tenantA = await store.ListSubscriptionStatesAsync(TenantA, 50);
+        var tenantB = await store.ListSubscriptionStatesAsync(TenantB, 50);
+
+        Assert.Equal(2, tenantA.Count);
+        Assert.Contains(tenantA, x => x.SubscriptionId == first.SubscriptionId);
+        Assert.Contains(tenantA, x => x.SubscriptionId == second.SubscriptionId);
+        Assert.Empty(tenantB);
+    }
+
+    [Fact]
     public async Task Renewal_Extends_Subscription_And_Updates_Entitlements()
     {
         using var signer = new LeaseSigner();

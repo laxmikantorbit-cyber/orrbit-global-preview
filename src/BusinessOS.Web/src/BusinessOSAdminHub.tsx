@@ -92,7 +92,7 @@ export function BusinessOSAdminHub() {
     <header><p className="eyebrow">oRRbit.BusinessOS</p><h1>Commerce & Licensing Admin</h1>
       <p>Subscriptions, payments, renewals, entitlement, activation, AutoPay and desktop-device control.</p></header>
     <section className="bos-card bos-form">
-      <label>Bearer token<input value={token} onChange={e => setToken(e.target.value)} placeholder="Commerce Admin JWT" /></label>
+      <label>Bearer token<input type="password" autoComplete="off" value={token} onChange={e => setToken(e.target.value)} placeholder="Commerce Admin token" /></label>
       <label>Subscription ID<input value={subscriptionId} onChange={e => setSubscriptionId(e.target.value)} placeholder="GUID" /></label>
       <button onClick={loadAll}>Refresh control centre</button><span className="bos-message">{message}</span>
     </section>
