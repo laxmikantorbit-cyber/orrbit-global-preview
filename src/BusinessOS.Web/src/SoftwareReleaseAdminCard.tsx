@@ -82,7 +82,7 @@ export function SoftwareReleaseAdminCard({ token }: Props) {
   return <section className="bos-card">
     <div className="bos-profile-heading">
       <div><h2>Software release registry</h2>
-        <p>Publish only verified installer metadata. The download URL must use HTTPS.</p></div>
+        <p>Publish only verified installer metadata. Use HTTPS only, supported targets only, and calculate SHA-256 from the final uploaded installer.</p></div>
       <span className="pill muted">{items.filter(x => x.active).length} active</span>
     </div>
 
@@ -91,22 +91,29 @@ export function SoftwareReleaseAdminCard({ token }: Props) {
         onChange={e => setForm({ ...form, productCode: e.target.value.toUpperCase() })} /></label>
       <label>Version<input value={form.version}
         onChange={e => setForm({ ...form, version: e.target.value })} placeholder="1.0.0" /></label>
-      <label>Channel<input value={form.channel}
-        onChange={e => setForm({ ...form, channel: e.target.value })} /></label>
-      <label>Platform<input value={form.platform}
-        onChange={e => setForm({ ...form, platform: e.target.value })} /></label>
-      <label>Architecture<input value={form.architecture}
-        onChange={e => setForm({ ...form, architecture: e.target.value })} /></label>
+      <label>Channel<select value={form.channel}
+        onChange={e => setForm({ ...form, channel: e.target.value })}>
+        <option>Stable</option><option>Beta</option><option>Internal</option>
+      </select></label>
+      <label>Platform<select value={form.platform}
+        onChange={e => setForm({ ...form, platform: e.target.value })}>
+        <option>Windows</option>
+      </select></label>
+      <label>Architecture<select value={form.architecture}
+        onChange={e => setForm({ ...form, architecture: e.target.value })}>
+        <option>x64</option><option>x86</option><option>arm64</option>
+      </select></label>
       <label>Installer filename<input value={form.fileName}
         onChange={e => setForm({ ...form, fileName: e.target.value })} placeholder="oRRbit-AI-Repair-1.0.0.exe" /></label>
       <label className="bos-wide-field">HTTPS download URL<input value={form.downloadUrl}
         onChange={e => setForm({ ...form, downloadUrl: e.target.value })} placeholder="https://..." /></label>
       <label className="bos-wide-field">SHA-256 checksum<input value={form.sha256}
-        onChange={e => setForm({ ...form, sha256: e.target.value.toLowerCase() })} maxLength={64} /></label>
+        onChange={e => setForm({ ...form, sha256: e.target.value.toLowerCase() })} maxLength={64}
+        placeholder="Get-FileHash -Algorithm SHA256 .\installer.exe" /></label>
       <label>Size in bytes<input type="number" min="0" value={form.sizeBytes ?? ''}
         onChange={e => setForm({ ...form, sizeBytes: e.target.value ? Number(e.target.value) : null })} /></label>
       <label className="bos-wide-field">Release notes<input value={form.releaseNotes || ''}
-        onChange={e => setForm({ ...form, releaseNotes: e.target.value })} /></label>
+        onChange={e => setForm({ ...form, releaseNotes: e.target.value })} maxLength={4000} /></label>
     </div>
 
     <div className="bos-actions">

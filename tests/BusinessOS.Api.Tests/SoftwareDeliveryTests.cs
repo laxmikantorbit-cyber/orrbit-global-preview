@@ -86,6 +86,36 @@ public sealed class SoftwareDeliveryTests
         Assert.Empty(await store.ListAsync(tenantB, null, 50));
     }
 
+
+    [Fact]
+    public void Release_Validator_Rejects_Unsafe_Installer_File_Name()
+    {
+        var request = Request("1.0.0", "https://downloads.example.test/repair.exe") with
+        {
+            FileName = "..\\repair.exe"
+        };
+
+        var error = Assert.Throws<ArgumentException>(
+            () => SoftwareReleaseValidator.Normalize(Guid.NewGuid(), request));
+
+        Assert.Contains("unsafe", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Release_Validator_Rejects_Unsupported_Target_Metadata()
+    {
+        var request = Request("1.0.0", "https://downloads.example.test/repair.exe") with
+        {
+            Channel = "Public",
+            Architecture = "mips"
+        };
+
+        var error = Assert.Throws<ArgumentException>(
+            () => SoftwareReleaseValidator.Normalize(Guid.NewGuid(), request));
+
+        Assert.Contains("Channel", error.Message);
+    }
+
     private static SoftwareReleaseCreateRequest Request(
         string version,
         string url,

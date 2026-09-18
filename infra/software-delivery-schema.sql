@@ -18,6 +18,60 @@ CREATE TABLE IF NOT EXISTS software_releases (
     UNIQUE (tenant_id, product_code, version, channel, platform, architecture)
 );
 
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_software_releases_product_code_safe') THEN
+    ALTER TABLE software_releases
+      ADD CONSTRAINT ck_software_releases_product_code_safe
+      CHECK (product_code ~ '^[A-Z0-9_-]{1,64}$');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_software_releases_channel_supported') THEN
+    ALTER TABLE software_releases
+      ADD CONSTRAINT ck_software_releases_channel_supported
+      CHECK (channel IN ('Stable','Beta','Internal'));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_software_releases_platform_supported') THEN
+    ALTER TABLE software_releases
+      ADD CONSTRAINT ck_software_releases_platform_supported
+      CHECK (platform IN ('Windows'));
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_software_releases_architecture_supported') THEN
+    ALTER TABLE software_releases
+      ADD CONSTRAINT ck_software_releases_architecture_supported
+      CHECK (architecture IN ('x64','x86','arm64'));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_software_releases_version_safe') THEN
+    ALTER TABLE software_releases
+      ADD CONSTRAINT ck_software_releases_version_safe
+      CHECK (length(version) <= 40 AND version ~ '[0-9]' AND version ~ '^[A-Za-z0-9][A-Za-z0-9.+-]*$');
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_software_releases_file_name_safe') THEN
+    ALTER TABLE software_releases
+      ADD CONSTRAINT ck_software_releases_file_name_safe
+      CHECK (
+        length(file_name) <= 160
+        AND file_name !~ '[\\/]' AND file_name !~ '[<>:"|?*]'
+        AND file_name !~ '\.\.' AND file_name ~* '\.(exe|msi|msix|zip)$'
+      );
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_software_releases_notes_length') THEN
+    ALTER TABLE software_releases
+      ADD CONSTRAINT ck_software_releases_notes_length
+      CHECK (release_notes IS NULL OR length(release_notes) <= 4000);
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS ix_software_releases_delivery
     ON software_releases(
         tenant_id, product_code, channel, platform, architecture,
