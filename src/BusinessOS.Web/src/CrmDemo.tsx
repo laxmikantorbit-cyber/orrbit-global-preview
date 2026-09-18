@@ -33,9 +33,66 @@ import { CrmWorkView } from './CrmWorkView'
 import { CrmSalesView } from './CrmSalesView'
 import { CrmTeamView } from './CrmTeamView'
 
-type CrmView = 'overview' | 'leads' | 'pipeline' | 'accounts' | 'opportunities' | 'followups' | 'tasks' | 'reports' | 'team'
+type CrmView = 'overview' | 'leads' | 'pipeline' | 'accounts' | 'sales' | 'subscriptions' | 'expenses' | 'contracts' | 'projects' | 'support' | 'estimateRequests' | 'knowledgeBase' | 'utilities' | 'opportunities' | 'followups' | 'tasks' | 'reports' | 'team'
 const statuses = ['New', 'Contacted', 'Qualified', 'Converted', 'Unqualified']
 const statusLabels: Record<string, string> = { New: 'New enquiry', Contacted: 'Talked once', Qualified: 'Interested customer', Converted: 'Became customer', Unqualified: 'Not interested now' }
+
+const referenceModuleContent: Record<string, { title: string; subtitle: string; actions: string[]; columns: string[]; rows: string[][] }> = {
+  sales: {
+    title: 'Sales', subtitle: 'Create and track proposals, estimates, invoices, payments, credit notes and items.',
+    actions: ['New Proposal', 'New Estimate', 'New Invoice', 'Record Payment', 'Add Item'],
+    columns: ['Document', 'Customer', 'Amount', 'Status', 'Date'],
+    rows: [['INV-000490', 'Existing customer', '₹41,300.00', 'Due', '08 Sep 2026'], ['EST-000128', 'New enquiry', '₹9,999.00', 'Draft', 'Today']]
+  },
+  subscriptions: {
+    title: 'Subscriptions', subtitle: 'Manage recurring software plans, renewal dates, billing cycles and active customers.',
+    actions: ['New Subscription', 'Renew Subscription', 'Export'],
+    columns: ['Customer', 'Plan', 'Renewal', 'Status', 'Owner'],
+    rows: [['Bismi mobiles', 'AI Repair Pro', 'Annual', 'Active', 'Sales Owner'], ['Perfect Solutions', 'BusinessOS CRM', 'Monthly', 'Trial', 'CRM Owner']]
+  },
+  expenses: {
+    title: 'Expenses', subtitle: 'Record office expenses, sales expenses, staff expenses and vendor payments.',
+    actions: ['Add Expense', 'Import', 'Export'],
+    columns: ['Expense', 'Category', 'Amount', 'Paid By', 'Date'],
+    rows: [['Calling recharge', 'Sales', '₹799.00', 'Office', 'Today'], ['Demo travel', 'Business', '₹1,250.00', 'Staff', 'Yesterday']]
+  },
+  contracts: {
+    title: 'Contracts', subtitle: 'Keep signed agreements, service contracts, AMC documents and renewal commitments.',
+    actions: ['New Contract', 'Upload Document', 'Export'],
+    columns: ['Contract', 'Customer', 'Start Date', 'End Date', 'Status'],
+    rows: [['AMC-2026-001', 'A2ZTECH.IN', '01 Sep 2026', '31 Aug 2027', 'Active']]
+  },
+  projects: {
+    title: 'Projects', subtitle: 'Track implementation, onboarding, customisation, delivery and internal project work.',
+    actions: ['New Project', 'Assign Staff', 'Export'],
+    columns: ['Project', 'Customer', 'Owner', 'Progress', 'Status'],
+    rows: [['CRM onboarding', 'Bhilai Public School', 'Support Team', '45%', 'In progress']]
+  },
+  support: {
+    title: 'Support', subtitle: 'Handle customer complaints, service tickets, help requests and pending support calls.',
+    actions: ['New Ticket', 'Assign Ticket', 'Export'],
+    columns: ['Ticket', 'Customer', 'Issue', 'Priority', 'Status'],
+    rows: [['SUP-00041', 'BOYFRIEND SPORTSWEAR', 'Invoice help', 'Normal', 'Open']]
+  },
+  estimateRequests: {
+    title: 'Estimate Request', subtitle: 'Collect website/WhatsApp estimate requests and convert them into enquiries or estimates.',
+    actions: ['Review Request', 'Convert to Enquiry', 'Export'],
+    columns: ['Email', 'Requirement', 'Assigned', 'Status', 'Created'],
+    rows: [['demo@example.com', 'Repair CRM pricing', 'Sales Owner', 'New', 'Today']]
+  },
+  knowledgeBase: {
+    title: 'Knowledge Base', subtitle: 'Store FAQs, training notes, sales answers, onboarding guides and support articles.',
+    actions: ['New Article', 'New Category', 'Export'],
+    columns: ['Article', 'Category', 'Owner', 'Visibility', 'Updated'],
+    rows: [['How to follow up a lead', 'Sales Training', 'Admin', 'Team', 'Today']]
+  },
+  utilities: {
+    title: 'Utilities', subtitle: 'Manage media files, imports, exports and helper tools used by the CRM team.',
+    actions: ['Open Media', 'Import File', 'Export Data'],
+    columns: ['Utility', 'Purpose', 'Owner', 'Status', 'Last Used'],
+    rows: [['Media', 'Files and attachments', 'Admin', 'Ready', 'Today']]
+  }
+}
 function initialDashboard(): CrmDashboard {
   return { totalLeads: 0, new: 0, contacted: 0, qualified: 0, converted: 0, unqualified: 0, statusCounts: {} }
 }
@@ -192,20 +249,27 @@ export function CrmDemo() {
   }
 
   useEffect(() => { void refresh() }, [])
+  const pageTitle = referenceModuleContent[view]?.title ?? (view === 'overview' ? "Today's business summary" : view === 'accounts' ? 'Customers' : view === 'opportunities' ? 'Deals to close' : view === 'followups' ? 'Calls and follow-ups' : view === 'tasks' ? "Today's work" : view === 'reports' ? 'Reports' : view === 'team' ? 'Staff and access' : view === 'pipeline' ? 'Sales progress' : 'Leads')
+  const pageSubtitle = referenceModuleContent[view]?.subtitle ?? 'A simple daily system for customers, sales, follow-ups, reminders and deal closing.'
   return (
     <div className="crm2-app">
       <aside className="crm2-sidebar">
         <div className="crm2-brand"><div className="crm2-brand-mark">o</div><div><strong>oRRbit</strong><span>BusinessOS CRM</span></div></div>
-        <nav className="crm2-nav" aria-label="CRM navigation">
-          {can('ViewDashboard') ? <button className={view === 'overview' ? 'active' : ''} onClick={() => setView('overview')}><span>H</span>Home</button> : null}
-          {can('ViewLeads') ? <button className={view === 'leads' ? 'active' : ''} onClick={() => setView('leads')}><span>E</span>Customer enquiries <b>{dashboard.totalLeads}</b></button> : null}
-          {can('ViewLeads') ? <button className={view === 'pipeline' ? 'active' : ''} onClick={() => setView('pipeline')}><span>P</span>Sales progress</button> : null}
-          {can('ViewAccounts') ? <button className={view === 'accounts' ? 'active' : ''} onClick={() => setView('accounts')}><span>C</span>Customers <b>{accounts.length}</b></button> : null}
-          {can('ViewOpportunities') ? <button className={view === 'opportunities' ? 'active' : ''} onClick={() => setView('opportunities')}><span>D</span>Deals <b>{opportunities.length}</b></button> : null}
-          {can('ManageFollowUps') ? <button className={view === 'followups' ? 'active' : ''} onClick={() => setView('followups')}><span>F</span>Calls / follow-ups <b>{workSummary.openFollowUps}</b></button> : null}
-          {can('ManageTasks') ? <button className={view === 'tasks' ? 'active' : ''} onClick={() => setView('tasks')}><span>W</span>Today work <b>{workSummary.openTasks}</b></button> : null}
-          {can('ViewReports') ? <button className={view === 'reports' ? 'active' : ''} onClick={() => setView('reports')}><span>R</span>Reports</button> : null}
-          {can('ViewTeam') ? <button className={view === 'team' ? 'active' : ''} onClick={() => setView('team')}><span>S</span>Staff <b>{teamMembers.filter((member) => member.active).length}</b></button> : null}
+        <nav className="crm2-nav crm2-reference-nav" aria-label="CRM navigation">
+          <button className={view === 'overview' ? 'active' : ''} onClick={() => setView('overview')}><span>⌂</span>Dashboard</button>
+          <button className={view === 'accounts' ? 'active' : ''} onClick={() => setView('accounts')}><span>○</span>Customers <b>{accounts.length}</b></button>
+          <button className={view === 'sales' ? 'active' : ''} onClick={() => setView('sales')}><span>▣</span>Sales</button>
+          <button className={view === 'subscriptions' ? 'active' : ''} onClick={() => setView('subscriptions')}><span>↻</span>Subscriptions</button>
+          <button className={view === 'expenses' ? 'active' : ''} onClick={() => setView('expenses')}><span>□</span>Expenses</button>
+          <button className={view === 'contracts' ? 'active' : ''} onClick={() => setView('contracts')}><span>▤</span>Contracts</button>
+          <button className={view === 'projects' ? 'active' : ''} onClick={() => setView('projects')}><span>⌙</span>Projects</button>
+          <button className={view === 'tasks' ? 'active' : ''} onClick={() => setView('tasks')}><span>✓</span>Tasks <b>{workSummary.openTasks}</b></button>
+          <button className={view === 'support' ? 'active' : ''} onClick={() => setView('support')}><span>◎</span>Support</button>
+          <button className={view === 'leads' ? 'active' : ''} onClick={() => setView('leads')}><span>▥</span>Leads <b>{dashboard.totalLeads}</b></button>
+          <button className={view === 'estimateRequests' ? 'active' : ''} onClick={() => setView('estimateRequests')}><span>◇</span>Estimate Request</button>
+          <button className={view === 'knowledgeBase' ? 'active' : ''} onClick={() => setView('knowledgeBase')}><span>▭</span>Knowledge Base</button>
+          <button className={view === 'utilities' ? 'active' : ''} onClick={() => setView('utilities')}><span>⚙</span>Utilities</button>
+          <button className={view === 'reports' ? 'active' : ''} onClick={() => setView('reports')}><span>≡</span>Reports</button>
         </nav>
         <div className="crm2-module-nav" aria-label="Advanced CRM modules">
           <span className="crm2-module-title">More tools</span>
@@ -229,7 +293,7 @@ export function CrmDemo() {
 
       <main className="crm2-main">
         <header className="crm2-topbar">
-          <div className="crm2-title-block"><span className="crm2-kicker">EASY CUSTOMER FOLLOW-UP SYSTEM</span><h1>{view === 'overview' ? "Today's business summary" : view === 'accounts' ? 'Customer list' : view === 'opportunities' ? 'Deals to close' : view === 'followups' ? 'Calls and follow-ups' : view === 'tasks' ? "Today's work" : view === 'reports' ? 'Business reports' : view === 'team' ? 'Staff and access' : view === 'pipeline' ? 'Sales progress' : 'Customer enquiries'}</h1><p>A simple daily system for enquiries, calls, reminders and deal closing.</p></div>
+          <div className="crm2-title-block"><span className="crm2-kicker">BUSINESSOS CRM WORKSPACE</span><h1>{pageTitle}</h1><p>{pageSubtitle}</p></div>
           <div className="crm2-top-actions">
             {session && teamMembers.length > 0 ? <select className="crm2-user-switch" value={session.member.id} disabled={loading} onChange={(e) => void switchUser(e.target.value)} aria-label="Select staff user">{teamMembers.filter((member) => member.active).map((member) => <option key={member.id} value={member.id}>{member.displayName} · {member.role}</option>)}</select> : null}
             <button className="crm2-refresh" disabled={loading} onClick={refresh}>Refresh</button>
@@ -279,6 +343,21 @@ export function CrmDemo() {
                 })}
               </div>
             </section>
+
+            <section className="crm2-reference-calendar">
+              <div className="crm2-calendar-toolbar">
+                <div className="crm2-calendar-left"><button>‹</button><button>›</button><button>Today</button><button>Expand</button></div>
+                <h2>September 2026</h2>
+                <div className="crm2-calendar-right"><button className="active">Month</button><button>Week</button><button>Day</button><button>Filter By</button></div>
+              </div>
+              <div className="crm2-calendar-grid">
+                {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(day => <strong key={day}>{day}</strong>)}
+                {Array.from({ length: 35 }).map((_, index) => {
+                  const label = index === 0 ? '31' : String(index)
+                  return <article key={index} className={label === '18' ? 'today' : ''}><span>{label}</span>{label === '8' ? <em>INV-000490</em> : null}</article>
+                })}
+              </div>
+            </section>
           </>
         ) : null}
         {view === 'leads' ? (
@@ -304,6 +383,22 @@ export function CrmDemo() {
               ))}
             </div>
             <div className="crm2-table-foot">Showing {filteredLeads.length} of {leads.length} enquiries</div>
+          </section>
+        ) : null}
+        {referenceModuleContent[view] ? (
+          <section className="crm2-reference-module">
+            <div className="crm2-reference-module-head">
+              <div><span className="crm2-kicker">BUSINESS MODULE</span><h2>{referenceModuleContent[view].title}</h2><p>{referenceModuleContent[view].subtitle}</p></div>
+              <button className="crm2-filter-button">Filter</button>
+            </div>
+            <div className="crm2-reference-actions">
+              {referenceModuleContent[view].actions.map(action => <button key={action}>{action}</button>)}
+            </div>
+            <div className="crm2-reference-table">
+              <div className="crm2-reference-table-tools"><select><option>25</option><option>50</option></select><button>Export</button><button>Bulk Actions</button><button>Refresh</button><span /><label><b>⌕</b><input placeholder="Search..." /></label></div>
+              <div className="crm2-reference-head">{referenceModuleContent[view].columns.map(column => <span key={column}>{column}</span>)}</div>
+              {referenceModuleContent[view].rows.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : referenceModuleContent[view].rows.map((row, rowIndex) => <div className="crm2-reference-row" key={rowIndex}>{row.map((cell, index) => <span key={`${rowIndex}-${index}`}>{cell}</span>)}</div>)}
+            </div>
           </section>
         ) : null}
         {view === 'pipeline' ? (

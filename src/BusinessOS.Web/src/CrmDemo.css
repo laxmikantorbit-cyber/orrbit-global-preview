@@ -825,3 +825,48 @@
 .crm2-help-text { margin:6px 0 0; color:#7b86a0; font-size:12px; }
 @media (max-width: 1180px) { .crm2-workflow-board { grid-template-columns: 1fr 1fr 1fr; } .crm2-workflow-title { grid-column:1/-1; } }
 @media (max-width: 760px) { .crm2-workflow-board { grid-template-columns:1fr; } .crm2-workflow-title, .crm2-workflow-board button { min-height:auto; } }
+
+
+/* Reference CRM parity shell */
+.crm2-reference-nav { gap: 4px; overflow: auto; padding-right: 3px; }
+.crm2-reference-nav button { min-height: 40px; border-radius: 4px; }
+.crm2-reference-nav button.active { background: #35445a; }
+.crm2-reference-nav button span { font-size: 16px; }
+.crm2-reference-calendar,
+.crm2-reference-module {
+  max-width: 1450px;
+  margin: 18px auto 0;
+  background: #fff;
+  border: 1px solid #dce3ec;
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(16,24,40,.04);
+}
+.crm2-calendar-toolbar {
+  display:flex; align-items:center; justify-content:space-between; gap:18px;
+  padding:28px 24px 24px;
+}
+.crm2-calendar-toolbar h2 { margin:0; color:#334155; font-size:24px; font-weight:500; }
+.crm2-calendar-left,.crm2-calendar-right{display:flex;gap:0;align-items:center}
+.crm2-calendar-left button,.crm2-calendar-right button{
+  min-height:34px; padding:8px 12px; border:0; border-radius:0; background:#243246; color:#fff; font-weight:700; box-shadow:none;
+}
+.crm2-calendar-left button:nth-child(3){background:#6c7a89}.crm2-calendar-right button.active{background:#101827}
+.crm2-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));padding:0 24px 28px}
+.crm2-calendar-grid strong{padding:8px;border:1px solid #e3e7ee;border-bottom:0;text-align:center;color:#1d4ed8;font-weight:500}
+.crm2-calendar-grid article{min-height:112px;border:1px solid #e3e7ee;border-top:0;position:relative;padding:8px;background:#fff}
+.crm2-calendar-grid article.today{background:#fff9db}.crm2-calendar-grid article span{float:right;color:#1d4ed8;font-size:14px}
+.crm2-calendar-grid article em{display:block;margin:30px 4px 0;padding:10px;background:#ff6900;color:#fff;border-radius:3px;font-style:normal;font-size:12px}
+.crm2-reference-module{padding:0;overflow:hidden}
+.crm2-reference-module-head{display:flex;justify-content:space-between;gap:18px;padding:24px;border-bottom:1px solid #edf1f5}
+.crm2-reference-module-head h2{margin:4px 0;color:#334155}.crm2-reference-module-head p{margin:0;color:#64748b;font-size:13px}
+.crm2-filter-button{align-self:start;background:#fff!important;color:#243246!important;border:1px solid #d7dee8!important;box-shadow:none!important}
+.crm2-reference-actions{display:flex;gap:8px;flex-wrap:wrap;padding:18px 24px;background:#f8fafc;border-bottom:1px solid #edf1f5}
+.crm2-reference-actions button{background:#2563eb;color:#fff;border:0;border-radius:6px;padding:10px 14px;font-weight:800}
+.crm2-reference-table{padding:16px 24px 24px}.crm2-reference-table-tools{display:flex;gap:6px;align-items:center;margin-bottom:10px}
+.crm2-reference-table-tools span{flex:1}.crm2-reference-table-tools button,.crm2-reference-table-tools select{height:34px;border:1px solid #d7dee8;background:#fff;border-radius:4px;color:#334155}
+.crm2-reference-table-tools label{display:flex;align-items:center;border:1px solid #d7dee8;border-radius:6px;overflow:hidden;background:#fff}.crm2-reference-table-tools input{border:0;padding:8px 10px;outline:0}
+.crm2-reference-head,.crm2-reference-row{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));align-items:center}
+.crm2-reference-head span{padding:12px;background:#f8fafc;border:1px solid #e7edf5;color:#475569;font-weight:700}
+.crm2-reference-row span{padding:14px 12px;border:1px solid #eef2f7;border-top:0;color:#334155;min-height:50px}
+.crm2-reference-empty{padding:18px;color:#64748b;border:1px solid #eef2f7;border-top:0;margin:0}
+@media(max-width:860px){.crm2-reference-head,.crm2-reference-row{min-width:720px}.crm2-reference-table{overflow:auto}.crm2-calendar-grid{min-width:820px;overflow:auto}.crm2-reference-calendar{overflow:auto}.crm2-calendar-toolbar{display:grid}}
