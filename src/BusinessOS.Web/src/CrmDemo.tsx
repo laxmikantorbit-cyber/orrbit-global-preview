@@ -224,12 +224,12 @@ export function CrmDemo() {
           <a href="/crm/contacts">Contact Directory</a>
           <a href="/crm/deal-aging">Deal Aging</a>
         </div>
-        <div className="crm2-sidebar-foot"><strong>CRM DEVELOPMENT</strong><small>Licensing is paused until CRM completion.</small></div>
+        <div className="crm2-sidebar-foot"><strong>BUSINESSOS CRM</strong><small>Clean staging workspace · role based CRM</small></div>
       </aside>
 
       <main className="crm2-main">
         <header className="crm2-topbar">
-          <div><span className="crm2-kicker">CRM COMMAND CENTRE</span><h1>{view === 'overview' ? 'Sales overview' : view === 'accounts' ? 'Customer accounts' : view === 'opportunities' ? 'Opportunities' : view === 'followups' ? 'Follow-up centre' : view === 'tasks' ? 'Task centre' : view === 'reports' ? 'Sales reports' : view === 'team' ? 'Team & access' : view === 'pipeline' ? 'Sales pipeline' : 'Lead workspace'}</h1></div>
+          <div className="crm2-title-block"><span className="crm2-kicker">CRM COMMAND CENTRE</span><h1>{view === 'overview' ? 'Sales overview' : view === 'accounts' ? 'Customer accounts' : view === 'opportunities' ? 'Opportunities' : view === 'followups' ? 'Follow-up centre' : view === 'tasks' ? 'Task centre' : view === 'reports' ? 'Sales reports' : view === 'team' ? 'Team & access' : view === 'pipeline' ? 'Sales pipeline' : 'Lead workspace'}</h1><p>Manage leads, follow-ups, pipeline and team activity from one clean workspace.</p></div>
           <div className="crm2-top-actions">
             {session && teamMembers.length > 0 ? <select className="crm2-user-switch" value={session.member.id} disabled={loading} onChange={(e) => void switchUser(e.target.value)} aria-label="CRM demo user">{teamMembers.filter((member) => member.active).map((member) => <option key={member.id} value={member.id}>{member.displayName} · {member.role}</option>)}</select> : null}
             <button className="crm2-refresh" disabled={loading} onClick={refresh}>↻ Refresh</button>
@@ -237,6 +237,12 @@ export function CrmDemo() {
           </div>
         </header>
         <section className="crm2-statusbar"><div><span className={loading ? 'pulse busy' : 'pulse'} />{message}</div><span>{session ? `${session.member.displayName} · ${session.member.role} · ${session.canViewAllOwnedRecords ? 'Team scope' : 'My scope'} · ` : ''}Free staging · {storageLabel}</span></section>
+        {view !== 'overview' ? <section className="crm2-context-strip" aria-label="CRM summary">
+          <article><span>Total Leads</span><strong>{dashboard.totalLeads}</strong><small>Current workspace</small></article>
+          <article><span>Open Follow-ups</span><strong>{workSummary.openFollowUps}</strong><small>Need attention</small></article>
+          <article><span>Open Tasks</span><strong>{workSummary.openTasks}</strong><small>Team work queue</small></article>
+          <article><span>Conversion</span><strong>{conversionRate}%</strong><small>{dashboard.converted} converted</small></article>
+        </section> : null}
         {view === 'overview' ? (
           <>
             <section className="crm2-metrics">
