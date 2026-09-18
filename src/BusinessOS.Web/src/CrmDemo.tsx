@@ -149,7 +149,7 @@ export function CrmDemo() {
       })
       setShowAddLead(false)
       setTitle(''); setContactName(''); setMobile(''); setEmail(''); setNotes('')
-      setMessage('New lead added')
+      setMessage('New customer enquiry added')
       await refresh()
       setSelectedLeadId(created.id)
     } catch (error) {
@@ -209,12 +209,12 @@ export function CrmDemo() {
         </nav>
         <div className="crm2-module-nav" aria-label="Advanced CRM modules">
           <span className="crm2-module-title">More tools</span>
-          <a href="/crm/advanced">More CRM options</a>
-          <a href="/crm/manage">Settings</a>
+          <a href="/crm/advanced">More options</a>
+          <a href="/crm/manage">Software settings</a>
           <a href="/crm/maintenance">Clean / update data</a>
           <a href="/crm/pipeline-board">Move deals by drag</a>
           <a href="/crm/addresses">Customer addresses</a>
-          <a href="/crm/leads-query">Find enquiries</a>
+          <a href="/crm/leads-query">Search enquiries</a>
           <a href="/crm/analytics">Detailed reports</a>
           <a href="/crm/opportunity-products">Products in deals</a>
           <a href="/crm/inbox">My day</a>
@@ -229,18 +229,25 @@ export function CrmDemo() {
 
       <main className="crm2-main">
         <header className="crm2-topbar">
-          <div className="crm2-title-block"><span className="crm2-kicker">SIMPLE CRM WORKSPACE</span><h1>{view === 'overview' ? "Today\'s business summary" : view === 'accounts' ? 'Customer list' : view === 'opportunities' ? 'Deals to close' : view === 'followups' ? 'Calls and follow-ups' : view === 'tasks' ? "Today\'s work" : view === 'reports' ? 'Business reports' : view === 'team' ? 'Staff and access' : view === 'pipeline' ? 'Sales progress' : 'Customer enquiries'}</h1><p>Simple flow: add enquiry, call customer, update status, follow up, and close the deal.</p></div>
+          <div className="crm2-title-block"><span className="crm2-kicker">EASY CUSTOMER FOLLOW-UP SYSTEM</span><h1>{view === 'overview' ? "Today's business summary" : view === 'accounts' ? 'Customer list' : view === 'opportunities' ? 'Deals to close' : view === 'followups' ? 'Calls and follow-ups' : view === 'tasks' ? "Today's work" : view === 'reports' ? 'Business reports' : view === 'team' ? 'Staff and access' : view === 'pipeline' ? 'Sales progress' : 'Customer enquiries'}</h1><p>A simple daily system for enquiries, calls, reminders and deal closing.</p></div>
           <div className="crm2-top-actions">
             {session && teamMembers.length > 0 ? <select className="crm2-user-switch" value={session.member.id} disabled={loading} onChange={(e) => void switchUser(e.target.value)} aria-label="Select staff user">{teamMembers.filter((member) => member.active).map((member) => <option key={member.id} value={member.id}>{member.displayName} · {member.role}</option>)}</select> : null}
             <button className="crm2-refresh" disabled={loading} onClick={refresh}>Refresh</button>
-            {can('CreateLead') ? <button className="crm2-primary" onClick={() => setShowAddLead(true)}>+ Add new enquiry</button> : null}
+            {can('CreateLead') ? <button className="crm2-primary" onClick={() => setShowAddLead(true)}>+ Add customer enquiry</button> : null}
           </div>
         </header>
         <section className="crm2-statusbar"><div><span className={loading ? 'pulse busy' : 'pulse'} />{message}</div><span>{session ? `${session.member.displayName} · ${session.member.role} · ${session.canViewAllOwnedRecords ? 'Team view' : 'My view'} · ` : ''}Testing mode · {storageLabel}</span></section>
-        <section className="crm2-layman-guide" aria-label="Start here guide">
-          <div><strong>Start here</strong><span>1. Add customer enquiry</span></div>
-          <div><strong>Next</strong><span>2. Call and update status</span></div>
-          <div><strong>Then</strong><span>3. Set follow-up or close deal</span></div>
+        <section className="crm2-workflow-board" aria-label="Simple working process">
+          <div className="crm2-workflow-title">
+            <span>Daily working process</span>
+            <strong>Follow these 5 steps only</strong>
+            <p>This is made for a normal business owner or staff. No technical knowledge is needed.</p>
+          </div>
+          <button onClick={() => setShowAddLead(true)}><b>1</b><strong>Add enquiry</strong><span>Enter customer name, mobile and requirement.</span></button>
+          <button onClick={() => { setView('leads'); setStatusFilter('New') }}><b>2</b><strong>Call customer</strong><span>Open new enquiries and call them today.</span></button>
+          <button onClick={() => { setView('pipeline'); setStatusFilter('Contacted') }}><b>3</b><strong>Move progress</strong><span>Mark called, interested, won or not interested.</span></button>
+          <button onClick={() => setView('followups')}><b>4</b><strong>Set reminder</strong><span>Plan next call so no customer is missed.</span></button>
+          <button onClick={() => { setView('leads'); setStatusFilter('Qualified') }}><b>5</b><strong>Close deal</strong><span>Focus on interested customers first.</span></button>
         </section>
         {view !== 'overview' ? <section className="crm2-context-strip" aria-label="CRM summary">
           <article><span>Customer enquiries</span><strong>{dashboard.totalLeads}</strong><small>All people who showed interest</small></article>
@@ -277,13 +284,13 @@ export function CrmDemo() {
         {view === 'leads' ? (
           <section className="crm2-table-card crm2-module-table">
             <div className="crm2-table-tools">
-              <div><span className="crm2-kicker">CUSTOMER ENQUIRIES</span><h2>{session?.canViewAllOwnedRecords ? 'All customer enquiries' : 'My customer enquiries'}</h2><p className="crm2-help-text">Click any row to see details, change status, or plan the next call.</p></div>
+              <div><span className="crm2-kicker">CUSTOMER ENQUIRIES</span><h2>{session?.canViewAllOwnedRecords ? 'All customer enquiries' : 'My customer enquiries'}</h2><p className="crm2-help-text">Click one customer row. Then call, change progress, add note or set next reminder.</p></div>
               <div className="crm2-filters">
                 <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search customer, mobile, business..." />
                 <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="All">All stages</option>{statuses.map((status) => <option key={status}>{status}</option>)}</select>
               </div>
             </div>
-            <div className="crm2-table-head crm2-rich-head"><span>Customer enquiry</span><span>Contact</span><span>Interest</span><span>Status</span><span>Next call</span><span /></div>
+            <div className="crm2-table-head crm2-rich-head"><span>Customer</span><span>Mobile / Contact</span><span>Requirement</span><span>Progress</span><span>Next call</span><span /></div>
             <div className="crm2-table-body">
               {filteredLeads.length === 0 ? <div className="crm2-empty"><strong>No customer enquiry found</strong><span>Clear the filter or add a new enquiry.</span></div> : filteredLeads.map((lead) => (
                 <article className="crm2-row crm2-rich-row" key={lead.id} onClick={() => setSelectedLeadId(lead.id)}>
@@ -296,7 +303,7 @@ export function CrmDemo() {
                 </article>
               ))}
             </div>
-            <div className="crm2-table-foot">Showing {filteredLeads.length} of {leads.length} leads</div>
+            <div className="crm2-table-foot">Showing {filteredLeads.length} of {leads.length} enquiries</div>
           </section>
         ) : null}
         {view === 'pipeline' ? (
@@ -306,10 +313,10 @@ export function CrmDemo() {
               return <div className="crm2-kanban-column" key={status}>
                 <header><span>{statusLabels[status]}</span><b>{stageLeads.length}</b></header>
                 <div className="crm2-kanban-stack">
-                  {stageLeads.length === 0 ? <p>No leads</p> : stageLeads.map((lead) => (
+                  {stageLeads.length === 0 ? <p>No enquiries</p> : stageLeads.map((lead) => (
                     <article key={lead.id} onClick={() => setSelectedLeadId(lead.id)}>
                       <div><strong>{lead.title}</strong><em>{lead.priority || 'Normal'}</em></div>
-                      <span>{lead.contactName || lead.mobileNumber || lead.leadSource || 'Direct lead'}</span>
+                      <span>{lead.contactName || lead.mobileNumber || lead.leadSource || 'Direct enquiry'}</span>
                       <small>{lead.productInterest || 'No product selected'}</small>
                       <select value={lead.status} disabled={loading || lead.status === 'Converted' || !can('EditLead')} onClick={(e) => e.stopPropagation()} onChange={(e) => void moveLead(lead.id, e.target.value)}>{statuses.filter((item) => item !== 'Converted' || lead.status === 'Converted').map((item) => <option key={item}>{item}</option>)}</select>
                     </article>
@@ -332,19 +339,19 @@ export function CrmDemo() {
         {showAddLead ? (
           <div className="crm2-overlay" onMouseDown={() => setShowAddLead(false)}>
             <section className="crm2-drawer crm2-wide-drawer" onMouseDown={(e) => e.stopPropagation()}>
-              <div className="crm2-drawer-head"><div><span className="crm2-kicker">NEW LEAD</span><h2>Create lead</h2></div><button onClick={() => setShowAddLead(false)}>×</button></div>
+              <div className="crm2-drawer-head"><div><span className="crm2-kicker">NEW CUSTOMER ENQUIRY</span><h2>Add enquiry</h2><p>Fill only basic customer details. Call notes and reminders can be added later.</p></div><button onClick={() => setShowAddLead(false)}>×</button></div>
               <div className="crm2-form-grid">
-                <label>Business / lead name<input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Sharma Mobile Care" /></label>
+                <label>Customer / business name<input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Sharma Mobile Care" /></label>
                 <label>Contact person<input value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="Owner / decision maker" /></label>
                 <label>Mobile<input value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="10-digit mobile" /></label>
                 <label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
-                <label>Lead source<select value={source} onChange={(e) => setSource(e.target.value)}><option>WhatsApp</option><option>Website</option><option>Referral</option><option>Partner</option><option>Calling</option><option>Facebook</option><option>Instagram</option><option>Other</option></select></label>
+                <label>Enquiry source<select value={source} onChange={(e) => setSource(e.target.value)}><option>WhatsApp</option><option>Website</option><option>Referral</option><option>Partner</option><option>Calling</option><option>Facebook</option><option>Instagram</option><option>Other</option></select></label>
                 <label>Priority<select value={priority} onChange={(e) => setPriority(e.target.value)}><option>Low</option><option>Normal</option><option>High</option><option>Urgent</option></select></label>
               </div>
               <label>Product interest<input value={product} onChange={(e) => setProduct(e.target.value)} placeholder="Product / service" /></label>
-              <label>Initial notes<textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} placeholder="Requirement, budget, next action…" /></label>
-              <div className="crm2-drawer-note"><strong>Starts in New</strong><span>After saving, the full lead workspace opens automatically for follow-up, task and activity entry.</span></div>
-              <div className="crm2-drawer-actions"><button className="crm2-cancel" onClick={() => setShowAddLead(false)}>Cancel</button><button className="crm2-primary" disabled={loading || !title.trim()} onClick={() => void addLead()}>{loading ? 'Adding…' : 'Create lead'}</button></div>
+              <label>Initial notes<textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} placeholder="What customer wants, budget, and what to do next." /></label>
+              <div className="crm2-drawer-note"><strong>After saving</strong><span>This enquiry will appear in Customer enquiries. Open it to add call note, reminder or deal status.</span></div>
+              <div className="crm2-drawer-actions"><button className="crm2-cancel" onClick={() => setShowAddLead(false)}>Cancel</button><button className="crm2-primary" disabled={loading || !title.trim()} onClick={() => void addLead()}>{loading ? 'Saving...' : 'Save enquiry'}</button></div>
             </section>
           </div>
         ) : null}

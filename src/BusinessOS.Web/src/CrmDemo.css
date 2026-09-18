@@ -792,3 +792,36 @@
 .crm2-layman-guide span { color: #334155; font-size: 13px; font-weight: 800; }
 .crm2-help-text { margin: 6px 0 0; color: #64748b; font-size: 12px; line-height: 1.5; }
 @media (max-width: 760px) { .crm2-layman-guide { grid-template-columns: 1fr; } }
+
+
+/* Layman-first working process */
+.crm2-workflow-board {
+  max-width: 1450px;
+  margin: 18px auto 0;
+  display: grid;
+  grid-template-columns: 1.45fr repeat(5, minmax(128px, 1fr));
+  gap: 12px;
+}
+.crm2-workflow-title,
+.crm2-workflow-board button {
+  min-height: 118px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid #e5e9f2;
+  background: rgba(255,255,255,.86);
+  box-shadow: 0 16px 36px rgba(25, 35, 70, .05);
+}
+
+.crm2-workflow-title { background: linear-gradient(135deg,#111827,#1f2a44); color: #fff; }
+.crm2-workflow-title span { color:#aeb8d3; font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:.12em; }
+.crm2-workflow-title strong { display:block; margin:8px 0 6px; font-size:24px; line-height:1.1; letter-spacing:-.04em; }
+.crm2-workflow-title p { margin:0; color:#cbd5e1; font-size:12px; line-height:1.55; }
+.crm2-workflow-board button { text-align:left; cursor:pointer; color:#25304d; }
+.crm2-workflow-board button:hover { transform: translateY(-2px); border-color:#c9d0ff; box-shadow: 0 20px 46px rgba(49,64,130,.12); }
+.crm2-workflow-board button b { width:30px; height:30px; display:grid; place-items:center; color:#fff; background:#6557e8; border-radius:11px; font-size:13px; }
+.crm2-workflow-board button strong { display:block; margin-top:12px; font-size:14px; }
+.crm2-workflow-board button span { display:block; margin-top:5px; color:#74809a; font-size:11px; line-height:1.45; }
+.crm2-drawer-head p { margin:6px 0 0; color:#7b86a0; font-size:12px; line-height:1.5; }
+.crm2-help-text { margin:6px 0 0; color:#7b86a0; font-size:12px; }
+@media (max-width: 1180px) { .crm2-workflow-board { grid-template-columns: 1fr 1fr 1fr; } .crm2-workflow-title { grid-column:1/-1; } }
+@media (max-width: 760px) { .crm2-workflow-board { grid-template-columns:1fr; } .crm2-workflow-title, .crm2-workflow-board button { min-height:auto; } }
