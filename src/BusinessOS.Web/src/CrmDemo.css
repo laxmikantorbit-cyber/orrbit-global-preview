@@ -763,3 +763,32 @@
   .crm2-context-strip { grid-template-columns: 1fr; }
   .crm2-row { margin: 0 10px 10px; }
 }
+
+
+/* Layman-first CRM guidance */
+.crm2-layman-guide {
+  max-width: 1450px;
+  margin: 14px auto 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.crm2-layman-guide div {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid rgba(99, 102, 241, .16);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(248,250,255,.95));
+  box-shadow: 0 16px 40px rgba(15, 23, 42, .055);
+}
+.crm2-layman-guide strong {
+  color: #4f46e5;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.crm2-layman-guide span { color: #334155; font-size: 13px; font-weight: 800; }
+.crm2-help-text { margin: 6px 0 0; color: #64748b; font-size: 12px; line-height: 1.5; }
+@media (max-width: 760px) { .crm2-layman-guide { grid-template-columns: 1fr; } }

@@ -35,7 +35,7 @@ import { CrmTeamView } from './CrmTeamView'
 
 type CrmView = 'overview' | 'leads' | 'pipeline' | 'accounts' | 'opportunities' | 'followups' | 'tasks' | 'reports' | 'team'
 const statuses = ['New', 'Contacted', 'Qualified', 'Converted', 'Unqualified']
-const statusLabels: Record<string, string> = { New: 'New lead', Contacted: 'Contacted', Qualified: 'Qualified', Converted: 'Converted', Unqualified: 'Unqualified' }
+const statusLabels: Record<string, string> = { New: 'New enquiry', Contacted: 'Talked once', Qualified: 'Interested customer', Converted: 'Became customer', Unqualified: 'Not interested now' }
 function initialDashboard(): CrmDashboard {
   return { totalLeads: 0, new: 0, contacted: 0, qualified: 0, converted: 0, unqualified: 0, statusCounts: {} }
 }
@@ -123,8 +123,8 @@ export function CrmDemo() {
       setOpportunities(opportunityResult.opportunities)
       setTeamMembers(teamResult.members)
       setRoles(roleResult.roles)
-      setStorageLabel(readyResult.storageMode === 'Postgres' ? 'Postgres persistent data' : 'In-memory test data')
-      setMessage(`Live CRM refreshed · ${sessionResult.canViewAllOwnedRecords ? 'Team scope' : 'My scope'}`)
+      setStorageLabel(readyResult.storageMode === 'Postgres' ? 'Saved online data' : 'Temporary test data')
+      setMessage(`Customer enquiries refreshed - ${sessionResult.canViewAllOwnedRecords ? 'Team view' : 'My view'}`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
     } finally {
@@ -161,7 +161,7 @@ export function CrmDemo() {
     setLoading(true)
     try {
       await changeCrmLeadStatus(leadId, status, status === 'Unqualified' ? 'Not ready now' : undefined)
-      setMessage(`Lead moved to ${status}`)
+      setMessage(`Customer enquiry moved to ${statusLabels[status] ?? status}`)
       await refresh()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
@@ -197,69 +197,74 @@ export function CrmDemo() {
       <aside className="crm2-sidebar">
         <div className="crm2-brand"><div className="crm2-brand-mark">o</div><div><strong>oRRbit</strong><span>BusinessOS CRM</span></div></div>
         <nav className="crm2-nav" aria-label="CRM navigation">
-          {can('ViewDashboard') ? <button className={view === 'overview' ? 'active' : ''} onClick={() => setView('overview')}><span>⌂</span>Overview</button> : null}
-          {can('ViewLeads') ? <button className={view === 'leads' ? 'active' : ''} onClick={() => setView('leads')}><span>◎</span>Leads <b>{dashboard.totalLeads}</b></button> : null}
-          {can('ViewLeads') ? <button className={view === 'pipeline' ? 'active' : ''} onClick={() => setView('pipeline')}><span>◇</span>Pipeline</button> : null}
-          {can('ViewAccounts') ? <button className={view === 'accounts' ? 'active' : ''} onClick={() => setView('accounts')}><span>A</span>Accounts <b>{accounts.length}</b></button> : null}
-          {can('ViewOpportunities') ? <button className={view === 'opportunities' ? 'active' : ''} onClick={() => setView('opportunities')}><span>O</span>Opportunities <b>{opportunities.length}</b></button> : null}
-          {can('ManageFollowUps') ? <button className={view === 'followups' ? 'active' : ''} onClick={() => setView('followups')}><span>↻</span>Follow-ups <b>{workSummary.openFollowUps}</b></button> : null}
-          {can('ManageTasks') ? <button className={view === 'tasks' ? 'active' : ''} onClick={() => setView('tasks')}><span>✓</span>Tasks <b>{workSummary.openTasks}</b></button> : null}
-          {can('ViewReports') ? <button className={view === 'reports' ? 'active' : ''} onClick={() => setView('reports')}><span>↗</span>Reports</button> : null}
-          {can('ViewTeam') ? <button className={view === 'team' ? 'active' : ''} onClick={() => setView('team')}><span>U</span>Team <b>{teamMembers.filter((member) => member.active).length}</b></button> : null}
+          {can('ViewDashboard') ? <button className={view === 'overview' ? 'active' : ''} onClick={() => setView('overview')}><span>H</span>Home</button> : null}
+          {can('ViewLeads') ? <button className={view === 'leads' ? 'active' : ''} onClick={() => setView('leads')}><span>E</span>Customer enquiries <b>{dashboard.totalLeads}</b></button> : null}
+          {can('ViewLeads') ? <button className={view === 'pipeline' ? 'active' : ''} onClick={() => setView('pipeline')}><span>P</span>Sales progress</button> : null}
+          {can('ViewAccounts') ? <button className={view === 'accounts' ? 'active' : ''} onClick={() => setView('accounts')}><span>C</span>Customers <b>{accounts.length}</b></button> : null}
+          {can('ViewOpportunities') ? <button className={view === 'opportunities' ? 'active' : ''} onClick={() => setView('opportunities')}><span>D</span>Deals <b>{opportunities.length}</b></button> : null}
+          {can('ManageFollowUps') ? <button className={view === 'followups' ? 'active' : ''} onClick={() => setView('followups')}><span>F</span>Calls / follow-ups <b>{workSummary.openFollowUps}</b></button> : null}
+          {can('ManageTasks') ? <button className={view === 'tasks' ? 'active' : ''} onClick={() => setView('tasks')}><span>W</span>Today work <b>{workSummary.openTasks}</b></button> : null}
+          {can('ViewReports') ? <button className={view === 'reports' ? 'active' : ''} onClick={() => setView('reports')}><span>R</span>Reports</button> : null}
+          {can('ViewTeam') ? <button className={view === 'team' ? 'active' : ''} onClick={() => setView('team')}><span>S</span>Staff <b>{teamMembers.filter((member) => member.active).length}</b></button> : null}
         </nav>
         <div className="crm2-module-nav" aria-label="Advanced CRM modules">
-          <span className="crm2-module-title">Advanced Modules</span>
-          <a href="/crm/advanced">Advanced CRM</a>
-          <a href="/crm/manage">CRM Settings</a>
-          <a href="/crm/maintenance">Data Maintenance</a>
-          <a href="/crm/pipeline-board">Drag Pipeline</a>
-          <a href="/crm/addresses">Customer Addresses</a>
-          <a href="/crm/leads-query">Advanced Lead Search</a>
-          <a href="/crm/analytics">Detailed Analytics</a>
-          <a href="/crm/opportunity-products">Deal Products</a>
-          <a href="/crm/inbox">My CRM Day</a>
-          <a href="/crm/communications">Communications</a>
-          <a href="/crm/intelligence">AI Sales Command</a>
-          <a href="/crm/export">CSV / Excel Export</a>
-          <a href="/crm/contacts">Contact Directory</a>
-          <a href="/crm/deal-aging">Deal Aging</a>
+          <span className="crm2-module-title">More tools</span>
+          <a href="/crm/advanced">More CRM options</a>
+          <a href="/crm/manage">Settings</a>
+          <a href="/crm/maintenance">Clean / update data</a>
+          <a href="/crm/pipeline-board">Move deals by drag</a>
+          <a href="/crm/addresses">Customer addresses</a>
+          <a href="/crm/leads-query">Find enquiries</a>
+          <a href="/crm/analytics">Detailed reports</a>
+          <a href="/crm/opportunity-products">Products in deals</a>
+          <a href="/crm/inbox">My day</a>
+          <a href="/crm/communications">Calls & messages</a>
+          <a href="/crm/intelligence">AI sales help</a>
+          <a href="/crm/export">Excel export</a>
+          <a href="/crm/contacts">Contact list</a>
+          <a href="/crm/deal-aging">Old pending deals</a>
         </div>
-        <div className="crm2-sidebar-foot"><strong>BUSINESSOS CRM</strong><small>Clean staging workspace · role based CRM</small></div>
+        <div className="crm2-sidebar-foot"><strong>BUSINESSOS CRM</strong><small>Simple CRM for daily customer follow-up</small></div>
       </aside>
 
       <main className="crm2-main">
         <header className="crm2-topbar">
-          <div className="crm2-title-block"><span className="crm2-kicker">CRM COMMAND CENTRE</span><h1>{view === 'overview' ? 'Sales overview' : view === 'accounts' ? 'Customer accounts' : view === 'opportunities' ? 'Opportunities' : view === 'followups' ? 'Follow-up centre' : view === 'tasks' ? 'Task centre' : view === 'reports' ? 'Sales reports' : view === 'team' ? 'Team & access' : view === 'pipeline' ? 'Sales pipeline' : 'Lead workspace'}</h1><p>Manage leads, follow-ups, pipeline and team activity from one clean workspace.</p></div>
+          <div className="crm2-title-block"><span className="crm2-kicker">SIMPLE CRM WORKSPACE</span><h1>{view === 'overview' ? "Today\'s business summary" : view === 'accounts' ? 'Customer list' : view === 'opportunities' ? 'Deals to close' : view === 'followups' ? 'Calls and follow-ups' : view === 'tasks' ? "Today\'s work" : view === 'reports' ? 'Business reports' : view === 'team' ? 'Staff and access' : view === 'pipeline' ? 'Sales progress' : 'Customer enquiries'}</h1><p>Simple flow: add enquiry, call customer, update status, follow up, and close the deal.</p></div>
           <div className="crm2-top-actions">
-            {session && teamMembers.length > 0 ? <select className="crm2-user-switch" value={session.member.id} disabled={loading} onChange={(e) => void switchUser(e.target.value)} aria-label="CRM demo user">{teamMembers.filter((member) => member.active).map((member) => <option key={member.id} value={member.id}>{member.displayName} · {member.role}</option>)}</select> : null}
-            <button className="crm2-refresh" disabled={loading} onClick={refresh}>↻ Refresh</button>
-            {can('CreateLead') ? <button className="crm2-primary" onClick={() => setShowAddLead(true)}>＋ Add lead</button> : null}
+            {session && teamMembers.length > 0 ? <select className="crm2-user-switch" value={session.member.id} disabled={loading} onChange={(e) => void switchUser(e.target.value)} aria-label="Select staff user">{teamMembers.filter((member) => member.active).map((member) => <option key={member.id} value={member.id}>{member.displayName} · {member.role}</option>)}</select> : null}
+            <button className="crm2-refresh" disabled={loading} onClick={refresh}>Refresh</button>
+            {can('CreateLead') ? <button className="crm2-primary" onClick={() => setShowAddLead(true)}>+ Add new enquiry</button> : null}
           </div>
         </header>
-        <section className="crm2-statusbar"><div><span className={loading ? 'pulse busy' : 'pulse'} />{message}</div><span>{session ? `${session.member.displayName} · ${session.member.role} · ${session.canViewAllOwnedRecords ? 'Team scope' : 'My scope'} · ` : ''}Free staging · {storageLabel}</span></section>
+        <section className="crm2-statusbar"><div><span className={loading ? 'pulse busy' : 'pulse'} />{message}</div><span>{session ? `${session.member.displayName} · ${session.member.role} · ${session.canViewAllOwnedRecords ? 'Team view' : 'My view'} · ` : ''}Testing mode · {storageLabel}</span></section>
+        <section className="crm2-layman-guide" aria-label="Start here guide">
+          <div><strong>Start here</strong><span>1. Add customer enquiry</span></div>
+          <div><strong>Next</strong><span>2. Call and update status</span></div>
+          <div><strong>Then</strong><span>3. Set follow-up or close deal</span></div>
+        </section>
         {view !== 'overview' ? <section className="crm2-context-strip" aria-label="CRM summary">
-          <article><span>Total Leads</span><strong>{dashboard.totalLeads}</strong><small>Current workspace</small></article>
-          <article><span>Open Follow-ups</span><strong>{workSummary.openFollowUps}</strong><small>Need attention</small></article>
-          <article><span>Open Tasks</span><strong>{workSummary.openTasks}</strong><small>Team work queue</small></article>
+          <article><span>Customer enquiries</span><strong>{dashboard.totalLeads}</strong><small>All people who showed interest</small></article>
+          <article><span>Calls pending</span><strong>{workSummary.openFollowUps}</strong><small>Customers to call again</small></article>
+          <article><span>Work pending</span><strong>{workSummary.openTasks}</strong><small>Today's pending work</small></article>
           <article><span>Conversion</span><strong>{conversionRate}%</strong><small>{dashboard.converted} converted</small></article>
         </section> : null}
         {view === 'overview' ? (
           <>
             <section className="crm2-metrics">
-              <article><span>Total leads</span><strong>{dashboard.totalLeads}</strong><small>All captured records</small></article>
-              <article><span>Contacted</span><strong>{dashboard.contacted}</strong><small>Conversation started</small></article>
-              <article><span>Qualified</span><strong>{dashboard.qualified}</strong><small>Sales-ready opportunities</small></article>
-              <article className="accent"><span>Conversion</span><strong>{conversionRate}%</strong><small>{dashboard.converted} converted leads</small></article>
+              <article><span>Customer enquiries</span><strong>{dashboard.totalLeads}</strong><small>People interested in your business</small></article>
+              <article><span>Talked once</span><strong>{dashboard.contacted}</strong><small>First call/message done</small></article>
+              <article><span>Interested</span><strong>{dashboard.qualified}</strong><small>Customers likely to buy</small></article>
+              <article className="accent"><span>Converted</span><strong>{conversionRate}%</strong><small>{dashboard.converted} became customers</small></article>
             </section>
 
             <section className="crm2-action-metrics">
-              <button onClick={() => setView('followups')}><span>Open follow-ups</span><strong>{workSummary.openFollowUps}</strong><small>{workSummary.overdueFollowUps} overdue · {workSummary.dueTodayFollowUps} due today</small></button>
-              <button onClick={() => setView('tasks')}><span>Open tasks</span><strong>{workSummary.openTasks}</strong><small>{workSummary.overdueTasks} overdue</small></button>
-              <button onClick={() => { setView('leads'); setStatusFilter('Qualified') }}><span>Qualified leads</span><strong>{dashboard.qualified}</strong><small>Ready for conversion workflow</small></button>
+              <button onClick={() => setView('followups')}><span>Calls pending</span><strong>{workSummary.openFollowUps}</strong><small>{workSummary.overdueFollowUps} late / {workSummary.dueTodayFollowUps} today</small></button>
+              <button onClick={() => setView('tasks')}><span>Work pending</span><strong>{workSummary.openTasks}</strong><small>{workSummary.overdueTasks} late</small></button>
+              <button onClick={() => { setView('leads'); setStatusFilter('Qualified') }}><span>Interested customers</span><strong>{dashboard.qualified}</strong><small>Call now and close faster</small></button>
             </section>
 
             <section className="crm2-pipeline-card">
-              <div className="crm2-section-head"><div><span>PIPELINE HEALTH</span><h2>Lead movement</h2></div><button onClick={() => setView('pipeline')}>Open pipeline</button></div>
+              <div className="crm2-section-head"><div><span>SALES PROGRESS</span><h2>Where every enquiry is stuck</h2></div><button onClick={() => setView('pipeline')}>See progress</button></div>
               <div className="crm2-pipeline">
                 {pipeline.map((item) => {
                   const width = dashboard.totalLeads > 0 ? Math.max(8, Math.round((item.count / dashboard.totalLeads) * 100)) : 8
@@ -272,18 +277,18 @@ export function CrmDemo() {
         {view === 'leads' ? (
           <section className="crm2-table-card crm2-module-table">
             <div className="crm2-table-tools">
-              <div><span className="crm2-kicker">LEAD MANAGEMENT</span><h2>{session?.canViewAllOwnedRecords ? 'All leads' : 'My leads'}</h2></div>
+              <div><span className="crm2-kicker">CUSTOMER ENQUIRIES</span><h2>{session?.canViewAllOwnedRecords ? 'All customer enquiries' : 'My customer enquiries'}</h2><p className="crm2-help-text">Click any row to see details, change status, or plan the next call.</p></div>
               <div className="crm2-filters">
-                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search business, contact, phone…" />
+                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search customer, mobile, business..." />
                 <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="All">All stages</option>{statuses.map((status) => <option key={status}>{status}</option>)}</select>
               </div>
             </div>
-            <div className="crm2-table-head crm2-rich-head"><span>Lead</span><span>Contact</span><span>Product</span><span>Stage</span><span>Next follow-up</span><span /></div>
+            <div className="crm2-table-head crm2-rich-head"><span>Customer enquiry</span><span>Contact</span><span>Interest</span><span>Status</span><span>Next call</span><span /></div>
             <div className="crm2-table-body">
-              {filteredLeads.length === 0 ? <div className="crm2-empty"><strong>No matching leads</strong><span>Try another filter or add a new lead.</span></div> : filteredLeads.map((lead) => (
+              {filteredLeads.length === 0 ? <div className="crm2-empty"><strong>No customer enquiry found</strong><span>Clear the filter or add a new enquiry.</span></div> : filteredLeads.map((lead) => (
                 <article className="crm2-row crm2-rich-row" key={lead.id} onClick={() => setSelectedLeadId(lead.id)}>
-                  <div className="crm2-lead-name"><i>{lead.title.slice(0, 1).toUpperCase()}</i><span><strong>{lead.title}</strong><small>{lead.leadSource || 'Direct'} · {lead.priority || 'Normal'}</small></span></div>
-                  <span><b className="crm2-cell-main">{lead.contactName || '—'}</b><small>{lead.mobileNumber || lead.email || 'No contact'}</small></span>
+                  <div className="crm2-lead-name"><i>{lead.title.slice(0, 1).toUpperCase()}</i><span><strong>{lead.title}</strong><small>{lead.leadSource || 'Direct'} - {lead.priority || 'Normal'}</small></span></div>
+                  <span><b className="crm2-cell-main">{lead.contactName || '—'}</b><small>{lead.mobileNumber || lead.email || 'Mobile not added'}</small></span>
                   <span>{lead.productInterest || '—'}</span>
                   <span><em className={`crm2-stage stage-${lead.status.toLowerCase()}`}>{statusLabels[lead.status] || lead.status}</em></span>
                   <span className="crm2-created">{formatCreated(lead.nextFollowUpAtUtc)}</span>
