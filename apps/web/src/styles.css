@@ -39,6 +39,9 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .plan h3 { margin: 3px 0 0; }
 .risk { font-size: 12px; padding: 5px 8px; border: 1px solid #cfd7de; border-radius: 999px; text-transform: capitalize; }
 .plan ol { margin: 14px 0 18px; color: #394655; }
+.planControls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+.planControls label { display: grid; gap: 6px; font-size: 13px; font-weight: 650; }
+.planControls input { width: 100%; min-width: 0; border: 1px solid #cfd7de; border-radius: 9px; padding: 10px 11px; }
 .plan > button { border: 0; border-radius: 9px; padding: 10px 14px; background: #17202a; color: #fff; }
 .sectionHead { margin: 12px 0 14px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 16px; }
@@ -56,6 +59,6 @@ dd { margin: 0; font-weight: 650; text-align: right; }
   .topbar, .hero, .builderHead { align-items: flex-start; flex-direction: column; }
   .hero h2 { font-size: 28px; }
   .metric { width: 100%; }
-  .form { grid-template-columns: 1fr; width: 100%; }
+  .form, .planControls { grid-template-columns: 1fr; width: 100%; }
   .headerActions { width: 100%; justify-content: space-between; }
 }

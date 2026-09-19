@@ -4,6 +4,7 @@ export interface ProvisioningPlan {
   id: string;
   planner: "local-development" | "openai";
   prompt: string;
+  suggestedName: string;
   inferredProjectType: "static-website" | "dynamic-website" | "saas" | "erp-crm" | "api" | "pwa";
   sourceMode: "new-project" | "existing-repository" | "import";
   targetEnvironment: "development" | "staging" | "production";
@@ -16,6 +17,15 @@ export interface ProvisioningPlan {
 function productionIsExplicitlyDisabled(text: string): boolean {
   return /production\s+(disabled|off|locked|later)/.test(text)
     || /(do not|don't|not)\s+.*production/.test(text);
+}
+
+function inferProjectName(prompt: string): string {
+  const cleaned = prompt.replace(/\s+/g, " ").trim();
+  const titled = cleaned.match(/\b([A-Z][A-Za-z0-9&™.-]*(?:\s+[A-Z][A-Za-z0-9&™.-]*){0,6}\s+(?:ERP|CRM|SaaS|Platform|Portal|Website|App))\b/);
+  if (titled?.[1]) return titled[1].trim();
+  const match = cleaned.match(/(?:my|the|import|create|add)\s+([A-Z][A-Za-z0-9&™ .-]{2,60}?)(?:\s+(?:from|as|to|project|and)\b|[,.]|$)/i);
+  if (match?.[1]) return match[1].trim().replace(/^(my|the)\s+/i, "");
+  return "AI Planned Project";
 }
 
 export function createLocalProvisioningPlan(prompt: string): ProvisioningPlan {
@@ -32,8 +42,9 @@ export function createLocalProvisioningPlan(prompt: string): ProvisioningPlan {
     : text.includes("staging") ? "staging" : "development";
   const risk = targetEnvironment === "production" || text.includes("dns") || text.includes("payment") ? "high" : "medium";
   return {
-    id: randomUUID(), planner: "local-development", prompt, inferredProjectType, sourceMode,
-    targetEnvironment, risk,
+    id: randomUUID(), planner: "local-development", prompt,
+    suggestedName: inferProjectName(prompt),
+    inferredProjectType, sourceMode, targetEnvironment, risk,
     actions: ["Create project draft", "Prepare source workspace", "Prepare environment plan", "Run validation before any apply"],
     requiresApproval: true, executionAllowed: false
   };

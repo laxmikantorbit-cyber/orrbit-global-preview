@@ -11,6 +11,7 @@ type Project = {
 type Plan = {
   id: string;
   planner: string;
+  suggestedName: string;
   inferredProjectType: string;
   sourceMode: string;
   targetEnvironment: string;
@@ -28,6 +29,8 @@ export default function App() {
   const [mode, setMode] = useState<"manual" | "ai">("manual");
   const [message, setMessage] = useState("Ready");
   const [plan, setPlan] = useState<Plan | null>(null);
+  const [planName, setPlanName] = useState("");
+  const [planRepository, setPlanRepository] = useState("");
   useEffect(() => {
     fetch(`${apiBase}/api/projects`)
       .then((r) => r.json())
@@ -70,7 +73,25 @@ export default function App() {
     const result = await response.json();
     if (!response.ok) return setMessage(result.error ?? "Plan failed");
     setPlan(result);
+    setPlanName(result.suggestedName ?? "");
+    setPlanRepository("");
     setMessage("Plan ready for review");
+  }
+
+  async function approvePlan() {
+    if (!plan) return;
+    setMessage("Approving development plan...");
+    const body: Record<string, unknown> = { name: planName.trim() || plan.suggestedName };
+    if (planRepository.trim()) body.repository = { fullName: planRepository.trim(), defaultBranch: "main" };
+    const response = await fetch(`${apiBase}/api/project-plans/${plan.id}/approve`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "Approval failed");
+    setProjects((current) => [...current, result.project]);
+    setMessage("Development project created safely");
+    setPlan(null);
   }
 
   return <main className="shell">
@@ -119,7 +140,15 @@ export default function App() {
           <div><dt>Planner</dt><dd>{plan.planner}</dd></div>
           <div><dt>Approval</dt><dd>{plan.requiresApproval ? "Required" : "Not required"}</dd></div></dl>
         <ol>{plan.actions.map((action) => <li key={action}>{action}</li>)}</ol>
-        <button disabled title="Enabled after approval/job engine is implemented">Approve & Create — locked until Step 6</button>
+        <div className="planControls">
+          <label>Project name<input value={planName} onChange={(e) => setPlanName(e.target.value)} /></label>
+          {plan.sourceMode === "existing-repository" && <label>Repository<input value={planRepository}
+            onChange={(e) => setPlanRepository(e.target.value)} placeholder="owner/repository" /></label>}
+        </div>
+        <button onClick={approvePlan} disabled={plan.targetEnvironment !== "development"}
+          title={plan.targetEnvironment !== "development" ? "Only Development apply is enabled in V1" : "Create protected Development project"}>
+          {plan.targetEnvironment === "development" ? "Approve & Create Development Project" : "Production/Staging Apply Locked"}
+        </button>
       </div>}
     </section>}
 
