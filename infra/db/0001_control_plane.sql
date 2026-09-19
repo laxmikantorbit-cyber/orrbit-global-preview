@@ -1,4 +1,4 @@
-CREATE TABLE projects (
+﻿CREATE TABLE projects (
   id UUID PRIMARY KEY,
   name TEXT NOT NULL,
   project_type TEXT NOT NULL,
@@ -43,7 +43,7 @@ CREATE TABLE jobs (
   requested_by TEXT NOT NULL,
   request_summary TEXT NOT NULL,
   current_stage TEXT,
-  plan_id UUID REFERENCES provisioning_plans(id) ON DELETE SET NULL,
+  plan_id UUID,
   evidence JSONB NOT NULL DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -86,3 +86,4 @@ CREATE INDEX idx_jobs_project_created ON jobs(project_id, created_at DESC);
 CREATE INDEX idx_jobs_plan ON jobs(plan_id);
 CREATE INDEX idx_releases_project_env ON releases(project_id, environment_name, released_at DESC);
 CREATE INDEX idx_audit_project_created ON audit_events(project_id, created_at DESC);
+

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import Fastify from "fastify";
 import { Pool } from "pg";
 import { createLocalProvisioningPlan, type ProvisioningPlan } from "@orrbit/ai-orchestrator";
+import { createProjectImportPlan, validateImportSource, type CreateImportPlanInput, type ProjectImportPlan } from "@orrbit/project-importer";
 import { classifyRisk, requiresApproval } from "@orrbit/policy-engine";
 import { providerCapabilities, DryRunGitHubProvider, DryRunCloudflarePagesProvider, DryRunCloudRunProvider, DryRunDatabaseProvider, DryRunOpenAiProvider, DryRunSecretProvider } from "@orrbit/provider-adapters";
 import { buildRuntimeProjectManifest, projectCreateSchema } from "@orrbit/project-manifest";
@@ -18,6 +19,7 @@ const databaseUrl = process.env.CONTROL_DATABASE_URL?.trim();
 const pool = databaseUrl ? new Pool({ connectionString: databaseUrl }) : null;
 const registry = pool ? new PostgresProjectRegistry(pool) : new MemoryProjectRegistry();
 const plans = new Map<string, ProvisioningPlan>();
+const importPlans = new Map<string, ProjectImportPlan>();
 
 type OnboardingJob = {
   id: string;
@@ -59,6 +61,41 @@ async function getPlan(id: string): Promise<ProvisioningPlan | undefined> {
     "SELECT plan_data FROM provisioning_plans WHERE id=$1", [id]
   );
   return result.rows[0]?.plan_data;
+}
+
+async function saveImportPlan(plan: ProjectImportPlan) {
+  if (!pool) {
+    importPlans.set(plan.id, plan);
+    return;
+  }
+  await pool.query(
+    `INSERT INTO import_plans
+      (id, source_type, source_ref, requested_project_name, project_type, target_environment,
+       risk_level, status, route_inventory, manifest_draft, plan_data, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12,$12)
+     ON CONFLICT (id) DO UPDATE SET
+       status=EXCLUDED.status, route_inventory=EXCLUDED.route_inventory,
+       manifest_draft=EXCLUDED.manifest_draft, plan_data=EXCLUDED.plan_data, updated_at=NOW()`,
+    [plan.id, plan.sourceType, plan.sourceRef, plan.requestedProjectName, plan.projectType,
+      plan.targetEnvironment, plan.risk, plan.status, JSON.stringify(plan.routeInventory),
+      JSON.stringify(plan.manifestDraft), JSON.stringify(plan), plan.createdAt]
+  );
+}
+
+async function getImportPlan(id: string): Promise<ProjectImportPlan | undefined> {
+  if (!pool) return importPlans.get(id);
+  const result = await pool.query<{ plan_data: ProjectImportPlan }>(
+    "SELECT plan_data FROM import_plans WHERE id=$1", [id]
+  );
+  return result.rows[0]?.plan_data;
+}
+
+async function listImportPlans(): Promise<ProjectImportPlan[]> {
+  if (!pool) return [...importPlans.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const result = await pool.query<{ plan_data: ProjectImportPlan }>(
+    "SELECT plan_data FROM import_plans ORDER BY created_at DESC LIMIT 100"
+  );
+  return result.rows.map((row) => row.plan_data);
 }
 
 async function markPlanApproved(id: string) {
@@ -291,6 +328,58 @@ app.post<{
   await saveJob(job, plan.prompt);
   await audit(project.id, "project_plan_approved", { planId: plan.id, jobId: job.id, evidence: job.evidence });
   return reply.code(201).send({ approved: true, project, job });
+});
+
+app.get("/api/import-plans", async () => ({ importPlans: await listImportPlans() }));
+
+app.post<{ Body: CreateImportPlanInput }>("/api/import-plans", async (request, reply) => {
+  const error = validateImportSource(request.body);
+  if (error) return reply.code(error === "only_development_import_enabled_in_v1" ? 409 : 400).send({ error });
+  const plan = createProjectImportPlan({
+    sourceType: request.body.sourceType,
+    sourceRef: request.body.sourceRef,
+    projectName: request.body.projectName,
+    projectType: request.body.projectType,
+    targetEnvironment: request.body.targetEnvironment ?? "development",
+    knownRoutes: request.body.knownRoutes
+  });
+  await saveImportPlan(plan);
+  await audit(null, "import_plan_created", {
+    importPlanId: plan.id, sourceType: plan.sourceType, risk: plan.risk, routeCount: plan.routeInventory.length
+  });
+  return reply.code(201).send(plan);
+});
+
+app.get<{ Params: { id: string } }>("/api/import-plans/:id", async (request, reply) => {
+  const plan = await getImportPlan(request.params.id);
+  if (!plan) return reply.code(404).send({ error: "import_plan_not_found" });
+  return plan;
+});
+
+app.post<{ Params: { id: string } }>("/api/import-plans/:id/approve", async (request, reply) => {
+  const plan = await getImportPlan(request.params.id);
+  if (!plan) return reply.code(404).send({ error: "import_plan_not_found" });
+  if (plan.targetEnvironment !== "development") {
+    return reply.code(409).send({ error: "non_development_import_locked", targetEnvironment: plan.targetEnvironment });
+  }
+  const project = await registry.create({
+    name: plan.manifestDraft.projectName,
+    type: plan.manifestDraft.projectType,
+    sourceMode: "import",
+    lifecycleStatus: "development",
+    environments: ["development"],
+    productionProtected: true
+  });
+  const job: OnboardingJob = {
+    id: randomUUID(), planId: plan.id, projectId: project.id, state: "succeeded", risk: plan.risk, requestedBy: "owner",
+    evidence: ["owner_approval", "import_plan", "development_only_policy", "project_registry_record"],
+    createdAt: new Date().toISOString()
+  };
+  const approvedPlan = { ...plan, status: "approved" as const, updatedAt: new Date().toISOString() };
+  await saveImportPlan(approvedPlan);
+  await saveJob(job, `Import plan approved for ${plan.requestedProjectName}`);
+  await audit(project.id, "import_plan_approved", { importPlanId: plan.id, jobId: job.id, evidence: job.evidence });
+  return reply.code(201).send({ approved: true, project, job, importPlan: approvedPlan });
 });
 
 app.get("/api/jobs", async () => ({ jobs: await listJobs() }));
