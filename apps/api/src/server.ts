@@ -3,6 +3,7 @@ import Fastify from "fastify";
 import { Pool } from "pg";
 import { createLocalProvisioningPlan, type ProvisioningPlan } from "@orrbit/ai-orchestrator";
 import { classifyRisk, requiresApproval } from "@orrbit/policy-engine";
+import { providerCapabilities, DryRunGitHubProvider, DryRunCloudflarePagesProvider, DryRunCloudRunProvider, DryRunDatabaseProvider, DryRunOpenAiProvider, DryRunSecretProvider } from "@orrbit/provider-adapters";
 import { buildRuntimeProjectManifest, projectCreateSchema } from "@orrbit/project-manifest";
 import {
   MemoryProjectRegistry,
@@ -155,6 +156,19 @@ app.get("/api/health", async () => {
   };
 });
 
+app.get("/api/provider-capabilities", async () => ({
+  mode: "dry-run",
+  realCloudProvisioningEnabled: false,
+  capabilities: providerCapabilities,
+  adapters: [
+    new DryRunGitHubProvider().name,
+    new DryRunCloudflarePagesProvider().name,
+    new DryRunCloudRunProvider().name,
+    new DryRunDatabaseProvider().name,
+    new DryRunOpenAiProvider().name,
+    new DryRunSecretProvider().name
+  ]
+}));
 app.get("/api/projects", async () => ({ projects: await registry.list() }));
 
 app.get<{ Params: { id: string } }>("/api/projects/:id", async (request, reply) => {
