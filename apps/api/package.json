@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@orrbit/policy-engine": "0.1.0",
+    "@orrbit/project-manifest": "0.1.0",
+    "@orrbit/project-registry": "0.1.0",
     "fastify": "^5.0.0"
   },
   "devDependencies": {
