@@ -17,4 +17,9 @@ Private control platform for managing oRRbit websites and SaaS products.
 ## V1 rule
 AI may analyse, plan, build and test. Production-impacting operations require the platform policy engine and explicit approval.
 
+## Control-plane persistence
+Set `CONTROL_DATABASE_URL` to use PostgreSQL for projects, AI provisioning plans, jobs and audit events.
+Without it, local development falls back to an in-memory registry. Apply `infra/db/0001_control_plane.sql`
+and then `infra/db/0002_project_source_and_plans.sql` to a dedicated control-plane database.
+
 See docs/V1_SPEC.md, docs/SECURITY_POLICY.md and docs/PROJECT_MANIFEST_SPEC.md.

@@ -6,6 +6,10 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "dependencies": {
-    "@orrbit/project-manifest": "0.1.0"
+    "@orrbit/project-manifest": "0.1.0",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1"
   }
 }
