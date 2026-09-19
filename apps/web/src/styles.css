@@ -130,3 +130,18 @@ dd { margin: 0; font-weight: 650; text-align: right; }
 .previewRef strong { overflow-wrap: anywhere; font-size: 13px; }
 .protectionStrip { margin-top: 12px; padding: 10px; background: #fff8df; border: 1px solid #f2d07a; border-radius: 9px; color: #614000; font-size: 12px; }
 @media (max-width: 680px) { .sourceConfirmRow, .captureControlBox p, .gateActions, .parityGrid { grid-template-columns: 1fr; } }
+
+.sourceAcquisitionPanel { margin: 14px 0; padding: 14px; border: 1px solid #d8e2e8; border-radius: 12px; background: #fbfcfd; }
+.sourceAcquisitionPanel h3 { margin: 3px 0 0; }
+.sourceUploadRow { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 12px; align-items: center; }
+.sourceUploadRow input { width: 100%; min-width: 0; border: 1px dashed #bcc8d2; border-radius: 9px; padding: 10px; background: #fff; }
+.sourceUploadRow button { border: 0; border-radius: 9px; padding: 10px 13px; background: #17202a; color: #fff; }
+.sourceInventory { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 8px; margin-top: 12px; }
+.sourceInventory > div { padding: 10px; border: 1px solid #e1e6ea; border-radius: 9px; background: #fff; display: grid; gap: 5px; }
+.sourceInventory span { color: #748092; font-size: 12px; }
+.sourceInventory strong { overflow-wrap: anywhere; font-size: 13px; }
+.hashBox { margin-top: 10px; padding: 10px; border: 1px solid #e1e6ea; border-radius: 9px; background: #fff; display: grid; gap: 5px; }
+.hashBox strong { overflow-wrap: anywhere; font-size: 12px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.sourceReady { margin-top: 10px; padding: 10px; border-radius: 9px; font-size: 13px; }
+.sourceDiscard { margin-top: 10px; }
+@media (max-width: 680px) { .sourceUploadRow { grid-template-columns: 1fr; } }

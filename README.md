@@ -18,9 +18,10 @@ Private control platform for managing oRRbit websites and SaaS products.
 AI may analyse, plan, build and test. Production-impacting operations require the platform policy engine and explicit approval.
 
 ## Control-plane persistence
-Set `CONTROL_DATABASE_URL` to use PostgreSQL for projects, plans, import workspaces, preview executions, jobs and audit events.
+Set `CONTROL_DATABASE_URL` to use PostgreSQL for projects, plans, import workspaces, source acquisitions, preview executions, jobs and audit events.
 Without it, local development falls back to in-memory stores. Apply the control-plane migrations in this order:
 `0001_control_plane.sql` → `0002_import_engine.sql` → `0002_project_source_and_plans.sql` →
-`0003_import_workspaces.sql` → `0004_import_execution_jobs.sql`. These migrations belong only to the dedicated control-plane database.
+`0003_import_workspaces.sql` → `0004_import_execution_jobs.sql` → `0005_source_acquisitions.sql`.
+Source ZIPs are accepted only through the panel and extracted under the isolated control-plane `runtime/import-inbox`; production application files are never used as the extraction target.
 
 See docs/V1_SPEC.md, docs/SECURITY_POLICY.md and docs/PROJECT_MANIFEST_SPEC.md.

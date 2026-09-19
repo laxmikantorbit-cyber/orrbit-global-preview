@@ -79,6 +79,30 @@ type ImportWorkspace = {
 };
 
 type DeployGate = { canDeploy: boolean; blockers: string[] };
+type SourceAcquisition = {
+  id: string;
+  workspaceId: string;
+  projectId: string;
+  sourceType: "chatgpt-sites-export";
+  archiveName: string;
+  archiveSizeBytes: number;
+  sha256: string;
+  status: string;
+  inventory: {
+    fileCount: number;
+    totalBytes: number;
+    codeFiles: number;
+    assetFiles: number;
+    hasPackageJson: boolean;
+    packageJsonPath?: string;
+    topLevelEntries: string[];
+    routeHints: string[];
+  };
+  issues: string[];
+  evidence: string[];
+  createdAt: string;
+  updatedAt: string;
+};
 type ImportExecution = {
   id: string;
   workspaceId: string;
@@ -116,6 +140,8 @@ export default function App() {
   const [activeWorkspace, setActiveWorkspace] = useState<ImportWorkspace | null>(null);
   const [deployGate, setDeployGate] = useState<DeployGate | null>(null);
   const [activeExecution, setActiveExecution] = useState<ImportExecution | null>(null);
+  const [activeAcquisition, setActiveAcquisition] = useState<SourceAcquisition | null>(null);
+  const [sourcePackage, setSourcePackage] = useState<File | null>(null);
   const [sourceRefDraft, setSourceRefDraft] = useState("");
   const [envDraft, setEnvDraft] = useState({
     status: "unconfigured",
@@ -213,6 +239,8 @@ export default function App() {
     setActiveWorkspace(null);
     setDeployGate(null);
     setActiveExecution(null);
+    setActiveAcquisition(null);
+    setSourcePackage(null);
     setSourceRefDraft("");
     setMessage("Martial Arts ERP pilot plan ready; source reference pending");
   }
@@ -227,6 +255,8 @@ export default function App() {
     if (result.workspace) {
       setActiveWorkspace(result.workspace);
       setActiveExecution(null);
+      setActiveAcquisition(null);
+      setSourcePackage(null);
       setSourceRefDraft(result.workspace.sourceReferenceStatus === "pending" ? "" : result.workspace.sourceRef);
       setImportWorkspaces((current) => [result.workspace, ...current]);
       await loadDeployGate(result.workspace.id);
@@ -239,6 +269,8 @@ export default function App() {
     setMessage("Loading import workspace...");
     setDeployGate(null);
     setActiveExecution(null);
+    setActiveAcquisition(null);
+    setSourcePackage(null);
     const response = await fetch(`${apiBase}/api/import-workspaces/${workspaceId}`);
     const result = await response.json();
     if (!response.ok) return setMessage(result.error ?? "Workspace failed");
@@ -246,6 +278,7 @@ export default function App() {
     setSourceRefDraft(result.sourceReferenceStatus === "pending" ? "" : result.sourceRef);
     await loadDeployGate(result.id);
     await loadLatestExecution(result.id);
+    await loadLatestAcquisition(result.id);
     setMessage("Import workspace ready");
   }
 
@@ -289,6 +322,48 @@ export default function App() {
     const response = await fetch(`${apiBase}/api/import-workspaces/${workspaceId}/executions`);
     const result = await response.json();
     if (response.ok) setActiveExecution(result.executions?.[0] ?? null);
+  }
+
+  async function loadLatestAcquisition(workspaceId: string) {
+    const response = await fetch(`${apiBase}/api/import-workspaces/${workspaceId}/source-acquisitions`);
+    const result = await response.json();
+    if (response.ok) {
+      const latest = (result.acquisitions ?? []).find((item: SourceAcquisition) => item.status !== "discarded") ?? null;
+      setActiveAcquisition(latest);
+    }
+  }
+
+  async function uploadSourcePackage() {
+    if (!activeWorkspace || !sourcePackage) return;
+    setMessage("Validating and acquiring source ZIP...");
+    const form = new FormData();
+    form.append("sourceZip", sourcePackage);
+    const response = await fetch(`${apiBase}/api/import-workspaces/${activeWorkspace.id}/source-acquisitions`, {
+      method: "POST",
+      body: form
+    });
+    const result = await response.json();
+    const acquisition = result.acquisition ?? null;
+    if (acquisition) setActiveAcquisition(acquisition);
+    if (!response.ok) {
+      const issues = acquisition?.issues?.join(", ");
+      return setMessage(issues ? `Source package rejected: ${issues}` : (result.error ?? "Source acquisition failed"));
+    }
+    setSourcePackage(null);
+    setMessage("Actual source package acquired into isolated control-plane inbox");
+  }
+
+  async function discardSourcePackage() {
+    if (!activeAcquisition) return;
+    setMessage("Discarding isolated source package...");
+    const response = await fetch(`${apiBase}/api/source-acquisitions/${activeAcquisition.id}/discard`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
+    });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "Source package discard failed");
+    setActiveAcquisition(null);
+    setSourcePackage(null);
+    setMessage("Source package discarded; production remains untouched");
   }
 
   async function startDevelopmentPreview() {
@@ -473,6 +548,28 @@ export default function App() {
               <span className="eyebrow">Confirmed source</span>
               <strong>{activeWorkspace.sourceRef}</strong>
             </div>}
+            <div className="sourceAcquisitionPanel">
+              <div className="planTop"><div><span className="eyebrow">Actual Source Acquisition</span>
+                <h3>ChatGPT Sites export ZIP</h3></div>
+                <span className={activeAcquisition?.status === "acquired" ? "okBadge" : "lockBadge"}>
+                  {activeAcquisition?.status ?? "awaiting package"}</span></div>
+              {!activeAcquisition && <div className="sourceUploadRow">
+                <input type="file" accept=".zip,application/zip" onChange={(e) => setSourcePackage(e.target.files?.[0] ?? null)} />
+                <button onClick={uploadSourcePackage} disabled={activeWorkspace.sourceReferenceStatus !== "provided" || !sourcePackage}>Upload & Validate Source ZIP</button>
+              </div>}
+              {sourcePackage && !activeAcquisition && <p className="muted">Selected: {sourcePackage.name} · {(sourcePackage.size / 1024 / 1024).toFixed(2)} MB</p>}
+              {activeAcquisition && <div className="sourceInventory">
+                <div><span>Archive</span><strong>{activeAcquisition.archiveName}</strong></div>
+                <div><span>Files</span><strong>{activeAcquisition.inventory.fileCount}</strong></div>
+                <div><span>Code files</span><strong>{activeAcquisition.inventory.codeFiles}</strong></div>
+                <div><span>Assets</span><strong>{activeAcquisition.inventory.assetFiles}</strong></div>
+                <div><span>package.json</span><strong>{activeAcquisition.inventory.hasPackageJson ? (activeAcquisition.inventory.packageJsonPath ?? "Yes") : "No"}</strong></div>
+              </div>}
+              {activeAcquisition && <div className="hashBox"><span className="eyebrow">SHA-256 evidence</span><strong>{activeAcquisition.sha256}</strong></div>}
+              {activeAcquisition?.issues.length ? <div className="warningBox">{activeAcquisition.issues.join(" · ")}</div> : null}
+              {activeAcquisition?.status === "acquired" && <div className="readyBox sourceReady">Actual source acquired and extracted only into the isolated control-plane inbox. No source code has been executed.</div>}
+              {activeAcquisition && <button className="secondary sourceDiscard" onClick={discardSourcePackage}>Discard Isolated Source Package</button>}
+            </div>
             <div className="captureGrid">
               <div><span className="eyebrow">Route/Page capture</span>
                 <strong>{activeWorkspace.routeCapture.filter((x) => x.status === "captured").length}/{activeWorkspace.routeCapture.length}</strong></div>

@@ -453,3 +453,139 @@ export function resetDevelopmentImportExecution(job: ImportExecutionJob): Import
     updatedAt: new Date().toISOString()
   };
 }
+
+export type SourceAcquisitionStatus = "validating" | "acquired" | "rejected" | "discarded";
+
+export interface SourceArchiveEntry {
+  name: string;
+  size: number;
+  directory: boolean;
+}
+
+export interface SourceAcquisitionRecord {
+  id: string;
+  workspaceId: string;
+  projectId: string;
+  sourceType: "chatgpt-sites-export";
+  archiveName: string;
+  archiveSizeBytes: number;
+  sha256: string;
+  status: SourceAcquisitionStatus;
+  inventory: {
+    fileCount: number;
+    totalBytes: number;
+    codeFiles: number;
+    assetFiles: number;
+    hasPackageJson: boolean;
+    packageJsonPath?: string;
+    topLevelEntries: string[];
+    routeHints: string[];
+  };
+  issues: string[];
+  evidence: string[];
+  protections: {
+    isolatedInboxOnly: true;
+    productionLocked: true;
+    dnsLocked: true;
+    livePaymentLocked: true;
+    liveDatabaseLocked: true;
+    customerDataLocked: true;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+const sourceCodeExtensions = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".html", ".css", ".scss", ".json"]);
+const sourceAssetExtensions = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".woff", ".woff2", ".ttf", ".mp4", ".webm"]);
+
+function sourceExtensionOf(name: string): string {
+  const clean = name.toLowerCase().split("?")[0];
+  const dot = clean.lastIndexOf(".");
+  return dot >= 0 ? clean.slice(dot) : "";
+}
+
+export function validateArchiveEntryName(name: string): string | null {
+  const normalized = name.replaceAll("\\", "/");
+  if (!normalized || normalized.startsWith("/") || /^[a-zA-Z]:\//.test(normalized)) return "absolute_archive_path_blocked";
+  if (normalized.split("/").some((segment) => segment === "..")) return "archive_path_traversal_blocked";
+  if (normalized.includes("\0")) return "archive_null_byte_blocked";
+  return null;
+}
+export function createSourceAcquisitionRecord(input: {
+  workspace: ProjectImportWorkspace;
+  archiveName: string;
+  archiveSizeBytes: number;
+  sha256: string;
+  entries: SourceArchiveEntry[];
+}): SourceAcquisitionRecord {
+  if (input.workspace.sourceReferenceStatus !== "provided") throw new Error("source_reference_pending");
+  if (!input.workspace.projectId) throw new Error("workspace_project_required");
+  if (!input.archiveName.toLowerCase().endsWith(".zip")) throw new Error("zip_archive_required");
+  if (input.archiveSizeBytes <= 0) throw new Error("empty_source_archive");
+  if (input.archiveSizeBytes > 100 * 1024 * 1024) throw new Error("source_archive_too_large");
+  if (input.entries.length > 5000) throw new Error("source_archive_too_many_entries");
+
+  const issues = input.entries
+    .map((entry) => validateArchiveEntryName(entry.name))
+    .filter((issue): issue is string => Boolean(issue));
+  const files = input.entries.filter((entry) => !entry.directory);
+  const unpackedBytes = files.reduce((sum, entry) => sum + Math.max(0, entry.size), 0);
+  if (unpackedBytes > 300 * 1024 * 1024) issues.push("source_archive_unpacked_too_large");
+  if (files.some((entry) => entry.size > 50 * 1024 * 1024)) issues.push("source_archive_entry_too_large");
+  const packageEntry = files.find((entry) => entry.name.replaceAll("\\", "/").endsWith("/package.json"))
+    ?? files.find((entry) => entry.name.replaceAll("\\", "/") === "package.json");
+  const codeFiles = files.filter((entry) => sourceCodeExtensions.has(sourceExtensionOf(entry.name))).length;
+  const assetFiles = files.filter((entry) => sourceAssetExtensions.has(sourceExtensionOf(entry.name))).length;
+  if (!packageEntry && !files.some((entry) => entry.name.toLowerCase().endsWith("index.html"))) issues.push("package_or_index_entry_required");
+  if (codeFiles === 0) issues.push("source_code_files_required");
+  const normalizedNames = files.map((entry) => entry.name.replaceAll("\\", "/"));
+  const topLevelEntries = [...new Set(normalizedNames.map((name) => name.split("/")[0]).filter(Boolean))].slice(0, 50);
+  const routeHints = normalizedNames
+    .filter((name) => /(^|\/)(pages|app|routes)\//i.test(name))
+    .filter((name) => sourceCodeExtensions.has(sourceExtensionOf(name)))
+    .slice(0, 100);
+
+  const now = new Date().toISOString();
+  const status: SourceAcquisitionStatus = issues.length ? "rejected" : "acquired";
+  return {
+    id: randomUUID(),
+    workspaceId: input.workspace.id,
+    projectId: input.workspace.projectId,
+    sourceType: "chatgpt-sites-export",
+    archiveName: input.archiveName,
+    archiveSizeBytes: input.archiveSizeBytes,
+    sha256: input.sha256,
+    status,
+    inventory: {
+      fileCount: files.length,
+      totalBytes: unpackedBytes,
+      codeFiles,
+      assetFiles,
+      hasPackageJson: Boolean(packageEntry),
+      packageJsonPath: packageEntry?.name.replaceAll("\\", "/"),
+      topLevelEntries,
+      routeHints
+    },
+    issues: [...new Set(issues)],
+    evidence: ["panel_upload", "sha256_verified", "archive_inventory_created", status === "acquired" ? "source_package_acquired" : "source_package_rejected"],
+    protections: {
+      isolatedInboxOnly: true,
+      productionLocked: true,
+      dnsLocked: true,
+      livePaymentLocked: true,
+      liveDatabaseLocked: true,
+      customerDataLocked: true
+    },
+    createdAt: now,
+    updatedAt: now
+  };
+}
+
+export function discardSourceAcquisition(record: SourceAcquisitionRecord): SourceAcquisitionRecord {
+  return {
+    ...record,
+    status: "discarded",
+    evidence: [...record.evidence, "source_package_discarded"],
+    updatedAt: new Date().toISOString()
+  };
+}

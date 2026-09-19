@@ -1,8 +1,12 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
+import multipart from "@fastify/multipart";
+import AdmZip from "adm-zip";
 import Fastify from "fastify";
 import { Pool } from "pg";
 import { createLocalProvisioningPlan, type ProvisioningPlan } from "@orrbit/ai-orchestrator";
-import { confirmImportWorkspaceSourceReference, createDevelopmentImportExecution, createImportWorkspaceFromPlan, createMartialArtsErpPilotPlan, createProjectImportPlan, evaluateImportWorkspaceDeployGate, martialArtsPilotAcceptance, martialArtsPilotModules, resetDevelopmentImportExecution, runDevelopmentImportExecution, updateImportWorkspaceCaptureItem, validateImportSource, type CreateImportPlanInput, type ImportExecutionJob, type ProjectImportPlan, type ProjectImportWorkspace, type WorkspaceCaptureKind, type WorkspaceCaptureStatus } from "@orrbit/project-importer";
+import { confirmImportWorkspaceSourceReference, createDevelopmentImportExecution, createImportWorkspaceFromPlan, createMartialArtsErpPilotPlan, createProjectImportPlan, createSourceAcquisitionRecord, discardSourceAcquisition, evaluateImportWorkspaceDeployGate, martialArtsPilotAcceptance, martialArtsPilotModules, resetDevelopmentImportExecution, runDevelopmentImportExecution, updateImportWorkspaceCaptureItem, validateImportSource, type CreateImportPlanInput, type ImportExecutionJob, type ProjectImportPlan, type ProjectImportWorkspace, type SourceAcquisitionRecord, type WorkspaceCaptureKind, type WorkspaceCaptureStatus } from "@orrbit/project-importer";
 import { classifyRisk, requiresApproval } from "@orrbit/policy-engine";
 import { providerCapabilities, DryRunGitHubProvider, DryRunCloudflarePagesProvider, DryRunCloudRunProvider, DryRunDatabaseProvider, DryRunOpenAiProvider, DryRunSecretProvider } from "@orrbit/provider-adapters";
 import { buildRuntimeProjectManifest, projectCreateSchema } from "@orrbit/project-manifest";
@@ -15,6 +19,8 @@ import {
 } from "@orrbit/project-registry";
 
 const app = Fastify({ logger: true });
+await app.register(multipart, { limits: { files: 1, fileSize: 100 * 1024 * 1024 } });
+const importInboxRoot = resolve(process.env.CONTROL_RUNTIME_DIR?.trim() || resolve(process.cwd(), "runtime"), "import-inbox");
 const databaseUrl = process.env.CONTROL_DATABASE_URL?.trim();
 const pool = databaseUrl ? new Pool({ connectionString: databaseUrl }) : null;
 const registry = pool ? new PostgresProjectRegistry(pool) : new MemoryProjectRegistry();
@@ -22,6 +28,7 @@ const plans = new Map<string, ProvisioningPlan>();
 const importPlans = new Map<string, ProjectImportPlan>();
 const importWorkspaces = new Map<string, ProjectImportWorkspace>();
 const importExecutions = new Map<string, ImportExecutionJob>();
+const sourceAcquisitions = new Map<string, SourceAcquisitionRecord>();
 
 type OnboardingJob = {
   id: string;
@@ -172,6 +179,60 @@ async function listImportExecutions(workspaceId?: string): Promise<ImportExecuti
      ORDER BY created_at DESC LIMIT 100`, [workspaceId ?? null]
   );
   return result.rows.map((row) => row.execution_data);
+}
+
+async function saveSourceAcquisition(record: SourceAcquisitionRecord) {
+  if (!pool) {
+    sourceAcquisitions.set(record.id, record);
+    return;
+  }
+  await pool.query(
+    `INSERT INTO source_acquisitions
+      (id, workspace_id, project_id, status, acquisition_data, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5::jsonb,$6,$6)
+     ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,
+       acquisition_data=EXCLUDED.acquisition_data, updated_at=NOW()`,
+    [record.id, record.workspaceId, record.projectId, record.status, JSON.stringify(record), record.createdAt]
+  );
+}
+
+async function getSourceAcquisition(id: string): Promise<SourceAcquisitionRecord | undefined> {
+  if (!pool) return sourceAcquisitions.get(id);
+  const result = await pool.query<{ acquisition_data: SourceAcquisitionRecord }>(
+    "SELECT acquisition_data FROM source_acquisitions WHERE id=$1", [id]
+  );
+  return result.rows[0]?.acquisition_data;
+}
+
+async function listSourceAcquisitions(workspaceId: string): Promise<SourceAcquisitionRecord[]> {
+  if (!pool) return [...sourceAcquisitions.values()]
+    .filter((record) => record.workspaceId === workspaceId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const result = await pool.query<{ acquisition_data: SourceAcquisitionRecord }>(
+    "SELECT acquisition_data FROM source_acquisitions WHERE workspace_id=$1 ORDER BY created_at DESC LIMIT 50", [workspaceId]
+  );
+  return result.rows.map((row) => row.acquisition_data);
+}
+
+function acquisitionFolder(workspaceId: string, acquisitionId: string) {
+  return resolve(importInboxRoot, workspaceId, acquisitionId);
+}
+
+async function extractAcquiredSource(record: SourceAcquisitionRecord, archiveBuffer: Buffer, zip: AdmZip) {
+  const root = acquisitionFolder(record.workspaceId, record.id);
+  const sourceRoot = resolve(root, "source");
+  await mkdir(sourceRoot, { recursive: true });
+  await writeFile(resolve(root, "source.zip"), archiveBuffer);
+  for (const entry of zip.getEntries()) {
+    if (entry.isDirectory) continue;
+    const normalized = entry.entryName.replaceAll("\\", "/");
+    const destination = resolve(sourceRoot, normalized);
+    const rel = relative(sourceRoot, destination);
+    if (!rel || rel.startsWith("..") || isAbsolute(rel)) throw new Error("archive_path_escape_blocked");
+    await mkdir(dirname(destination), { recursive: true });
+    await writeFile(destination, entry.getData());
+  }
+  return `control-plane://source-snapshot/${record.id}`;
 }
 
 async function markPlanApproved(id: string) {
@@ -535,6 +596,74 @@ app.patch<{
   } catch (error) {
     return reply.code(409).send({ error: error instanceof Error ? error.message : "capture_update_failed" });
   }
+});
+
+app.post<{ Params: { id: string } }>("/api/import-workspaces/:id/source-acquisitions", async (request, reply) => {
+  const workspace = await getImportWorkspace(request.params.id);
+  if (!workspace) return reply.code(404).send({ error: "import_workspace_not_found" });
+  try {
+    const part = await request.file();
+    if (!part) return reply.code(400).send({ error: "source_zip_required" });
+    const archiveName = basename(part.filename || "source.zip");
+    if (!archiveName.toLowerCase().endsWith(".zip")) return reply.code(400).send({ error: "zip_archive_required" });
+    const archiveBuffer = await part.toBuffer();
+    const sha256 = createHash("sha256").update(archiveBuffer).digest("hex");
+    const zip = new AdmZip(archiveBuffer);
+    const entries = zip.getEntries().map((entry) => ({
+      name: entry.entryName,
+      size: Number(entry.header.size ?? 0),
+      directory: entry.isDirectory
+    }));
+    const record = createSourceAcquisitionRecord({
+      workspace, archiveName, archiveSizeBytes: archiveBuffer.length, sha256, entries
+    });
+    if (record.status !== "acquired") {
+      await saveSourceAcquisition(record);
+      await audit(record.projectId, "source_acquisition_rejected", {
+        workspaceId: workspace.id, acquisitionId: record.id, issues: record.issues
+      });
+      return reply.code(422).send({ acquisition: record, error: "source_package_rejected" });
+    }
+    let snapshotRef: string;
+    try {
+      snapshotRef = await extractAcquiredSource(record, archiveBuffer, zip);
+    } catch (error) {
+      await rm(acquisitionFolder(record.workspaceId, record.id), { recursive: true, force: true });
+      throw error;
+    }
+    await saveSourceAcquisition(record);
+    await audit(record.projectId, "source_acquisition_completed", {
+      workspaceId: workspace.id, acquisitionId: record.id, sha256: record.sha256,
+      fileCount: record.inventory.fileCount, codeFiles: record.inventory.codeFiles
+    });
+    return reply.code(201).send({ acquisition: record, snapshotRef });
+  } catch (error) {
+    return reply.code(400).send({ error: error instanceof Error ? error.message : "source_acquisition_failed" });
+  }
+});
+
+app.get<{ Params: { id: string } }>("/api/import-workspaces/:id/source-acquisitions", async (request, reply) => {
+  const workspace = await getImportWorkspace(request.params.id);
+  if (!workspace) return reply.code(404).send({ error: "import_workspace_not_found" });
+  return { acquisitions: await listSourceAcquisitions(workspace.id) };
+});
+
+app.get<{ Params: { id: string } }>("/api/source-acquisitions/:id", async (request, reply) => {
+  const record = await getSourceAcquisition(request.params.id);
+  if (!record) return reply.code(404).send({ error: "source_acquisition_not_found" });
+  return record;
+});
+
+app.post<{ Params: { id: string } }>("/api/source-acquisitions/:id/discard", async (request, reply) => {
+  const record = await getSourceAcquisition(request.params.id);
+  if (!record) return reply.code(404).send({ error: "source_acquisition_not_found" });
+  const discarded = discardSourceAcquisition(record);
+  await rm(acquisitionFolder(record.workspaceId, record.id), { recursive: true, force: true });
+  await saveSourceAcquisition(discarded);
+  await audit(record.projectId, "source_acquisition_discarded", {
+    workspaceId: record.workspaceId, acquisitionId: record.id
+  });
+  return discarded;
 });
 
 app.post<{ Params: { id: string } }>("/api/import-workspaces/:id/executions", async (request, reply) => {
