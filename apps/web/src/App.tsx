@@ -59,6 +59,22 @@ type ImportPlan = {
   createdAt: string;
 };
 
+type CaptureRecord = { key: string; label: string; status: string; blocker?: string };
+
+type ImportWorkspace = {
+  id: string;
+  importPlanId: string;
+  projectId?: string;
+  status: string;
+  sourceReferenceStatus: string;
+  routeCapture: CaptureRecord[];
+  moduleCapture: CaptureRecord[];
+  captureChecklist: CaptureRecord[];
+  deployGate: { canDeploy: boolean; blockers: string[] };
+};
+
+type DeployGate = { canDeploy: boolean; blockers: string[] };
+
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export default function App() {
@@ -72,6 +88,9 @@ export default function App() {
   const [commandCentre, setCommandCentre] = useState<CommandCentre | null>(null);
   const [importPlans, setImportPlans] = useState<ImportPlan[]>([]);
   const [activeImportPlan, setActiveImportPlan] = useState<ImportPlan | null>(null);
+  const [importWorkspaces, setImportWorkspaces] = useState<ImportWorkspace[]>([]);
+  const [activeWorkspace, setActiveWorkspace] = useState<ImportWorkspace | null>(null);
+  const [deployGate, setDeployGate] = useState<DeployGate | null>(null);
   const [envDraft, setEnvDraft] = useState({
     status: "unconfigured",
     frontendProvider: "",
@@ -85,12 +104,19 @@ export default function App() {
       .then((d) => setProjects(d.projects ?? []))
       .catch(() => setMessage("API offline"));
     loadImportPlans();
+    loadImportWorkspaces();
   }, []);
 
   async function loadImportPlans() {
     const response = await fetch(`${apiBase}/api/import-plans`);
     const result = await response.json();
     if (response.ok) setImportPlans(result.importPlans ?? []);
+  }
+
+  async function loadImportWorkspaces() {
+    const response = await fetch(`${apiBase}/api/import-workspaces`);
+    const result = await response.json();
+    if (response.ok) setImportWorkspaces(result.workspaces ?? []);
   }
 
   async function createManual(event: FormEvent<HTMLFormElement>) {
@@ -150,23 +176,17 @@ export default function App() {
   }
 
   async function createMartialArtsImportPlan() {
-    setMessage("Creating Martial Arts ERP import plan...");
-    const response = await fetch(`${apiBase}/api/import-plans`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sourceType: "chatgpt-sites",
-        sourceRef: "ChatGPT Sites / Martial Arts ERP current development project",
-        projectName: "Martial Arts ERP",
-        projectType: "saas",
-        targetEnvironment: "development",
-        knownRoutes: ["/", "/login", "/dashboard", "/students", "/attendance", "/fees", "/belt-grading", "/reports"]
-      })
+    setMessage("Creating Martial Arts ERP pilot import plan...");
+    const response = await fetch(`${apiBase}/api/pilots/martial-arts-erp/import-plan`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
     });
     const result = await response.json();
     if (!response.ok) return setMessage(result.error ?? "Import plan failed");
     setActiveImportPlan(result);
     setImportPlans((current) => [result, ...current]);
-    setMessage("Martial Arts ERP import plan ready");
+    setActiveWorkspace(null);
+    setDeployGate(null);
+    setMessage("Martial Arts ERP pilot plan ready; source reference pending");
   }
 
   async function approveImportPlan(planId: string) {
@@ -176,8 +196,29 @@ export default function App() {
     if (!response.ok) return setMessage(result.error ?? "Import approval failed");
     setProjects((current) => [...current, result.project]);
     setActiveImportPlan(result.importPlan);
+    if (result.workspace) {
+      setActiveWorkspace(result.workspace);
+      setImportWorkspaces((current) => [result.workspace, ...current]);
+      await loadDeployGate(result.workspace.id);
+    }
     await loadImportPlans();
-    setMessage("Import approved as protected Development project");
+    setMessage("Import approved; workspace created and deploy gate locked");
+  }
+
+  async function openWorkspace(workspaceId: string) {
+    setMessage("Loading import workspace...");
+    const response = await fetch(`${apiBase}/api/import-workspaces/${workspaceId}`);
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "Workspace failed");
+    setActiveWorkspace(result);
+    await loadDeployGate(result.id);
+    setMessage("Import workspace ready");
+  }
+
+  async function loadDeployGate(workspaceId: string) {
+    const response = await fetch(`${apiBase}/api/import-workspaces/${workspaceId}/deploy-gate`);
+    const result = await response.json();
+    if (response.ok) setDeployGate(result);
   }
 
   async function openCommandCentre(projectId: string) {
@@ -294,8 +335,16 @@ export default function App() {
             className={activeImportPlan?.id === item.id ? "importItem active" : "importItem"}
             key={item.id} onClick={() => setActiveImportPlan(item)}>
             <strong>{item.requestedProjectName}</strong>
-            <span>{item.sourceType} � {item.status} � {item.routeInventory.length} routes</span>
+            <span>{item.sourceType} · {item.status} · {item.routeInventory.length} routes</span>
           </button>)}
+          <div className="workspaceMiniList"><span className="eyebrow">Workspaces</span>
+            {importWorkspaces.length === 0 ? <p className="muted">No workspace yet.</p> : importWorkspaces.map((workspace) => <button
+              className={activeWorkspace?.id === workspace.id ? "importItem active" : "importItem"}
+              key={workspace.id} onClick={() => openWorkspace(workspace.id)}>
+              <strong>{workspace.status}</strong>
+              <span>{workspace.sourceReferenceStatus} · routes {workspace.routeCapture.length} · modules {workspace.moduleCapture.length}</span>
+            </button>)}
+          </div>
         </div>
         {activeImportPlan ? <div className="importDetail">
           <div className="planTop"><div><span className="eyebrow">Selected import plan</span>
@@ -304,15 +353,37 @@ export default function App() {
           <dl>
             <div><dt>Source</dt><dd>{activeImportPlan.sourceRef}</dd></div>
             <div><dt>Target</dt><dd>{activeImportPlan.targetEnvironment}</dd></div>
-            <div><dt>Manifest</dt><dd>{activeImportPlan.manifestDraft.projectType} � protected={String(activeImportPlan.manifestDraft.productionProtected)}</dd></div>
+            <div><dt>Manifest</dt><dd>{activeImportPlan.manifestDraft.projectType} · protected={String(activeImportPlan.manifestDraft.productionProtected)}</dd></div>
           </dl>
           <div className="routeBox"><span className="eyebrow">Route inventory</span>
-            {activeImportPlan.routeInventory.map((route) => <p key={route.path}>{route.path} <span>{route.kind} � {route.status}</span></p>)}</div>
+            {activeImportPlan.routeInventory.map((route) => <p key={route.path}>{route.path} <span>{route.kind} · {route.status}</span></p>)}</div>
           <div className="blockedBox"><span className="eyebrow">Blocked in V1</span>
             {activeImportPlan.blockedActions.map((action) => <p key={action}>{action}</p>)}</div>
           <button onClick={() => approveImportPlan(activeImportPlan.id)} disabled={activeImportPlan.status === "approved"}>
             {activeImportPlan.status === "approved" ? "Approved as Development Project" : "Approve Import to Development"}
           </button>
+          {activeWorkspace && <div className="workspacePanel">
+            <div className="planTop"><div><span className="eyebrow">Import Workspace</span>
+              <h3>{activeWorkspace.status}</h3></div>
+              <span className={activeWorkspace.sourceReferenceStatus === "pending" ? "lockBadge" : "okBadge"}>
+                Source {activeWorkspace.sourceReferenceStatus}</span></div>
+            {activeWorkspace.sourceReferenceStatus === "pending" && <div className="warningBox">
+              Source reference pending. Deploy, DNS, live payment and production actions are disabled until capture is verified.
+            </div>}
+            <div className="captureGrid">
+              <div><span className="eyebrow">Route/Page capture</span>
+                <strong>{activeWorkspace.routeCapture.filter((x) => x.status === "captured").length}/{activeWorkspace.routeCapture.length}</strong></div>
+              <div><span className="eyebrow">Module capture</span>
+                <strong>{activeWorkspace.moduleCapture.filter((x) => x.status === "captured").length}/{activeWorkspace.moduleCapture.length}</strong></div>
+              <div><span className="eyebrow">Deploy gate</span>
+                <strong>{(deployGate ?? activeWorkspace.deployGate).canDeploy ? "Ready" : "Blocked"}</strong></div>
+            </div>
+            <div className="checklistBox"><span className="eyebrow">Capture checklist</span>
+              {activeWorkspace.captureChecklist.map((item) => <p key={item.key}>{item.label}<span>{item.status}</span></p>)}</div>
+            <div className="blockedBox"><span className="eyebrow">Deploy blockers</span>
+              {(deployGate ?? activeWorkspace.deployGate).blockers.map((blocker) => <p key={blocker}>{blocker}</p>)}</div>
+            <button disabled title="Deploy disabled until source capture is verified">Deploy disabled until capture verified</button>
+          </div>}
         </div> : <div className="importDetail empty">Create or select an import plan to review inventory and blocked actions.</div>}
       </div>
     </section>

@@ -93,3 +93,17 @@ dd { margin: 0; font-weight: 650; text-align: right; }
   .importLayout { grid-template-columns: 1fr; }
   .routeBox p { display: grid; }
 }
+
+.workspaceMiniList { margin-top: 18px; border-top: 1px solid #e1e6ea; padding-top: 14px; }
+.workspacePanel { margin-top: 18px; border-top: 1px solid #e5e9ed; padding-top: 16px; }
+.lockBadge, .okBadge { font-size: 12px; padding: 6px 9px; border-radius: 999px; }
+.lockBadge { color: #7a4c00; background: #fff5d7; border: 1px solid #f2d07a; }
+.okBadge { color: #075e3d; background: #e3f7ed; border: 1px solid #9fd9bd; }
+.warningBox { margin: 12px 0; padding: 12px 13px; border: 1px solid #f2d07a; background: #fff8df; border-radius: 10px; color: #614000; }
+.captureGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
+.captureGrid > div { background: #f8fafb; border: 1px solid #e1e6ea; border-radius: 10px; padding: 12px; }
+.captureGrid strong { display: block; margin-top: 6px; font-size: 18px; }
+.checklistBox { margin: 14px 0; display: grid; gap: 7px; }
+.checklistBox p { margin: 0; padding: 9px 10px; background: #f8fafb; border-radius: 8px; font-size: 13px; display: flex; justify-content: space-between; gap: 10px; }
+.workspacePanel > button { border: 0; border-radius: 10px; padding: 11px 16px; background: #17202a; color: #fff; }
+@media (max-width: 680px) { .captureGrid { grid-template-columns: 1fr; } .checklistBox p { display: grid; } }
