@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import Fastify from "fastify";
 import { Pool } from "pg";
 import { createLocalProvisioningPlan, type ProvisioningPlan } from "@orrbit/ai-orchestrator";
-import { createMartialArtsErpPilotPlan, createProjectImportPlan, martialArtsPilotAcceptance, martialArtsPilotModules, validateImportSource, type CreateImportPlanInput, type ProjectImportPlan } from "@orrbit/project-importer";
+import { createImportWorkspaceFromPlan, createMartialArtsErpPilotPlan, createProjectImportPlan, evaluateImportWorkspaceDeployGate, martialArtsPilotAcceptance, martialArtsPilotModules, validateImportSource, type CreateImportPlanInput, type ProjectImportPlan, type ProjectImportWorkspace } from "@orrbit/project-importer";
 import { classifyRisk, requiresApproval } from "@orrbit/policy-engine";
 import { providerCapabilities, DryRunGitHubProvider, DryRunCloudflarePagesProvider, DryRunCloudRunProvider, DryRunDatabaseProvider, DryRunOpenAiProvider, DryRunSecretProvider } from "@orrbit/provider-adapters";
 import { buildRuntimeProjectManifest, projectCreateSchema } from "@orrbit/project-manifest";
@@ -20,6 +20,7 @@ const pool = databaseUrl ? new Pool({ connectionString: databaseUrl }) : null;
 const registry = pool ? new PostgresProjectRegistry(pool) : new MemoryProjectRegistry();
 const plans = new Map<string, ProvisioningPlan>();
 const importPlans = new Map<string, ProjectImportPlan>();
+const importWorkspaces = new Map<string, ProjectImportWorkspace>();
 
 type OnboardingJob = {
   id: string;
@@ -98,6 +99,42 @@ async function listImportPlans(): Promise<ProjectImportPlan[]> {
   return result.rows.map((row) => row.plan_data);
 }
 
+
+async function saveImportWorkspace(workspace: ProjectImportWorkspace) {
+  if (!pool) {
+    importWorkspaces.set(workspace.id, workspace);
+    return;
+  }
+  await pool.query(
+    `INSERT INTO import_workspaces
+      (id, import_plan_id, project_id, status, source_reference_status, route_capture,
+       module_capture, capture_checklist, deploy_gate, workspace_data, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8::jsonb,$9::jsonb,$10::jsonb,$11,$11)
+     ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,
+       source_reference_status=EXCLUDED.source_reference_status, route_capture=EXCLUDED.route_capture,
+       module_capture=EXCLUDED.module_capture, capture_checklist=EXCLUDED.capture_checklist,
+       deploy_gate=EXCLUDED.deploy_gate, workspace_data=EXCLUDED.workspace_data, updated_at=NOW()`,
+    [workspace.id, workspace.importPlanId, workspace.projectId ?? null, workspace.status,
+      workspace.sourceReferenceStatus, JSON.stringify(workspace.routeCapture),
+      JSON.stringify(workspace.moduleCapture), JSON.stringify(workspace.captureChecklist),
+      JSON.stringify(workspace.deployGate), JSON.stringify(workspace), workspace.createdAt]
+  );
+}
+async function getImportWorkspace(id: string): Promise<ProjectImportWorkspace | undefined> {
+  if (!pool) return importWorkspaces.get(id);
+  const result = await pool.query<{ workspace_data: ProjectImportWorkspace }>(
+    "SELECT workspace_data FROM import_workspaces WHERE id=$1", [id]
+  );
+  return result.rows[0]?.workspace_data;
+}
+
+async function listImportWorkspaces(): Promise<ProjectImportWorkspace[]> {
+  if (!pool) return [...importWorkspaces.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const result = await pool.query<{ workspace_data: ProjectImportWorkspace }>(
+    "SELECT workspace_data FROM import_workspaces ORDER BY created_at DESC LIMIT 100"
+  );
+  return result.rows.map((row) => row.workspace_data);
+}
 async function markPlanApproved(id: string) {
   if (!pool) return;
   await pool.query(
@@ -399,12 +436,37 @@ app.post<{ Params: { id: string } }>("/api/import-plans/:id/approve", async (req
     createdAt: new Date().toISOString()
   };
   const approvedPlan = { ...plan, status: "approved" as const, updatedAt: new Date().toISOString() };
+  const workspace = createImportWorkspaceFromPlan(approvedPlan, { projectId: project.id });
   await saveImportPlan(approvedPlan);
+  await saveImportWorkspace(workspace);
   await saveJob(job, `Import plan approved for ${plan.requestedProjectName}`);
-  await audit(project.id, "import_plan_approved", { importPlanId: plan.id, jobId: job.id, evidence: job.evidence });
-  return reply.code(201).send({ approved: true, project, job, importPlan: approvedPlan });
+  await audit(project.id, "import_plan_approved", { importPlanId: plan.id, jobId: job.id, workspaceId: workspace.id, evidence: job.evidence });
+  return reply.code(201).send({ approved: true, project, job, importPlan: approvedPlan, workspace });
 });
 
+app.get("/api/import-workspaces", async () => ({ workspaces: await listImportWorkspaces() }));
+
+app.get<{ Params: { id: string } }>("/api/import-workspaces/:id", async (request, reply) => {
+  const workspace = await getImportWorkspace(request.params.id);
+  if (!workspace) return reply.code(404).send({ error: "import_workspace_not_found" });
+  return workspace;
+});
+
+app.get<{ Params: { id: string } }>("/api/import-workspaces/:id/deploy-gate", async (request, reply) => {
+  const workspace = await getImportWorkspace(request.params.id);
+  if (!workspace) return reply.code(404).send({ error: "import_workspace_not_found" });
+  return evaluateImportWorkspaceDeployGate(workspace);
+});
+
+app.post<{ Params: { id: string } }>("/api/import-plans/:id/workspace", async (request, reply) => {
+  const plan = await getImportPlan(request.params.id);
+  if (!plan) return reply.code(404).send({ error: "import_plan_not_found" });
+  if (plan.targetEnvironment !== "development") return reply.code(409).send({ error: "non_development_workspace_locked" });
+  const workspace = createImportWorkspaceFromPlan(plan);
+  await saveImportWorkspace(workspace);
+  await audit(null, "import_workspace_created", { importPlanId: plan.id, workspaceId: workspace.id, status: workspace.status });
+  return reply.code(201).send(workspace);
+});
 app.get("/api/jobs", async () => ({ jobs: await listJobs() }));
 
 app.post<{ Body: { environment: "development" | "staging" | "production"; action: string; destructive?: boolean } }>(

@@ -178,3 +178,102 @@ export function createMartialArtsErpPilotPlan(input?: { sourceRef?: string }): P
     }
   };
 }
+
+export type ImportWorkspaceStatus = "source_pending" | "capture_ready" | "capturing" | "capture_complete" | "blocked";
+export type CaptureStatus = "pending" | "blocked" | "captured" | "manual_review";
+
+export interface CaptureChecklistItem {
+  key: string;
+  label: string;
+  status: CaptureStatus;
+  blocker?: string;
+}
+
+export interface ModuleCaptureItem {
+  name: string;
+  status: CaptureStatus;
+  notes?: string;
+}
+export interface ImportDeployGate {
+  canDeploy: boolean;
+  targetEnvironment: EnvironmentName;
+  blockers: string[];
+}
+
+export interface ProjectImportWorkspace {
+  id: string;
+  importPlanId: string;
+  projectId?: string;
+  projectName: string;
+  sourceType: ImportSourceType;
+  sourceRef: string;
+  sourceReferenceStatus: "provided" | "pending";
+  status: ImportWorkspaceStatus;
+  routeCapture: ImportRouteInventoryItem[];
+  moduleCapture: ModuleCaptureItem[];
+  captureChecklist: CaptureChecklistItem[];
+  deployGate: ImportDeployGate;
+  createdAt: string;
+  updatedAt: string;
+}
+function importSourceIsPending(plan: ProjectImportPlan): boolean {
+  return !plan.sourceRef || plan.sourceRef.startsWith("PENDING_");
+}
+
+function buildWorkspaceChecklist(sourcePending: boolean): CaptureChecklistItem[] {
+  return [
+    { key: "source-reference", label: "Confirm ChatGPT Sites source reference", status: sourcePending ? "blocked" : "captured", blocker: sourcePending ? "Source reference is required before capture." : undefined },
+    { key: "route-capture", label: "Capture route/page inventory", status: sourcePending ? "blocked" : "pending", blocker: sourcePending ? "Blocked until source reference is confirmed." : undefined },
+    { key: "module-capture", label: "Capture SaaS module inventory", status: sourcePending ? "blocked" : "pending", blocker: sourcePending ? "Blocked until source reference is confirmed." : undefined },
+    { key: "manifest-review", label: "Review generated project manifest", status: "pending" },
+    { key: "no-production-touch", label: "Keep production/DNS/live payment blocked", status: "captured" }
+  ];
+}
+export function createImportWorkspaceFromPlan(plan: ProjectImportPlan, input?: { projectId?: string }): ProjectImportWorkspace {
+  const now = new Date().toISOString();
+  const sourcePending = importSourceIsPending(plan);
+  const blockers = [
+    ...(sourcePending ? ["ChatGPT Sites source reference must be confirmed before capture."] : []),
+    "Route/page capture is not complete.",
+    "Module inventory capture is not complete.",
+    "Preview/deploy is disabled until capture checklist is verified."
+  ];
+  return {
+    id: randomUUID(),
+    importPlanId: plan.id,
+    projectId: input?.projectId,
+    projectName: plan.requestedProjectName,
+    sourceType: plan.sourceType,
+    sourceRef: plan.sourceRef,
+    sourceReferenceStatus: sourcePending ? "pending" : "provided",
+    status: sourcePending ? "source_pending" : "capture_ready",
+    routeCapture: plan.routeInventory.map((route) => ({ ...route, status: sourcePending ? "manual_review" : route.status })),
+    moduleCapture: plan.requestedProjectName === "Martial Arts ERP" ? martialArtsPilotModules.map((name) => ({ name, status: sourcePending ? "blocked" : "pending" })) : [],
+    captureChecklist: buildWorkspaceChecklist(sourcePending),
+    deployGate: { canDeploy: false, targetEnvironment: plan.targetEnvironment, blockers },
+    createdAt: now,
+    updatedAt: now
+  };
+}
+
+export function evaluateImportWorkspaceDeployGate(workspace: ProjectImportWorkspace): ImportDeployGate {
+  const checklistBlockers = workspace.captureChecklist
+    .filter((item) => item.status !== "captured")
+    .map((item) => item.blocker || `${item.label} is not complete.`);
+  const routeBlocker = workspace.routeCapture.some((route) => route.status !== "captured")
+    ? "All route/page capture records must be captured before deploy."
+    : null;
+  const moduleBlocker = workspace.moduleCapture.some((item) => item.status !== "captured")
+    ? "All SaaS module capture records must be captured before deploy."
+    : null;
+  const sourceBlocker = workspace.sourceReferenceStatus === "pending"
+    ? "Source reference must be confirmed before deploy."
+    : null;
+  const blockers = [...checklistBlockers, routeBlocker, moduleBlocker, sourceBlocker]
+    .filter((x): x is string => Boolean(x));
+  return {
+    canDeploy: blockers.length === 0 && workspace.status === "capture_complete",
+    targetEnvironment: "development",
+    blockers
+  };
+}
