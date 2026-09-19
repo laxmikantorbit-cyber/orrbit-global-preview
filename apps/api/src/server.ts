@@ -3,7 +3,7 @@ import Fastify from "fastify";
 import { Pool } from "pg";
 import { createLocalProvisioningPlan, type ProvisioningPlan } from "@orrbit/ai-orchestrator";
 import { classifyRisk, requiresApproval } from "@orrbit/policy-engine";
-import { projectCreateSchema } from "@orrbit/project-manifest";
+import { buildRuntimeProjectManifest, projectCreateSchema } from "@orrbit/project-manifest";
 import {
   MemoryProjectRegistry,
   PostgresProjectRegistry,
@@ -163,6 +163,18 @@ app.get<{ Params: { id: string } }>("/api/projects/:id", async (request, reply) 
   return project;
 });
 
+app.get<{ Params: { id: string } }>("/api/projects/:id/manifest", async (request, reply) => {
+  const project = await registry.get(request.params.id);
+  if (!project) return reply.code(404).send({ error: "project_not_found" });
+  const environments = await registry.listEnvironments(project.id);
+  return buildRuntimeProjectManifest({
+    project,
+    environments,
+    businessRules: project.name.toLowerCase().includes("repair")
+      ? ["Repair pricing changes require explicit owner instruction"]
+      : []
+  });
+});
 app.get<{ Params: { id: string } }>("/api/projects/:id/command-centre", async (request, reply) => {
   const project = await registry.get(request.params.id);
   if (!project) return reply.code(404).send({ error: "project_not_found" });
