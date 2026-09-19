@@ -79,6 +79,25 @@ type ImportWorkspace = {
 };
 
 type DeployGate = { canDeploy: boolean; blockers: string[] };
+type ImportExecution = {
+  id: string;
+  workspaceId: string;
+  projectId: string;
+  projectName: string;
+  mode: "captured-inventory-preview";
+  targetEnvironment: "development";
+  status: string;
+  stages: Array<{ name: string; status: string; evidence: string[] }>;
+  parity: {
+    routes: { expected: number; imported: number; missing: string[] };
+    modules: { expected: number; imported: number; missing: string[] };
+  };
+  preview: null | { kind: string; reference: string; realDeploymentEnabled: false };
+  protections: Record<string, boolean>;
+  evidence: string[];
+  createdAt: string;
+  updatedAt: string;
+};
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -96,6 +115,7 @@ export default function App() {
   const [importWorkspaces, setImportWorkspaces] = useState<ImportWorkspace[]>([]);
   const [activeWorkspace, setActiveWorkspace] = useState<ImportWorkspace | null>(null);
   const [deployGate, setDeployGate] = useState<DeployGate | null>(null);
+  const [activeExecution, setActiveExecution] = useState<ImportExecution | null>(null);
   const [sourceRefDraft, setSourceRefDraft] = useState("");
   const [envDraft, setEnvDraft] = useState({
     status: "unconfigured",
@@ -192,6 +212,7 @@ export default function App() {
     setImportPlans((current) => [result, ...current]);
     setActiveWorkspace(null);
     setDeployGate(null);
+    setActiveExecution(null);
     setSourceRefDraft("");
     setMessage("Martial Arts ERP pilot plan ready; source reference pending");
   }
@@ -205,6 +226,7 @@ export default function App() {
     setActiveImportPlan(result.importPlan);
     if (result.workspace) {
       setActiveWorkspace(result.workspace);
+      setActiveExecution(null);
       setSourceRefDraft(result.workspace.sourceReferenceStatus === "pending" ? "" : result.workspace.sourceRef);
       setImportWorkspaces((current) => [result.workspace, ...current]);
       await loadDeployGate(result.workspace.id);
@@ -216,12 +238,14 @@ export default function App() {
   async function openWorkspace(workspaceId: string) {
     setMessage("Loading import workspace...");
     setDeployGate(null);
+    setActiveExecution(null);
     const response = await fetch(`${apiBase}/api/import-workspaces/${workspaceId}`);
     const result = await response.json();
     if (!response.ok) return setMessage(result.error ?? "Workspace failed");
     setActiveWorkspace(result);
     setSourceRefDraft(result.sourceReferenceStatus === "pending" ? "" : result.sourceRef);
     await loadDeployGate(result.id);
+    await loadLatestExecution(result.id);
     setMessage("Import workspace ready");
   }
 
@@ -259,6 +283,36 @@ export default function App() {
     const response = await fetch(`${apiBase}/api/import-workspaces/${workspaceId}/deploy-gate`);
     const result = await response.json();
     if (response.ok) setDeployGate(result);
+  }
+
+  async function loadLatestExecution(workspaceId: string) {
+    const response = await fetch(`${apiBase}/api/import-workspaces/${workspaceId}/executions`);
+    const result = await response.json();
+    if (response.ok) setActiveExecution(result.executions?.[0] ?? null);
+  }
+
+  async function startDevelopmentPreview() {
+    if (!activeWorkspace) return;
+    setMessage("Running isolated Development import preview...");
+    const response = await fetch(`${apiBase}/api/import-workspaces/${activeWorkspace.id}/executions`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
+    });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "Development preview execution blocked");
+    setActiveExecution(result);
+    setMessage("Development preview ready; real deployment remains locked");
+  }
+
+  async function resetDevelopmentPreview() {
+    if (!activeExecution) return;
+    setMessage("Resetting Development preview...");
+    const response = await fetch(`${apiBase}/api/import-executions/${activeExecution.id}/reset`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
+    });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "Preview reset failed");
+    setActiveExecution(result);
+    setMessage("Development preview reset safely");
   }
 
   async function openCommandCentre(projectId: string) {
@@ -442,10 +496,37 @@ export default function App() {
                 : <p className="readyBox">Capture verified. Development deploy gate is ready; real deployment execution remains locked in this phase.</p>}</div>
             <div className="gateActions">
               <button className="secondary" onClick={() => loadDeployGate(activeWorkspace.id)}>Recompute Deploy Gate</button>
-              <button disabled title="Real deployment execution is intentionally locked">
-                {(deployGate ?? activeWorkspace.deployGate).canDeploy ? "Deploy Ready — Execution Locked" : "Deploy Blocked — Complete Capture"}
+              <button onClick={startDevelopmentPreview}
+                disabled={!(deployGate ?? activeWorkspace.deployGate).canDeploy || (!!activeExecution && activeExecution.status !== "reset")}>
+                {(deployGate ?? activeWorkspace.deployGate).canDeploy ? "Start Development Preview" : "Preview Blocked — Complete Capture"}
               </button>
+              <button disabled title="Real deployment execution is intentionally locked">Real Deploy Locked</button>
             </div>
+            {activeExecution && <div className="executionPanel">
+              <div className="planTop"><div><span className="eyebrow">Development Import Execution</span>
+                <h3>{activeExecution.status}</h3></div>
+                <span className={activeExecution.status === "preview_ready" ? "okBadge" : "lockBadge"}>{activeExecution.mode}</span></div>
+              <div className="executionStages">
+                {activeExecution.stages.map((stage) => <div key={stage.name}>
+                  <strong>{stage.name.replaceAll("_", " ")}</strong><span>{stage.status}</span>
+                </div>)}
+              </div>
+              <div className="parityGrid">
+                <div><span>Route parity</span><strong>{activeExecution.parity.routes.imported}/{activeExecution.parity.routes.expected}</strong></div>
+                <div><span>Module parity</span><strong>{activeExecution.parity.modules.imported}/{activeExecution.parity.modules.expected}</strong></div>
+                <div><span>Preview</span><strong>{activeExecution.preview ? "Ready" : "Not ready"}</strong></div>
+              </div>
+              {activeExecution.preview && <div className="previewRef">
+                <span className="eyebrow">Safe preview reference</span><strong>{activeExecution.preview.reference}</strong>
+              </div>}
+              <div className="protectionStrip">
+                Production locked · DNS locked · Live payment locked · Live DB locked · Customer data locked
+              </div>
+              <div className="gateActions">
+                <button className="secondary" onClick={resetDevelopmentPreview} disabled={activeExecution.status === "reset"}>Reset Development Preview</button>
+                <button disabled title="External deployment is intentionally unavailable">External Deploy Locked</button>
+              </div>
+            </div>}
           </div>}
         </div> : <div className="importDetail empty">Create or select an import plan to review inventory and blocked actions.</div>}
       </div>

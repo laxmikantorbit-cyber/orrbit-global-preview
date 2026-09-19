@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import Fastify from "fastify";
 import { Pool } from "pg";
 import { createLocalProvisioningPlan, type ProvisioningPlan } from "@orrbit/ai-orchestrator";
-import { confirmImportWorkspaceSourceReference, createImportWorkspaceFromPlan, createMartialArtsErpPilotPlan, createProjectImportPlan, evaluateImportWorkspaceDeployGate, martialArtsPilotAcceptance, martialArtsPilotModules, updateImportWorkspaceCaptureItem, validateImportSource, type CreateImportPlanInput, type ProjectImportPlan, type ProjectImportWorkspace, type WorkspaceCaptureKind, type WorkspaceCaptureStatus } from "@orrbit/project-importer";
+import { confirmImportWorkspaceSourceReference, createDevelopmentImportExecution, createImportWorkspaceFromPlan, createMartialArtsErpPilotPlan, createProjectImportPlan, evaluateImportWorkspaceDeployGate, martialArtsPilotAcceptance, martialArtsPilotModules, resetDevelopmentImportExecution, runDevelopmentImportExecution, updateImportWorkspaceCaptureItem, validateImportSource, type CreateImportPlanInput, type ImportExecutionJob, type ProjectImportPlan, type ProjectImportWorkspace, type WorkspaceCaptureKind, type WorkspaceCaptureStatus } from "@orrbit/project-importer";
 import { classifyRisk, requiresApproval } from "@orrbit/policy-engine";
 import { providerCapabilities, DryRunGitHubProvider, DryRunCloudflarePagesProvider, DryRunCloudRunProvider, DryRunDatabaseProvider, DryRunOpenAiProvider, DryRunSecretProvider } from "@orrbit/provider-adapters";
 import { buildRuntimeProjectManifest, projectCreateSchema } from "@orrbit/project-manifest";
@@ -21,6 +21,7 @@ const registry = pool ? new PostgresProjectRegistry(pool) : new MemoryProjectReg
 const plans = new Map<string, ProvisioningPlan>();
 const importPlans = new Map<string, ProjectImportPlan>();
 const importWorkspaces = new Map<string, ProjectImportWorkspace>();
+const importExecutions = new Map<string, ImportExecutionJob>();
 
 type OnboardingJob = {
   id: string;
@@ -135,6 +136,44 @@ async function listImportWorkspaces(): Promise<ProjectImportWorkspace[]> {
   );
   return result.rows.map((row) => row.workspace_data);
 }
+
+async function saveImportExecution(job: ImportExecutionJob) {
+  if (!pool) {
+    importExecutions.set(job.id, job);
+    return;
+  }
+  await pool.query(
+    `INSERT INTO import_execution_jobs
+      (id, workspace_id, project_id, status, execution_data, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5::jsonb,$6,$6)
+     ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,
+       execution_data=EXCLUDED.execution_data, updated_at=NOW()`,
+    [job.id, job.workspaceId, job.projectId, job.status, JSON.stringify(job), job.createdAt]
+  );
+}
+
+async function getImportExecution(id: string): Promise<ImportExecutionJob | undefined> {
+  if (!pool) return importExecutions.get(id);
+  const result = await pool.query<{ execution_data: ImportExecutionJob }>(
+    "SELECT execution_data FROM import_execution_jobs WHERE id=$1", [id]
+  );
+  return result.rows[0]?.execution_data;
+}
+
+async function listImportExecutions(workspaceId?: string): Promise<ImportExecutionJob[]> {
+  if (!pool) {
+    const values = [...importExecutions.values()];
+    return values.filter((job) => !workspaceId || job.workspaceId === workspaceId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+  const result = await pool.query<{ execution_data: ImportExecutionJob }>(
+    `SELECT execution_data FROM import_execution_jobs
+     WHERE ($1::uuid IS NULL OR workspace_id=$1)
+     ORDER BY created_at DESC LIMIT 100`, [workspaceId ?? null]
+  );
+  return result.rows.map((row) => row.execution_data);
+}
+
 async function markPlanApproved(id: string) {
   if (!pool) return;
   await pool.query(
@@ -496,6 +535,55 @@ app.patch<{
   } catch (error) {
     return reply.code(409).send({ error: error instanceof Error ? error.message : "capture_update_failed" });
   }
+});
+
+app.post<{ Params: { id: string } }>("/api/import-workspaces/:id/executions", async (request, reply) => {
+  const workspace = await getImportWorkspace(request.params.id);
+  if (!workspace) return reply.code(404).send({ error: "import_workspace_not_found" });
+  try {
+    const queued = createDevelopmentImportExecution(workspace);
+    await saveImportExecution(queued);
+    const completed = runDevelopmentImportExecution(queued, workspace);
+    await saveImportExecution(completed);
+    await audit(workspace.projectId ?? null, "development_import_preview_ready", {
+      workspaceId: workspace.id, executionId: completed.id, status: completed.status,
+      routeParity: completed.parity.routes, moduleParity: completed.parity.modules
+    });
+    return reply.code(201).send(completed);
+  } catch (error) {
+    return reply.code(409).send({ error: error instanceof Error ? error.message : "import_execution_blocked" });
+  }
+});
+
+app.get<{ Params: { id: string } }>("/api/import-workspaces/:id/executions", async (request, reply) => {
+  const workspace = await getImportWorkspace(request.params.id);
+  if (!workspace) return reply.code(404).send({ error: "import_workspace_not_found" });
+  return { executions: await listImportExecutions(workspace.id) };
+});
+
+app.get<{ Params: { id: string } }>("/api/import-executions/:id", async (request, reply) => {
+  const execution = await getImportExecution(request.params.id);
+  if (!execution) return reply.code(404).send({ error: "import_execution_not_found" });
+  return execution;
+});
+
+app.post<{ Params: { id: string } }>("/api/import-executions/:id/reset", async (request, reply) => {
+  const execution = await getImportExecution(request.params.id);
+  if (!execution) return reply.code(404).send({ error: "import_execution_not_found" });
+  const reset = resetDevelopmentImportExecution(execution);
+  await saveImportExecution(reset);
+  await audit(reset.projectId, "development_import_preview_reset", { executionId: reset.id, workspaceId: reset.workspaceId });
+  return reset;
+});
+
+app.post<{ Params: { id: string } }>("/api/import-executions/:id/deploy", async (request, reply) => {
+  const execution = await getImportExecution(request.params.id);
+  if (!execution) return reply.code(404).send({ error: "import_execution_not_found" });
+  return reply.code(409).send({
+    error: "real_deployment_locked",
+    targetEnvironment: "development",
+    protections: execution.protections
+  });
 });
 
 app.post<{ Params: { id: string } }>("/api/import-plans/:id/workspace", async (request, reply) => {

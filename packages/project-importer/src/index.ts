@@ -360,3 +360,96 @@ export function updateImportWorkspaceCaptureItem(workspace: ProjectImportWorkspa
   return finalizeWorkspace({ ...workspace, captureChecklist: workspace.captureChecklist.map((item) =>
     item.key === input.key ? { ...item, status: checklistStatus, blocker: checklistStatus === "captured" ? undefined : item.blocker } : item) });
 }
+
+export type ImportExecutionStatus = "queued" | "preparing" | "importing" | "building" | "verifying" | "preview_ready" | "failed" | "reset";
+export type ImportExecutionStageName = "prepare" | "import_inventory" | "build_preview" | "verify_parity";
+export interface ImportExecutionStage {
+  name: ImportExecutionStageName;
+  status: "pending" | "succeeded" | "failed";
+  evidence: string[];
+}
+export interface ImportExecutionJob {
+  id: string;
+  workspaceId: string;
+  projectId: string;
+  projectName: string;
+  mode: "captured-inventory-preview";
+  targetEnvironment: "development";
+  status: ImportExecutionStatus;
+  stages: ImportExecutionStage[];
+  parity: {
+    routes: { expected: number; imported: number; missing: string[] };
+    modules: { expected: number; imported: number; missing: string[] };
+  };
+  preview: null | { kind: "control-plane-preview"; reference: string; realDeploymentEnabled: false };
+  protections: {
+    productionLocked: true;
+    dnsLocked: true;
+    livePaymentLocked: true;
+    liveDatabaseLocked: true;
+    customerDataLocked: true;
+  };
+  evidence: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function createDevelopmentImportExecution(workspace: ProjectImportWorkspace): ImportExecutionJob {
+  const gate = evaluateImportWorkspaceDeployGate(workspace);
+  if (!gate.canDeploy) throw new Error("capture_gate_blocked");
+  if (!workspace.projectId) throw new Error("workspace_project_required");
+  const now = new Date().toISOString();
+  return {
+    id: randomUUID(), workspaceId: workspace.id, projectId: workspace.projectId, projectName: workspace.projectName,
+    mode: "captured-inventory-preview", targetEnvironment: "development", status: "queued",
+    stages: [
+      { name: "prepare", status: "pending", evidence: [] },
+      { name: "import_inventory", status: "pending", evidence: [] },
+      { name: "build_preview", status: "pending", evidence: [] },
+      { name: "verify_parity", status: "pending", evidence: [] }
+    ],
+    parity: {
+      routes: { expected: workspace.routeCapture.length, imported: 0, missing: workspace.routeCapture.map((x) => x.path) },
+      modules: { expected: workspace.moduleCapture.length, imported: 0, missing: workspace.moduleCapture.map((x) => x.name) }
+    },
+    preview: null,
+    protections: { productionLocked: true, dnsLocked: true, livePaymentLocked: true, liveDatabaseLocked: true, customerDataLocked: true },
+    evidence: ["capture_gate_passed", "development_only_execution", "real_cloud_provisioning_disabled"],
+    createdAt: now, updatedAt: now
+  };
+}
+
+export function runDevelopmentImportExecution(job: ImportExecutionJob, workspace: ProjectImportWorkspace): ImportExecutionJob {
+  if (job.workspaceId !== workspace.id) throw new Error("workspace_execution_mismatch");
+  const gate = evaluateImportWorkspaceDeployGate(workspace);
+  if (!gate.canDeploy) throw new Error("capture_gate_blocked");
+  const routeEvidence = workspace.routeCapture.map((x) => `route:${x.path}`);
+  const moduleEvidence = workspace.moduleCapture.map((x) => `module:${x.name}`);
+  const now = new Date().toISOString();
+  return {
+    ...job,
+    status: "preview_ready",
+    stages: [
+      { name: "prepare", status: "succeeded", evidence: ["isolated_development_workspace", "source_reference_confirmed"] },
+      { name: "import_inventory", status: "succeeded", evidence: [...routeEvidence, ...moduleEvidence] },
+      { name: "build_preview", status: "succeeded", evidence: ["control_plane_preview_manifest_built", "no_external_deployment"] },
+      { name: "verify_parity", status: "succeeded", evidence: ["routes_match_capture_inventory", "modules_match_capture_inventory"] }
+    ],
+    parity: {
+      routes: { expected: workspace.routeCapture.length, imported: workspace.routeCapture.length, missing: [] },
+      modules: { expected: workspace.moduleCapture.length, imported: workspace.moduleCapture.length, missing: [] }
+    },
+    preview: { kind: "control-plane-preview", reference: `control-plane://import-preview/${job.id}`, realDeploymentEnabled: false },
+    evidence: [...job.evidence, "captured_inventory_imported", "preview_manifest_verified", "production_untouched"],
+    updatedAt: now
+  };
+}
+
+export function resetDevelopmentImportExecution(job: ImportExecutionJob): ImportExecutionJob {
+  return {
+    ...job, status: "reset", preview: null,
+    stages: job.stages.map((stage) => ({ ...stage, status: "pending", evidence: [] })),
+    evidence: [...job.evidence, "development_preview_reset"],
+    updatedAt: new Date().toISOString()
+  };
+}

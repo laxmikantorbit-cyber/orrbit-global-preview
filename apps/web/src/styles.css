@@ -117,7 +117,16 @@ dd { margin: 0; font-weight: 650; text-align: right; }
 .captureControlBox p { margin: 0; padding: 9px 10px; background: #f8fafb; border-radius: 8px; font-size: 13px; display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; }
 .captureControlBox span, .checklistBox span { color: #748092; font-size: 12px; }
 .readyBox { border: 1px solid #b8dec9; background: #eefaf4 !important; color: #075e3d; }
-.gateActions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: 12px; }
+.gateActions { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 12px; }
 .gateActions button { border-radius: 10px; padding: 11px 16px; }
 .gateActions button:not(.secondary) { border: 0; background: #17202a; color: #fff; }
-@media (max-width: 680px) { .sourceConfirmRow, .captureControlBox p, .gateActions { grid-template-columns: 1fr; } }
+.executionPanel { margin-top: 16px; padding: 14px; border: 1px solid #d8e2e8; border-radius: 12px; background: #fbfcfd; }
+.executionPanel h3 { margin: 3px 0 0; text-transform: capitalize; }
+.executionStages { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 8px; margin: 14px 0; }
+.executionStages > div, .parityGrid > div { padding: 10px; background: #fff; border: 1px solid #e1e6ea; border-radius: 9px; display: grid; gap: 5px; }
+.executionStages span, .parityGrid span { color: #748092; font-size: 12px; text-transform: capitalize; }
+.parityGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.previewRef { margin-top: 12px; display: grid; gap: 5px; padding: 10px; background: #eefaf4; border: 1px solid #b8dec9; border-radius: 9px; }
+.previewRef strong { overflow-wrap: anywhere; font-size: 13px; }
+.protectionStrip { margin-top: 12px; padding: 10px; background: #fff8df; border: 1px solid #f2d07a; border-radius: 9px; color: #614000; font-size: 12px; }
+@media (max-width: 680px) { .sourceConfirmRow, .captureControlBox p, .gateActions, .parityGrid { grid-template-columns: 1fr; } }
