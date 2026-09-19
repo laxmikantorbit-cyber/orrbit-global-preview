@@ -67,6 +67,9 @@ type ImportWorkspace = {
   id: string;
   importPlanId: string;
   projectId?: string;
+  projectName: string;
+  sourceType: string;
+  sourceRef: string;
   status: string;
   sourceReferenceStatus: string;
   routeCapture: RouteCaptureRecord[];
@@ -212,6 +215,7 @@ export default function App() {
 
   async function openWorkspace(workspaceId: string) {
     setMessage("Loading import workspace...");
+    setDeployGate(null);
     const response = await fetch(`${apiBase}/api/import-workspaces/${workspaceId}`);
     const result = await response.json();
     if (!response.ok) return setMessage(result.error ?? "Workspace failed");
@@ -411,6 +415,10 @@ export default function App() {
                 <button onClick={confirmSourceReference} disabled={!sourceRefDraft.trim()}>Confirm Source</button>
               </div>
             </div>}
+            {activeWorkspace.sourceReferenceStatus === "provided" && <div className="sourceConfirmedBox">
+              <span className="eyebrow">Confirmed source</span>
+              <strong>{activeWorkspace.sourceRef}</strong>
+            </div>}
             <div className="captureGrid">
               <div><span className="eyebrow">Route/Page capture</span>
                 <strong>{activeWorkspace.routeCapture.filter((x) => x.status === "captured").length}/{activeWorkspace.routeCapture.length}</strong></div>
@@ -429,8 +437,15 @@ export default function App() {
               {activeWorkspace.captureChecklist.map((item) => <p key={item.key}>{item.label}<span>{item.status}</span>
                 {item.key === "manifest-review" && <button onClick={() => updateCapture("checklist", item.key)} disabled={item.status === "captured"}>Mark reviewed</button>}</p>)}</div>
             <div className="blockedBox"><span className="eyebrow">Deploy blockers</span>
-              {(deployGate ?? activeWorkspace.deployGate).blockers.map((blocker) => <p key={blocker}>{blocker}</p>)}</div>
-            <button disabled title="Deploy disabled until source capture is verified">Deploy disabled until capture verified</button>
+              {(deployGate ?? activeWorkspace.deployGate).blockers.length > 0
+                ? (deployGate ?? activeWorkspace.deployGate).blockers.map((blocker) => <p key={blocker}>{blocker}</p>)
+                : <p className="readyBox">Capture verified. Development deploy gate is ready; real deployment execution remains locked in this phase.</p>}</div>
+            <div className="gateActions">
+              <button className="secondary" onClick={() => loadDeployGate(activeWorkspace.id)}>Recompute Deploy Gate</button>
+              <button disabled title="Real deployment execution is intentionally locked">
+                {(deployGate ?? activeWorkspace.deployGate).canDeploy ? "Deploy Ready — Execution Locked" : "Deploy Blocked — Complete Capture"}
+              </button>
+            </div>
           </div>}
         </div> : <div className="importDetail empty">Create or select an import plan to review inventory and blocked actions.</div>}
       </div>

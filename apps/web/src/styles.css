@@ -111,7 +111,13 @@ dd { margin: 0; font-weight: 650; text-align: right; }
 .sourceConfirmRow { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 11px; }
 .sourceConfirmRow input { width: 100%; min-width: 0; border: 1px solid #d8c078; border-radius: 9px; padding: 10px 11px; background: #fff; }
 .sourceConfirmRow button, .captureControlBox button, .checklistBox button { border: 0; border-radius: 8px; padding: 8px 10px; background: #17202a; color: #fff; }
+.sourceConfirmedBox { margin: 12px 0; padding: 12px 13px; border: 1px solid #b8dec9; background: #eefaf4; border-radius: 10px; display: grid; gap: 5px; }
+.sourceConfirmedBox strong { overflow-wrap: anywhere; font-size: 13px; }
 .captureControlBox { margin: 14px 0; display: grid; gap: 7px; }
 .captureControlBox p { margin: 0; padding: 9px 10px; background: #f8fafb; border-radius: 8px; font-size: 13px; display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; }
 .captureControlBox span, .checklistBox span { color: #748092; font-size: 12px; }
-@media (max-width: 680px) { .sourceConfirmRow, .captureControlBox p { grid-template-columns: 1fr; } }
+.readyBox { border: 1px solid #b8dec9; background: #eefaf4 !important; color: #075e3d; }
+.gateActions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: 12px; }
+.gateActions button { border-radius: 10px; padding: 11px 16px; }
+.gateActions button:not(.secondary) { border: 0; background: #17202a; color: #fff; }
+@media (max-width: 680px) { .sourceConfirmRow, .captureControlBox p, .gateActions { grid-template-columns: 1fr; } }
