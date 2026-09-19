@@ -9,6 +9,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@orrbit/ai-orchestrator": "0.1.0",
     "@orrbit/policy-engine": "0.1.0",
     "@orrbit/project-manifest": "0.1.0",
     "@orrbit/project-registry": "0.1.0",
