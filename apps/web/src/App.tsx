@@ -4,8 +4,30 @@ type Project = {
   id: string;
   name: string;
   type: string;
+  sourceMode?: string;
   lifecycleStatus: string;
   environments: string[];
+  productionProtected?: boolean;
+  repository?: { fullName: string; defaultBranch: string };
+};
+
+type ProjectEnvironment = {
+  id: string;
+  projectId: string;
+  environmentName: string;
+  status: string;
+  frontendProvider?: string;
+  backendProvider?: string;
+  databaseProvider?: string;
+  region?: string;
+};
+
+type CommandCentre = {
+  project: Project;
+  environments: ProjectEnvironment[];
+  jobs: Array<{ id: string; state: string; risk: string; createdAt: string; evidence: string[] }>;
+  audit: Array<{ id: string; eventType: string; createdAt: string }>;
+  protection: { productionProtected: boolean; nonDevelopmentConfigLocked: boolean; realCloudProvisioningEnabled: boolean };
 };
 
 type Plan = {
@@ -31,6 +53,14 @@ export default function App() {
   const [plan, setPlan] = useState<Plan | null>(null);
   const [planName, setPlanName] = useState("");
   const [planRepository, setPlanRepository] = useState("");
+  const [commandCentre, setCommandCentre] = useState<CommandCentre | null>(null);
+  const [envDraft, setEnvDraft] = useState({
+    status: "unconfigured",
+    frontendProvider: "",
+    backendProvider: "",
+    databaseProvider: "",
+    region: ""
+  });
   useEffect(() => {
     fetch(`${apiBase}/api/projects`)
       .then((r) => r.json())
@@ -94,6 +124,48 @@ export default function App() {
     setPlan(null);
   }
 
+  async function openCommandCentre(projectId: string) {
+    setMessage("Loading Command Centre...");
+    const response = await fetch(`${apiBase}/api/projects/${projectId}/command-centre`);
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "Command Centre failed");
+    setCommandCentre(result);
+    const development = result.environments?.find((environment: ProjectEnvironment) => environment.environmentName === "development");
+    setEnvDraft({
+      status: development?.status ?? "unconfigured",
+      frontendProvider: development?.frontendProvider ?? "",
+      backendProvider: development?.backendProvider ?? "",
+      databaseProvider: development?.databaseProvider ?? "",
+      region: development?.region ?? ""
+    });
+    setMessage("Command Centre ready");
+  }
+
+  async function saveDevelopmentEnvironment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!commandCentre) return;
+    setMessage("Saving Development configuration...");
+    const payload = {
+      status: envDraft.status,
+      frontendProvider: envDraft.frontendProvider.trim() || null,
+      backendProvider: envDraft.backendProvider.trim() || null,
+      databaseProvider: envDraft.databaseProvider.trim() || null,
+      region: envDraft.region.trim() || null
+    };
+    const response = await fetch(`${apiBase}/api/projects/${commandCentre.project.id}/environments/development`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "Environment update failed");
+    setCommandCentre((current) => current ? {
+      ...current,
+      environments: current.environments.map((environment) =>
+        environment.environmentName === "development" ? result : environment)
+    } : current);
+    setMessage("Development configuration saved");
+  }
+
   return <main className="shell">
     <header className="topbar">
       <div><span className="eyebrow">oRRbit</span><h1>AI Control Plane</h1></div>
@@ -152,6 +224,56 @@ export default function App() {
       </div>}
     </section>}
 
+    {commandCentre && <section className="commandCentre">
+      <div className="builderHead">
+        <div><span className="eyebrow">Project Command Centre</span>
+          <h2>{commandCentre.project.name}</h2>
+          <p>{commandCentre.project.type} · {commandCentre.project.lifecycleStatus}</p></div>
+        <button className="ghost" onClick={() => setCommandCentre(null)}>Close</button>
+      </div>
+      <div className="commandSummary">
+        <div><span>Source</span><strong>{commandCentre.project.repository?.fullName ?? commandCentre.project.sourceMode ?? "Not linked"}</strong></div>
+        <div><span>Production</span><strong>{commandCentre.protection.productionProtected ? "Protected" : "Unprotected"}</strong></div>
+        <div><span>Cloud execution</span><strong>{commandCentre.protection.realCloudProvisioningEnabled ? "Enabled" : "Locked in V1"}</strong></div>
+      </div>
+      <div className="environmentGrid">
+        {commandCentre.environments.map((environment) => <article className="environmentCard" key={environment.id}>
+          <div className="cardHead"><h3>{environment.environmentName}</h3><span>{environment.status}</span></div>
+          <dl>
+            <div><dt>Frontend</dt><dd>{environment.frontendProvider ?? "Not configured"}</dd></div>
+            <div><dt>Backend</dt><dd>{environment.backendProvider ?? "Not configured"}</dd></div>
+            <div><dt>Database</dt><dd>{environment.databaseProvider ?? "Not configured"}</dd></div>
+            <div><dt>Region</dt><dd>{environment.region ?? "Not configured"}</dd></div>
+          </dl>
+        </article>)}
+      </div>
+      <form className="form environmentForm" onSubmit={saveDevelopmentEnvironment}>
+        <label>Status<select value={envDraft.status} onChange={(e) => setEnvDraft({ ...envDraft, status: e.target.value })}>
+          <option value="unconfigured">Unconfigured</option><option value="planned">Planned</option>
+          <option value="ready">Ready</option><option value="degraded">Degraded</option>
+        </select></label>
+        <label>Frontend provider<input value={envDraft.frontendProvider}
+          onChange={(e) => setEnvDraft({ ...envDraft, frontendProvider: e.target.value })} placeholder="e.g. cloudflare-pages" /></label>
+        <label>Backend provider<input value={envDraft.backendProvider}
+          onChange={(e) => setEnvDraft({ ...envDraft, backendProvider: e.target.value })} placeholder="e.g. google-cloud-run" /></label>
+        <label>Database provider<input value={envDraft.databaseProvider}
+          onChange={(e) => setEnvDraft({ ...envDraft, databaseProvider: e.target.value })} placeholder="e.g. postgresql" /></label>
+        <label>Region<input value={envDraft.region}
+          onChange={(e) => setEnvDraft({ ...envDraft, region: e.target.value })} placeholder="e.g. asia-south1" /></label>
+        <button type="submit">Save Development Config</button>
+      </form>
+      <div className="historyGrid">
+        <div><span className="eyebrow">Recent jobs</span>
+          {commandCentre.jobs.length === 0 ? <p className="muted">No jobs yet.</p> :
+            commandCentre.jobs.map((job) => <p className="historyItem" key={job.id}>{job.state} · {job.risk} · {new Date(job.createdAt).toLocaleString()}</p>)}
+        </div>
+        <div><span className="eyebrow">Audit trail</span>
+          {commandCentre.audit.length === 0 ? <p className="muted">No project audit events yet.</p> :
+            commandCentre.audit.map((item) => <p className="historyItem" key={item.id}>{item.eventType} · {new Date(item.createdAt).toLocaleString()}</p>)}
+        </div>
+      </div>
+    </section>}
+
     <section className="sectionHead"><div><span className="eyebrow">Project registry</span><h2>Managed projects</h2></div></section>
     <section className="grid">
       {projects.length === 0 && <div className="empty">No project registered in this development session yet.</div>}
@@ -159,7 +281,7 @@ export default function App() {
         <div className="cardHead"><h3>{p.name}</h3><span>{p.type}</span></div>
         <dl><div><dt>Lifecycle</dt><dd>{p.lifecycleStatus}</dd></div>
           <div><dt>Environment</dt><dd>{Array.isArray(p.environments) ? p.environments.join(", ") : p.environments}</dd></div></dl>
-        <button className="secondary" disabled>Command Centre — next stage</button>
+        <button className="secondary" onClick={() => openCommandCentre(p.id)}>Open Command Centre</button>
       </article>)}
     </section>
   </main>;

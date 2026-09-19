@@ -54,11 +54,25 @@ dt { color: #748092; }
 dd { margin: 0; font-weight: 650; text-align: right; }
 .secondary { width: 100%; border: 1px solid #cfd6dd; background: #fff; border-radius: 9px; padding: 10px; }
 .empty { color: #697688; grid-column: 1 / -1; }
+.commandCentre { background: #fff; border: 1px solid #dfe5ea; border-radius: 16px; padding: 20px; margin: 0 0 30px; }
+.commandCentre h2 { margin: 2px 0 4px; }
+.commandCentre .builderHead p { margin: 0; color: #697688; }
+.commandSummary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
+.commandSummary > div { border: 1px solid #e1e6ea; border-radius: 11px; padding: 13px; }
+.commandSummary span { display: block; color: #748092; font-size: 12px; margin-bottom: 5px; }
+.commandSummary strong { overflow-wrap: anywhere; }
+.environmentGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.environmentCard { background: #f8fafb; border: 1px solid #e1e6ea; border-radius: 12px; padding: 14px; }
+.environmentCard h3 { margin: 0; text-transform: capitalize; }
+.environmentForm { max-width: none; border-top: 1px solid #e5e9ed; padding-top: 18px; }
+.historyGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-top: 22px; }
+.historyItem { margin: 9px 0 0; padding: 9px 10px; background: #f8fafb; border-radius: 8px; font-size: 13px; color: #394655; }
+.muted { color: #748092; font-size: 13px; }
 @media (max-width: 680px) {
   .shell { padding: 18px; }
   .topbar, .hero, .builderHead { align-items: flex-start; flex-direction: column; }
   .hero h2 { font-size: 28px; }
   .metric { width: 100%; }
-  .form, .planControls { grid-template-columns: 1fr; width: 100%; }
+  .form, .planControls, .commandSummary, .historyGrid { grid-template-columns: 1fr; width: 100%; }
   .headerActions { width: 100%; justify-content: space-between; }
 }

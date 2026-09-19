@@ -4,7 +4,13 @@ import { Pool } from "pg";
 import { createLocalProvisioningPlan, type ProvisioningPlan } from "@orrbit/ai-orchestrator";
 import { classifyRisk, requiresApproval } from "@orrbit/policy-engine";
 import { projectCreateSchema } from "@orrbit/project-manifest";
-import { MemoryProjectRegistry, PostgresProjectRegistry } from "@orrbit/project-registry";
+import {
+  MemoryProjectRegistry,
+  PostgresProjectRegistry,
+  type ProjectEnvironmentName,
+  type ProjectEnvironmentStatus,
+  type ProjectEnvironmentUpdate
+} from "@orrbit/project-registry";
 
 const app = Fastify({ logger: true });
 const databaseUrl = process.env.CONTROL_DATABASE_URL?.trim();
@@ -24,6 +30,17 @@ type OnboardingJob = {
 };
 
 const jobs = new Map<string, OnboardingJob>();
+
+type AuditEvent = {
+  id: string;
+  projectId: string | null;
+  actor: "owner";
+  eventType: string;
+  eventData: object;
+  createdAt: string;
+};
+
+const memoryAuditEvents: AuditEvent[] = [];
 
 async function savePlan(plan: ProvisioningPlan) {
   if (!pool) return plans.set(plan.id, plan);
@@ -65,11 +82,17 @@ async function saveJob(job: OnboardingJob, requestSummary: string) {
   );
 }
 
-async function listJobs(): Promise<OnboardingJob[]> {
-  if (!pool) return [...jobs.values()];
+async function listJobs(projectId?: string): Promise<OnboardingJob[]> {
+  if (!pool) {
+    const values = [...jobs.values()];
+    return projectId ? values.filter((job) => job.projectId === projectId) : values;
+  }
   const result = await pool.query(
     `SELECT id, plan_id, project_id, state, risk_level, requested_by, evidence, created_at
-     FROM jobs ORDER BY created_at DESC LIMIT 100`
+     FROM jobs
+     WHERE ($1::uuid IS NULL OR project_id = $1)
+     ORDER BY created_at DESC LIMIT 100`,
+    [projectId ?? null]
   );
   return result.rows.map((row) => ({
     id: row.id, planId: row.plan_id, projectId: row.project_id,
@@ -79,12 +102,43 @@ async function listJobs(): Promise<OnboardingJob[]> {
 }
 
 async function audit(projectId: string | null, eventType: string, eventData: object) {
-  if (!pool) return;
+  const event: AuditEvent = {
+    id: randomUUID(),
+    projectId,
+    actor: "owner",
+    eventType,
+    eventData,
+    createdAt: new Date().toISOString()
+  };
+  if (!pool) {
+    memoryAuditEvents.unshift(event);
+    return;
+  }
   await pool.query(
-    `INSERT INTO audit_events (id, project_id, actor, event_type, event_data)
-     VALUES ($1,$2,'owner',$3,$4::jsonb)`,
-    [randomUUID(), projectId, eventType, JSON.stringify(eventData)]
+    `INSERT INTO audit_events (id, project_id, actor, event_type, event_data, created_at)
+     VALUES ($1,$2,'owner',$3,$4::jsonb,$5)`,
+    [event.id, projectId, eventType, JSON.stringify(eventData), event.createdAt]
   );
+}
+
+async function listAuditEvents(projectId: string): Promise<AuditEvent[]> {
+  if (!pool) return memoryAuditEvents.filter((event) => event.projectId === projectId).slice(0, 50);
+  const result = await pool.query(
+    `SELECT id, project_id, actor, event_type, event_data, created_at
+     FROM audit_events
+     WHERE project_id = $1
+     ORDER BY created_at DESC
+     LIMIT 50`,
+    [projectId]
+  );
+  return result.rows.map((row) => ({
+    id: row.id,
+    projectId: row.project_id,
+    actor: row.actor,
+    eventType: row.event_type,
+    eventData: row.event_data ?? {},
+    createdAt: new Date(row.created_at).toISOString()
+  })) as AuditEvent[];
 }
 
 app.get("/api/health", async () => {
@@ -109,12 +163,58 @@ app.get<{ Params: { id: string } }>("/api/projects/:id", async (request, reply) 
   return project;
 });
 
+app.get<{ Params: { id: string } }>("/api/projects/:id/command-centre", async (request, reply) => {
+  const project = await registry.get(request.params.id);
+  if (!project) return reply.code(404).send({ error: "project_not_found" });
+  const [environments, projectJobs, auditEvents] = await Promise.all([
+    registry.listEnvironments(project.id),
+    listJobs(project.id),
+    listAuditEvents(project.id)
+  ]);
+  return {
+    project,
+    environments,
+    jobs: projectJobs.slice(0, 10),
+    audit: auditEvents.slice(0, 20),
+    protection: {
+      productionProtected: project.productionProtected,
+      nonDevelopmentConfigLocked: true,
+      realCloudProvisioningEnabled: false
+    }
+  };
+});
+
 app.post("/api/projects", async (request, reply) => {
   const parsed = projectCreateSchema.safeParse(request.body);
   if (!parsed.success) return reply.code(400).send({ error: "invalid_project", issues: parsed.error.issues });
   const project = await registry.create(parsed.data);
   await audit(project.id, "project_created_manual", { type: project.type, sourceMode: project.sourceMode });
   return reply.code(201).send(project);
+});
+
+app.patch<{
+  Params: { id: string; environment: ProjectEnvironmentName };
+  Body: ProjectEnvironmentUpdate;
+}>("/api/projects/:id/environments/:environment", async (request, reply) => {
+  const project = await registry.get(request.params.id);
+  if (!project) return reply.code(404).send({ error: "project_not_found" });
+  if (request.params.environment !== "development") {
+    return reply.code(409).send({ error: "non_development_environment_config_locked" });
+  }
+  const allowedStatuses = new Set<ProjectEnvironmentStatus>(["unconfigured", "planned", "ready", "degraded"]);
+  if (request.body?.status && !allowedStatuses.has(request.body.status)) {
+    return reply.code(400).send({ error: "invalid_environment_status" });
+  }
+  for (const field of ["frontendProvider", "backendProvider", "databaseProvider", "region"] as const) {
+    const value = request.body?.[field];
+    if (value !== undefined && value !== null && (typeof value !== "string" || value.length > 100)) {
+      return reply.code(400).send({ error: "invalid_environment_field", field });
+    }
+  }
+  const updated = await registry.updateEnvironment(project.id, request.params.environment, request.body ?? {});
+  if (!updated) return reply.code(404).send({ error: "environment_not_found" });
+  await audit(project.id, "development_environment_config_updated", { environment: updated });
+  return updated;
 });
 
 app.post<{ Body: { prompt: string } }>("/api/project-plans", async (request, reply) => {
