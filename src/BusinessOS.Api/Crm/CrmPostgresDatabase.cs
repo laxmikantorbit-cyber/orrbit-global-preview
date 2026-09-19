@@ -34,16 +34,15 @@ public sealed class CrmPostgresDatabase : IAsyncDisposable
         try
         {
             if (_ready) return;
-            try
+            if (_allowSchemaBootstrap)
             {
-                await ValidateRuntimeAccessAsync(cancellationToken);
-            }
-            catch (PostgresException ex) when (
-                _allowSchemaBootstrap && ex.SqlState is "42P01" or "3F000" or "42501")
-            {
+                // SchemaSql is intentionally idempotent. Running it once per fresh process
+                // applies additive migrations (for example new columns) even when the base
+                // CRM schema already exists and runtime validation would otherwise succeed.
                 await BootstrapAsync(cancellationToken);
-                await ValidateRuntimeAccessAsync(cancellationToken);
             }
+
+            await ValidateRuntimeAccessAsync(cancellationToken);
             _ready = true;
         }
         finally
