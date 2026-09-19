@@ -5,6 +5,7 @@ public sealed class Organisation
     private readonly HashSet<OrganisationRole> _roles = [];
     private readonly List<ContactPerson> _contacts = [];
     private readonly List<OrganisationAddress> _addresses = [];
+    private readonly HashSet<string> _groups = new(StringComparer.OrdinalIgnoreCase);
 
     public Organisation(
         Guid id,
@@ -37,6 +38,7 @@ public sealed class Organisation
     public IReadOnlyCollection<OrganisationRole> Roles => _roles;
     public IReadOnlyList<ContactPerson> Contacts => _contacts.AsReadOnly();
     public IReadOnlyList<OrganisationAddress> Addresses => _addresses.AsReadOnly();
+    public IReadOnlyCollection<string> Groups => _groups;
     public ContactPerson? PrimaryContact => _contacts.SingleOrDefault(x => x.IsPrimary);
     public OrganisationAddress? PrimaryAddress => _addresses.SingleOrDefault(x => x.IsPrimary);
 
@@ -54,6 +56,24 @@ public sealed class Organisation
     {
         if (!Enum.IsDefined(status)) throw new ArgumentOutOfRangeException(nameof(status));
         Status = status;
+    }
+
+    public void AddGroup(string group)
+    {
+        if (string.IsNullOrWhiteSpace(group)) throw new ArgumentException("Customer group is required.", nameof(group));
+        _groups.Add(group.Trim());
+    }
+
+    public void RemoveGroup(string group)
+    {
+        if (!string.IsNullOrWhiteSpace(group)) _groups.Remove(group.Trim());
+    }
+
+    public void ReplaceGroups(IEnumerable<string> groups)
+    {
+        ArgumentNullException.ThrowIfNull(groups);
+        _groups.Clear();
+        foreach (var group in groups.Where(x => !string.IsNullOrWhiteSpace(x))) _groups.Add(group.Trim());
     }
     public void AddContact(ContactPerson contact)
     {

@@ -19,10 +19,10 @@ public sealed class PostgresCrmLeadRepository : ILeadRepository
         const string sql = """
 INSERT INTO businessos_crm.leads
 (id, tenant_id, organisation_id, title, attribution, contact_name, mobile_number, email, product_interest, notes,
- status, priority, unqualified_reason, created_at_utc, updated_at_utc, last_contact_at_utc, next_follow_up_at_utc, tags)
+ status, priority, unqualified_reason, created_at_utc, updated_at_utc, last_contact_at_utc, next_follow_up_at_utc, tags, estimated_value)
 VALUES (@id, @tenant_id, @organisation_id, @title, CAST(@attribution AS jsonb), @contact_name, @mobile_number, @email,
  @product_interest, @notes, @status, @priority, @unqualified_reason, @created_at_utc, @updated_at_utc,
- @last_contact_at_utc, @next_follow_up_at_utc, CAST(@tags AS jsonb));
+ @last_contact_at_utc, @next_follow_up_at_utc, CAST(@tags AS jsonb), @estimated_value);
 """;
         await using var command = _database.DataSource.CreateCommand(sql);
         AddParameters(command, lead);
@@ -40,7 +40,8 @@ UPDATE businessos_crm.leads SET
  organisation_id=@organisation_id, title=@title, attribution=CAST(@attribution AS jsonb), contact_name=@contact_name,
  mobile_number=@mobile_number, email=@email, product_interest=@product_interest, notes=@notes, status=@status,
  priority=@priority, unqualified_reason=@unqualified_reason, updated_at_utc=@updated_at_utc,
- last_contact_at_utc=@last_contact_at_utc, next_follow_up_at_utc=@next_follow_up_at_utc, tags=CAST(@tags AS jsonb)
+ last_contact_at_utc=@last_contact_at_utc, next_follow_up_at_utc=@next_follow_up_at_utc, tags=CAST(@tags AS jsonb),
+ estimated_value=@estimated_value
 WHERE tenant_id=@tenant_id AND id=@id;
 """;
         await using var command = _database.DataSource.CreateCommand(sql);
@@ -75,7 +76,7 @@ WHERE tenant_id=@tenant_id AND id=@id;
     private const string SelectSql = """
 SELECT id, tenant_id, organisation_id, title, attribution::text, contact_name, mobile_number, email, product_interest,
  notes, status, priority, unqualified_reason, created_at_utc, updated_at_utc, last_contact_at_utc,
- next_follow_up_at_utc, tags::text FROM businessos_crm.leads
+ next_follow_up_at_utc, tags::text, estimated_value FROM businessos_crm.leads
 """;
 
     private static void AddParameters(NpgsqlCommand command, Lead lead)
@@ -98,6 +99,7 @@ SELECT id, tenant_id, organisation_id, title, attribution::text, contact_name, m
         AddNullable(command, "last_contact_at_utc", NpgsqlDbType.TimestampTz, lead.LastContactAtUtc);
         AddNullable(command, "next_follow_up_at_utc", NpgsqlDbType.TimestampTz, lead.NextFollowUpAtUtc);
         command.Parameters.AddWithValue("tags", JsonSerializer.Serialize(lead.Tags, JsonOptions));
+        AddNullable(command, "estimated_value", NpgsqlDbType.Numeric, lead.EstimatedValue);
     }
 
     private static Lead ReadLead(NpgsqlDataReader reader)
@@ -110,10 +112,11 @@ SELECT id, tenant_id, organisation_id, title, attribution::text, contact_name, m
             GetString(reader, 5), GetString(reader, 6), GetString(reader, 7), GetString(reader, 8), GetString(reader, 9),
             (LeadPriority)reader.GetInt32(11), (LeadStatus)reader.GetInt32(10), GetString(reader, 12),
             reader.GetFieldValue<DateTimeOffset>(13), reader.GetFieldValue<DateTimeOffset>(14),
-            GetDate(reader, 15), GetDate(reader, 16), tags);
+            GetDate(reader, 15), GetDate(reader, 16), tags, GetDecimal(reader, 18));
     }
 
     private static string? GetString(NpgsqlDataReader reader, int index) => reader.IsDBNull(index) ? null : reader.GetString(index);
     private static DateTimeOffset? GetDate(NpgsqlDataReader reader, int index) => reader.IsDBNull(index) ? null : reader.GetFieldValue<DateTimeOffset>(index);
+    private static decimal? GetDecimal(NpgsqlDataReader reader, int index) => reader.IsDBNull(index) ? null : reader.GetDecimal(index);
     private static void AddNullable(NpgsqlCommand command, string name, NpgsqlDbType type, object? value) => command.Parameters.Add(name, type).Value = value ?? DBNull.Value;
 }

@@ -114,6 +114,25 @@ public sealed class OrganisationTests
         Assert.Equal(2, (await repository.ListAsync(TenantA)).Count);
     }
 
+    [Fact]
+    public void Customer_Groups_Are_Case_Insensitive_And_Replaceable()
+    {
+        var organisation = NewOrganisation(TenantA, "Acme");
+
+        organisation.AddGroup("VIP");
+        organisation.AddGroup("vip");
+        Assert.Single(organisation.Groups);
+        Assert.Contains("VIP", organisation.Groups);
+
+        organisation.ReplaceGroups(["Dealer", "Partner", "dealer"]);
+        Assert.Equal(2, organisation.Groups.Count);
+        Assert.Contains("Dealer", organisation.Groups);
+        Assert.Contains("Partner", organisation.Groups);
+
+        organisation.RemoveGroup("DEALER");
+        Assert.DoesNotContain(organisation.Groups, x => x.Equals("Dealer", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static Organisation NewOrganisation(Guid tenantId, string name) =>
         new(Guid.NewGuid(), tenantId, name);
 

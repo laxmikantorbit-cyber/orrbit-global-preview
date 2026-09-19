@@ -68,7 +68,8 @@ public static class FreeTestingPublicCrmEndpoints
                     request.Email,
                     request.ProductInterest,
                     request.Notes,
-                    ParsePriority(request.Priority));
+                    ParsePriority(request.Priority),
+                    estimatedValue: request.EstimatedValue);
                 lead.AssignOwner(CrmFreeTestingAccessMiddleware.Current(context).Id);
                 await repository.AddAsync(lead, cancellationToken);
                 return Results.Ok(ToResponse(lead));
@@ -193,10 +194,10 @@ public static class FreeTestingPublicCrmEndpoints
     private static CrmLeadResponse ToResponse(Lead lead) =>
         new(lead.Id, lead.OrganisationId, lead.Title, lead.Status.ToString(),
             lead.Attribution.LeadSource, lead.ContactName, lead.MobileNumber, lead.Email,
-            lead.ProductInterest, lead.Notes, lead.Priority.ToString(),
+            lead.ProductInterest, lead.Notes, lead.EstimatedValue, lead.Priority.ToString(),
             lead.Attribution.AccountOwnerUserId, lead.UnqualifiedReason,
             lead.CreatedAtUtc, lead.UpdatedAtUtc, lead.LastContactAtUtc, lead.NextFollowUpAtUtc,
-            lead.CreatedAtUtc.ToString("O"));
+            lead.Tags.OrderBy(x => x).ToArray(), lead.CreatedAtUtc.ToString("O"));
 }
 
 public sealed record CreateCrmLeadRequest(
@@ -207,7 +208,8 @@ public sealed record CreateCrmLeadRequest(
     string? Email,
     string? ProductInterest,
     string? Notes,
-    string? Priority);
+    string? Priority,
+    decimal? EstimatedValue);
 
 public sealed record ChangeCrmLeadStatusRequest(
     string Status,
@@ -224,6 +226,7 @@ public sealed record CrmLeadResponse(
     string? Email,
     string? ProductInterest,
     string? Notes,
+    decimal? EstimatedValue,
     string Priority,
     Guid? OwnerUserId,
     string? UnqualifiedReason,
@@ -231,6 +234,7 @@ public sealed record CrmLeadResponse(
     DateTimeOffset UpdatedAtUtc,
     DateTimeOffset? LastContactAtUtc,
     DateTimeOffset? NextFollowUpAtUtc,
+    IReadOnlyList<string> Tags,
     string CreatedSort);
 public sealed record CrmLeadListResponse(
     IReadOnlyList<CrmLeadResponse> Leads);

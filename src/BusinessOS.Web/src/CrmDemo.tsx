@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import './CrmDemo.css'
 import { readiness } from './businessosApi'
 import {
+  assignCrmLead,
   bulkUpdateCrmLeads,
   changeCrmLeadStatus,
   completeCrmFollowUp,
@@ -13,6 +14,7 @@ import {
   globalCrmSearch,
   getCrmNotifications,
   setCrmDemoUserId,
+  updateCrmLeadTag,
   listCrmAccounts,
   listCrmFollowUps,
   listCrmLeads,
@@ -37,10 +39,16 @@ import { CrmLeadDrawer } from './CrmLeadDrawer'
 import { CrmWorkView } from './CrmWorkView'
 import { CrmSalesView } from './CrmSalesView'
 import { CrmTeamView } from './CrmTeamView'
+import { exportCrmSpreadsheet, pickCrmSpreadsheet, type CrmSpreadsheetFormat } from './crmSpreadsheet'
 
 type CrmView = 'overview' | 'leads' | 'pipeline' | 'accounts' | 'sales' | 'subscriptions' | 'expenses' | 'contracts' | 'projects' | 'support' | 'estimateRequests' | 'knowledgeBase' | 'utilities' | 'opportunities' | 'followups' | 'tasks' | 'reports' | 'team'
 const statuses = ['New', 'Contacted', 'Qualified', 'Converted', 'Unqualified']
 const statusLabels: Record<string, string> = { New: 'New enquiry', Contacted: 'Talked once', Qualified: 'Interested customer', Converted: 'Became customer', Unqualified: 'Not interested now' }
+
+function formatLeadValue(value?: number | null) {
+  if (value == null) return '—'
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value)
+}
 
 const referenceModuleContent: Record<string, { title: string; subtitle: string; actions: string[]; columns: string[]; rows: string[][] }> = {
   sales: {
@@ -131,10 +139,12 @@ export function CrmDemo() {
   const [sourceFilter, setSourceFilter] = useState('All')
   const [assignedFilter, setAssignedFilter] = useState('All')
   const [extraFilter, setExtraFilter] = useState('All')
+  const [tagFilter, setTagFilter] = useState('All')
   const [leadViewMode, setLeadViewMode] = useState<'list' | 'grid'>('list')
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([])
   const [bulkStatus, setBulkStatus] = useState('')
   const [bulkPriority, setBulkPriority] = useState('')
+  const [bulkOwnerId, setBulkOwnerId] = useState('')
   const [showAddLead, setShowAddLead] = useState(false)
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
   const [title, setTitle] = useState('')
@@ -144,12 +154,21 @@ export function CrmDemo() {
   const [email, setEmail] = useState('')
   const [product, setProduct] = useState('AI Repair Business Management Software')
   const [priority, setPriority] = useState('Normal')
+  const [leadValue, setLeadValue] = useState('')
   const [notes, setNotes] = useState('')
 
   const pipeline = useMemo(() => statuses.map((status) => ({
     status,
     count: leads.filter((lead) => lead.status === status).length,
   })), [leads])
+  const leadSources = useMemo(
+    () => Array.from(new Set(leads.map((lead) => lead.leadSource).filter((value): value is string => !!value))).sort((a, b) => a.localeCompare(b)),
+    [leads],
+  )
+  const leadTags = useMemo(
+    () => Array.from(new Set(leads.flatMap((lead) => lead.tags || []))).sort((a, b) => a.localeCompare(b)),
+    [leads],
+  )
 
   const filteredLeads = useMemo(() => {
     const search = query.trim().toLowerCase()
@@ -157,115 +176,94 @@ export function CrmDemo() {
       const matchesStatus = statusFilter === 'All' || lead.status === statusFilter
       const matchesSource = sourceFilter === 'All' || (lead.leadSource || '').toLowerCase() === sourceFilter.toLowerCase()
       const matchesAssigned = assignedFilter === 'All' || (assignedFilter === 'Unassigned' ? !lead.ownerUserId : lead.ownerUserId === assignedFilter)
+      const matchesTag = tagFilter === 'All' || (lead.tags || []).some((tag) => tag.toLowerCase() === tagFilter.toLowerCase())
       const matchesExtra = extraFilter === 'All'
         || (extraFilter === 'HighPriority' && ['High', 'Urgent'].includes(lead.priority || ''))
         || (extraFilter === 'WithMobile' && !!lead.mobileNumber)
+        || (extraFilter === 'WithEmail' && !!lead.email)
         || (extraFilter === 'WithNextFollowUp' && !!lead.nextFollowUpAtUtc)
-      const haystack = [lead.title, lead.leadSource, lead.contactName, lead.mobileNumber, lead.email, lead.productInterest, lead.priority].filter(Boolean).join(' ').toLowerCase()
-      return matchesStatus && matchesSource && matchesAssigned && matchesExtra && (!search || haystack.includes(search))
+        || (extraFilter === 'WithValue' && Number(lead.estimatedValue || 0) > 0)
+        || (extraFilter === 'Unassigned' && !lead.ownerUserId)
+      const haystack = [lead.title, lead.leadSource, lead.contactName, lead.mobileNumber, lead.email, lead.productInterest, lead.priority, ...(lead.tags || [])].filter(Boolean).join(' ').toLowerCase()
+      return matchesStatus && matchesSource && matchesAssigned && matchesTag && matchesExtra && (!search || haystack.includes(search))
     })
-  }, [leads, query, statusFilter, sourceFilter, assignedFilter, extraFilter])
+  }, [leads, query, statusFilter, sourceFilter, assignedFilter, tagFilter, extraFilter])
 
   const conversionRate = dashboard.totalLeads > 0 ? Math.round((dashboard.converted / dashboard.totalLeads) * 100) : 0
   const can = (permission: string) => session?.member.permissions.includes(permission) ?? false
 
-  function csvCell(value: unknown) {
-    const text = value == null ? '' : String(value)
-    return `"${text.replaceAll('"', '""')}"`
+  async function exportLeads(format: CrmSpreadsheetFormat) {
+    await exportCrmSpreadsheet('crm-leads', {
+      headers: ['Name', 'Company', 'Email', 'Phone', 'Value', 'Source', 'Status', 'Priority', 'Product', 'Tags', 'Assigned', 'Next Follow-up'],
+      rows: filteredLeads.map((lead) => {
+        const owner = teamMembers.find((member) => member.id === lead.ownerUserId)
+        return [
+          lead.contactName || lead.title, lead.title, lead.email || '', lead.mobileNumber || '',
+          lead.estimatedValue ?? '', lead.leadSource || '', lead.status, lead.priority || '',
+          lead.productInterest || '', (lead.tags || []).join('; '),
+          owner?.email || owner?.displayName || '', lead.nextFollowUpAtUtc || '',
+        ]
+      }),
+    }, format)
+    setMessage(`Exported ${filteredLeads.length} lead(s) to ${format === 'xlsx' ? 'Excel' : 'CSV'}`)
   }
 
-  function downloadCsv(filename: string, headers: string[], rows: unknown[][]) {
-    const csv = [headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    link.click()
-    URL.revokeObjectURL(url)
-  }
-
-
-  function parseCsv(text: string) {
-    const rows: string[][] = []
-    let row: string[] = [], cell = '', quoted = false
-    for (let i = 0; i < text.length; i += 1) {
-      const ch = text[i]
-      if (ch === '"' && quoted && text[i + 1] === '"') { cell += '"'; i += 1; continue }
-      if (ch === '"') { quoted = !quoted; continue }
-      if (ch === ',' && !quoted) { row.push(cell.trim()); cell = ''; continue }
-      if ((ch === '\n' || ch === '\r') && !quoted) {
-        if (ch === '\r' && text[i + 1] === '\n') i += 1
-        row.push(cell.trim()); cell = ''
-        if (row.some(Boolean)) rows.push(row)
-        row = []
-        continue
-      }
-      cell += ch
-    }
-    row.push(cell.trim())
-    if (row.some(Boolean)) rows.push(row)
-    return rows
-  }
-
-  function pickCsvFile(onText: (text: string) => void) {
-    const input = document.createElement('input')
-    input.type = 'file'; input.accept = '.csv,text/csv'
-    input.onchange = () => {
-      const file = input.files?.[0]
-      if (!file) return
-      const reader = new FileReader()
-      reader.onload = () => onText(String(reader.result || ''))
-      reader.readAsText(file)
-    }
-    input.click()
-  }
-
-  function exportLeadsCsv() {
-    downloadCsv('crm-leads.csv', ['Name', 'Company', 'Email', 'Phone', 'Source', 'Status', 'Priority', 'Product', 'Next Follow-up'],
-      filteredLeads.map((lead) => [lead.contactName || lead.title, lead.title, lead.email || '', lead.mobileNumber || '', lead.leadSource || '', lead.status, lead.priority || '', lead.productInterest || '', lead.nextFollowUpAtUtc || '']))
-    setMessage(`Exported ${filteredLeads.length} lead(s) to CSV`)
-  }
-
-
-  function importLeadsCsv() {
-    pickCsvFile((text) => {
-      const [header, ...rows] = parseCsv(text)
-      if (!header || rows.length === 0) { setMessage('CSV has no lead rows'); return }
-      const keys = header.map((x) => x.toLowerCase().replace(/[^a-z0-9]/g, ''))
+  function importLeads() {
+    pickCrmSpreadsheet((sheetRows, fileName) => {
+      const [header, ...rows] = sheetRows
+      if (!header || rows.length === 0) { setMessage('Spreadsheet has no lead rows'); return }
+      const keys = header.map((cell) => cell.toLowerCase().replace(/[^a-z0-9]/g, ''))
       const value = (row: string[], names: string[]) => {
-        const index = names.map((n) => keys.indexOf(n)).find((i) => i >= 0) ?? -1
+        const index = names.map((name) => keys.indexOf(name)).find((item) => item >= 0) ?? -1
         return index >= 0 ? row[index] : ''
       }
       void (async () => {
         setLoading(true)
         let created = 0
+        let failed = 0
         try {
           for (const row of rows) {
-            const company = value(row, ['company','business','name','customer','lead'])
-            const person = value(row, ['contact','contactperson','person','owner'])
-            const phone = value(row, ['phone','mobile','mobilenumber'])
-            const mail = value(row, ['email','mail'])
+            const company = value(row, ['company', 'business', 'name', 'customer', 'lead'])
+            const person = value(row, ['contact', 'contactperson', 'person'])
+            const phone = value(row, ['phone', 'mobile', 'mobilenumber'])
+            const mail = value(row, ['email', 'mail'])
             if (!company && !person && !phone && !mail) continue
-            await createCrmLead({
-              title: company || person || phone || mail,
-              contactName: person || undefined,
-              mobileNumber: phone || undefined,
-              email: mail || undefined,
-              leadSource: value(row, ['source','leadsource']) || 'Import',
-              productInterest: value(row, ['product','requirement','interest']) || undefined,
-              priority: value(row, ['priority']) || 'Normal',
-              notes: value(row, ['notes','remark','remarks']) || undefined,
-            })
-            created += 1
+            try {
+              const rawValue = value(row, ['value', 'leadvalue', 'estimatedvalue', 'amount']).replace(/[^0-9.-]/g, '')
+              const parsedValue = rawValue ? Number(rawValue) : null
+              const lead = await createCrmLead({
+                title: company || person || phone || mail,
+                contactName: person || undefined,
+                mobileNumber: phone || undefined,
+                email: mail || undefined,
+                leadSource: value(row, ['source', 'leadsource']) || 'Import',
+                productInterest: value(row, ['product', 'requirement', 'interest']) || undefined,
+                priority: value(row, ['priority']) || 'Normal',
+                notes: value(row, ['notes', 'remark', 'remarks']) || undefined,
+                estimatedValue: parsedValue != null && Number.isFinite(parsedValue) && parsedValue >= 0 ? parsedValue : null,
+              })
+              const assigned = value(row, ['assigned', 'assignee', 'assignedto', 'owner']).trim().toLowerCase()
+              const owner = assigned ? teamMembers.find((member) => member.active && [member.id, member.email, member.displayName].some((item) => item.toLowerCase() === assigned)) : undefined
+              if (owner && can('AssignLead')) await assignCrmLead(lead.id, owner.id)
+              const importedStatus = value(row, ['status', 'leadstatus'])
+              if (importedStatus && importedStatus !== 'New' && importedStatus !== 'Converted' && statuses.includes(importedStatus) && can('EditLead')) {
+                await changeCrmLeadStatus(lead.id, importedStatus, importedStatus === 'Unqualified' ? 'Imported as unqualified' : undefined)
+              }
+              if (can('EditLead')) {
+                for (const tag of value(row, ['tags', 'tag']).split(/[;,|]/).map((item) => item.trim()).filter(Boolean)) {
+                  await updateCrmLeadTag(lead.id, tag)
+                }
+              }
+              created += 1
+            } catch { failed += 1 }
           }
-          setMessage(`Imported ${created} lead(s) from CSV`)
+          setMessage(`Imported ${created} lead(s) from ${fileName}${failed ? `; ${failed} failed` : ''}`)
           await refresh()
         } catch (error) {
           setMessage(error instanceof Error ? error.message : String(error))
         } finally { setLoading(false) }
       })()
-    })
+    }, setMessage)
   }
 
   function toggleSelectedLead(id: string, checked: boolean) {
@@ -282,17 +280,19 @@ export function CrmDemo() {
 
   async function applyBulkLeadUpdate() {
     if (selectedLeadIds.length === 0) { setMessage('Select at least one lead first'); return }
-    if (!bulkStatus && !bulkPriority) { setMessage('Choose a bulk status or priority first'); return }
+    if (!bulkStatus && !bulkPriority && !bulkOwnerId) { setMessage('Choose a bulk status, priority or assignee first'); return }
     setLoading(true)
     try {
       const result = await bulkUpdateCrmLeads({
         leadIds: selectedLeadIds,
         status: bulkStatus || undefined,
         priority: bulkPriority || undefined,
+        changeOwner: !!bulkOwnerId,
+        ownerUserId: bulkOwnerId === '__unassigned__' ? null : bulkOwnerId || undefined,
         note: 'Updated from CRM lead bulk action',
       })
       setMessage(`Bulk updated ${result.updated.length} lead(s)${result.failed.length ? `, ${result.failed.length} failed` : ''}`)
-      setSelectedLeadIds([]); setBulkStatus(''); setBulkPriority('')
+      setSelectedLeadIds([]); setBulkStatus(''); setBulkPriority(''); setBulkOwnerId('')
       await refresh()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error)); setLoading(false)
@@ -361,9 +361,10 @@ export function CrmDemo() {
       const created = await createCrmLead({
         title: title.trim(), leadSource: source, contactName, mobileNumber: mobile,
         email, productInterest: product, notes, priority,
+        estimatedValue: leadValue.trim() ? Number(leadValue) : null,
       })
       setShowAddLead(false)
-      setTitle(''); setContactName(''); setMobile(''); setEmail(''); setNotes('')
+      setTitle(''); setContactName(''); setMobile(''); setEmail(''); setLeadValue(''); setNotes('')
       setMessage('New customer enquiry added')
       await refresh()
       setSelectedLeadId(created.id)
@@ -377,6 +378,18 @@ export function CrmDemo() {
     try {
       await changeCrmLeadStatus(leadId, status, status === 'Unqualified' ? 'Not ready now' : undefined)
       setMessage(`Customer enquiry moved to ${statusLabels[status] ?? status}`)
+      await refresh()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error))
+      setLoading(false)
+    }
+  }
+
+  async function reassignLead(leadId: string, ownerUserId: string | null) {
+    setLoading(true)
+    try {
+      await assignCrmLead(leadId, ownerUserId)
+      setMessage(ownerUserId ? 'Lead assignee updated' : 'Lead unassigned')
       await refresh()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
@@ -466,9 +479,9 @@ export function CrmDemo() {
         <header className="crm2-topbar crm2-ref-topbar">
           <button className="crm2-ref-menu" aria-label="Toggle menu">☰</button>
           <label className="crm2-ref-search"><input value={globalQuery} onChange={(e) => setGlobalQuery(e.target.value)} placeholder="Search customers, leads, opportunities..." /><span>{globalSearching ? '...' : '⌕'}</span></label>
-          <button className="crm2-ref-plus" onClick={() => setShowAddLead(true)} aria-label="Add new">+</button>
+          {can('CreateLead') ? <button className="crm2-ref-plus" onClick={() => setShowAddLead(true)} aria-label="Add new lead">+</button> : null}
           <div className="crm2-ref-toolbar-spacer" />
-          <button className="crm2-ref-icon" title="Export leads" onClick={exportLeadsCsv}>⌯</button>
+          <button className="crm2-ref-icon" title="Export leads CSV" onClick={() => void exportLeads('csv')}>⌯</button>
           <button className="crm2-ref-icon" title="Tasks" onClick={() => setView('tasks')}>✓</button>
           <button className="crm2-ref-avatar" title={session?.member.displayName ?? 'User'} onDoubleClick={() => session ? void switchUser(session.member.id) : undefined}></button>
           <button className="crm2-ref-icon" title="Timer">◷</button>
@@ -540,28 +553,46 @@ export function CrmDemo() {
         {view === 'leads' ? (
           <section className="crm2-ref-list-page">
             <div className="crm2-ref-action-row">
-              <button className="crm2-ref-primary" onClick={() => setShowAddLead(true)}>+ New Lead</button>
-              <button className="crm2-ref-primary" onClick={importLeadsCsv}>Import Leads</button>
+              {can('CreateLead') ? <button className="crm2-ref-primary" onClick={() => setShowAddLead(true)}>+ New Lead</button> : null}
+              {can('CreateLead') ? <button className="crm2-ref-primary" onClick={importLeads}>Import CSV / Excel</button> : null}
               <button className={`crm2-ref-square ${leadViewMode === 'list' ? 'active' : ''}`} onClick={() => setLeadViewMode('list')}>☰</button>
               <button className={`crm2-ref-square ${leadViewMode === 'grid' ? 'active' : ''}`} onClick={() => setLeadViewMode('grid')}>▦</button>
             </div>
             <section className="crm2-ref-filter-card">
               <strong>Filter by</strong>
               <div className="crm2-ref-filter-grid">
-                <select value={assignedFilter} onChange={(e) => setAssignedFilter(e.target.value)}><option value="All">Assigned</option><option value="Unassigned">Unassigned</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select>
-                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="All">New Lead, Follow Up, Demo...</option>{statuses.map((status) => <option key={status} value={status}>{statusLabels[status] || status}</option>)}</select>
-                <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}><option value="All">Source</option><option>WhatsApp</option><option>Website</option><option>Calling</option><option>Referral</option><option>Partner</option><option>Facebook</option><option>Instagram</option><option>Other</option></select>
-                <select value={extraFilter} onChange={(e) => setExtraFilter(e.target.value)}><option value="All">Additional Filters</option><option value="HighPriority">High priority</option><option value="WithMobile">With mobile</option><option value="WithNextFollowUp">With next follow-up</option></select>
+                <select value={assignedFilter} onChange={(e) => setAssignedFilter(e.target.value)}><option value="All">All assignees</option><option value="Unassigned">Unassigned</option>{teamMembers.filter((member) => member.active).map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select>
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="All">All statuses</option>{statuses.map((status) => <option key={status} value={status}>{statusLabels[status] || status}</option>)}</select>
+                <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}><option value="All">All sources</option>{leadSources.map((leadSource) => <option key={leadSource}>{leadSource}</option>)}</select>
+                <select value={tagFilter} onChange={(e) => setTagFilter(e.target.value)}><option value="All">All tags</option>{leadTags.map((tag) => <option key={tag}>{tag}</option>)}</select>
+                <select value={extraFilter} onChange={(e) => setExtraFilter(e.target.value)}><option value="All">Additional Filters</option><option value="HighPriority">High priority</option><option value="WithMobile">With mobile</option><option value="WithEmail">With email</option><option value="WithNextFollowUp">With next follow-up</option><option value="WithValue">With lead value</option><option value="Unassigned">Unassigned</option></select>
               </div>
             </section>
             <section className="crm2-ref-table-card">
-              <div className="crm2-ref-table-tools"><select><option>25</option><option>50</option></select><button onClick={exportLeadsCsv}>Export</button><select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)}><option value="">Bulk Status</option><option value="New">New</option><option value="Contacted">Contacted</option><option value="Qualified">Qualified</option><option value="Unqualified">Unqualified</option></select><select value={bulkPriority} onChange={(e) => setBulkPriority(e.target.value)}><option value="">Bulk Priority</option><option>Low</option><option>Normal</option><option>High</option><option>Urgent</option></select><button onClick={() => void applyBulkLeadUpdate()}>Bulk Actions</button><button onClick={refresh}>Refresh</button><span /><label><b>⌕</b><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search..." /></label></div>
-              <div className="crm2-ref-leads-head"><span><input type="checkbox" checked={filteredLeads.length > 0 && selectedLeadIds.length === filteredLeads.length} onChange={(e) => setSelectedLeadIds(e.target.checked ? filteredLeads.map((lead) => lead.id) : [])} /></span><span>#</span><span>Name</span><span>Company</span><span>Email</span><span>Phone</span><span>Value</span><span>Tags</span><span>Assigned</span><span>Status</span></div>
-              {filteredLeads.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : leadViewMode === 'grid' ? <div className="crm2-ref-lead-grid">{filteredLeads.map((lead) => <article key={lead.id} onClick={() => setSelectedLeadId(lead.id)}><strong>{lead.contactName || lead.title}</strong><span>{lead.title}</span><small>{lead.mobileNumber || lead.email || 'No contact'}</small><em>{statusLabels[lead.status] || lead.status}</em></article>)}</div> : filteredLeads.map((lead, index) => (
-                <article className="crm2-ref-leads-row" key={lead.id} onClick={() => setSelectedLeadId(lead.id)}>
-                  <span><input type="checkbox" checked={selectedLeadIds.includes(lead.id)} onClick={(e) => e.stopPropagation()} onChange={(e) => toggleSelectedLead(lead.id, e.target.checked)} /></span><span>{1261 - index}</span><span><a>{lead.contactName || lead.title}</a></span><span>{lead.title}</span><span>{lead.email || '-'}</span><span>{lead.mobileNumber || '-'}</span><span>{lead.productInterest ? '₹29,999.00' : '-'}</span><span><em>{lead.priority || 'Normal'}</em></span><span><i className="crm2-ref-avatar-mini">{(teamMembers.find((member) => member.id === lead.ownerUserId)?.displayName || lead.contactName || lead.title).slice(0,1).toUpperCase()}</i></span><span><select value={lead.status} onClick={(e) => e.stopPropagation()} onChange={(e) => void moveLead(lead.id, e.target.value)}>{statuses.map((status) => <option key={status}>{status}</option>)}</select></span>
+              <div className="crm2-ref-table-tools">
+                <select><option>25</option><option>50</option></select>
+                <button onClick={() => void exportLeads('csv')}>Export CSV</button>
+                <button onClick={() => void exportLeads('xlsx')}>Export Excel</button>
+                {can('EditLead') ? <select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)}><option value="">Bulk Status</option><option value="New">New</option><option value="Contacted">Contacted</option><option value="Qualified">Qualified</option><option value="Unqualified">Unqualified</option></select> : null}
+                {can('EditLead') ? <select value={bulkPriority} onChange={(e) => setBulkPriority(e.target.value)}><option value="">Bulk Priority</option><option>Low</option><option>Normal</option><option>High</option><option>Urgent</option></select> : null}
+                {can('AssignLead') ? <select value={bulkOwnerId} onChange={(e) => setBulkOwnerId(e.target.value)}><option value="">Bulk Assignee</option><option value="__unassigned__">Unassigned</option>{teamMembers.filter((member) => member.active).map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select> : null}
+                {can('EditLead') || can('AssignLead') ? <button disabled={loading} onClick={() => void applyBulkLeadUpdate()}>Apply Bulk</button> : null}
+                <button onClick={refresh}>Refresh</button><span /><label><b>⌕</b><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search..." /></label>
+              </div>
+              <div className="crm2-ref-leads-head"><span><input type="checkbox" checked={filteredLeads.length > 0 && filteredLeads.every((lead) => selectedLeadIds.includes(lead.id))} onChange={(e) => setSelectedLeadIds((ids) => e.target.checked ? Array.from(new Set([...ids, ...filteredLeads.map((lead) => lead.id)])) : ids.filter((id) => !filteredLeads.some((lead) => lead.id === id)))} /></span><span>#</span><span>Name</span><span>Company</span><span>Email</span><span>Phone</span><span>Value</span><span>Tags</span><span>Assigned</span><span>Status</span></div>
+              {filteredLeads.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : leadViewMode === 'grid' ? <div className="crm2-ref-lead-grid">{filteredLeads.map((lead) => {
+                const owner = teamMembers.find((member) => member.id === lead.ownerUserId)
+                return <article key={lead.id} onClick={() => setSelectedLeadId(lead.id)}><strong>{lead.contactName || lead.title}</strong><span>{lead.title}</span><small>{lead.mobileNumber || lead.email || 'No contact'}</small><small>{formatLeadValue(lead.estimatedValue)} · {owner?.displayName || 'Unassigned'}</small><div>{(lead.tags || []).map((tag) => <em key={tag}>{tag}</em>)}</div><em>{statusLabels[lead.status] || lead.status}</em></article>
+              })}</div> : filteredLeads.map((lead, index) => {
+                const owner = teamMembers.find((member) => member.id === lead.ownerUserId)
+                return <article className="crm2-ref-leads-row" key={lead.id} onClick={() => setSelectedLeadId(lead.id)}>
+                  <span><input type="checkbox" checked={selectedLeadIds.includes(lead.id)} onClick={(e) => e.stopPropagation()} onChange={(e) => toggleSelectedLead(lead.id, e.target.checked)} /></span>
+                  <span>{index + 1}</span><span><a>{lead.contactName || lead.title}</a></span><span>{lead.title}</span><span>{lead.email || '-'}</span><span>{lead.mobileNumber || '-'}</span><span>{formatLeadValue(lead.estimatedValue)}</span>
+                  <span>{(lead.tags || []).length ? (lead.tags || []).map((tag) => <em key={tag}>{tag}</em>) : <small>—</small>}</span>
+                  <span>{can('AssignLead') ? <select value={lead.ownerUserId || ''} disabled={loading} onClick={(e) => e.stopPropagation()} onChange={(e) => void reassignLead(lead.id, e.target.value || null)}><option value="">Unassigned</option>{teamMembers.filter((member) => member.active).map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select> : <i className="crm2-ref-avatar-mini" title={owner?.displayName || 'Unassigned'}>{(owner?.displayName || 'U').slice(0, 1).toUpperCase()}</i>}</span>
+                  <span><select value={lead.status} disabled={loading || !can('EditLead') || lead.status === 'Converted'} onClick={(e) => e.stopPropagation()} onChange={(e) => void moveLead(lead.id, e.target.value)}>{statuses.filter((status) => status !== 'Converted' || lead.status === 'Converted').map((status) => <option key={status}>{status}</option>)}</select></span>
                 </article>
-              ))}
+              })}
             </section>
           </section>
         ) : null}
@@ -622,6 +653,7 @@ export function CrmDemo() {
                 <label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
                 <label>Enquiry source<select value={source} onChange={(e) => setSource(e.target.value)}><option>WhatsApp</option><option>Website</option><option>Referral</option><option>Partner</option><option>Calling</option><option>Facebook</option><option>Instagram</option><option>Other</option></select></label>
                 <label>Priority<select value={priority} onChange={(e) => setPriority(e.target.value)}><option>Low</option><option>Normal</option><option>High</option><option>Urgent</option></select></label>
+                <label>Lead value (₹)<input type="number" min="0" value={leadValue} onChange={(e) => setLeadValue(e.target.value)} placeholder="e.g. 29999" /></label>
               </div>
               <label>Product interest<input value={product} onChange={(e) => setProduct(e.target.value)} placeholder="Product / service" /></label>
               <label>Initial notes<textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} placeholder="What customer wants, budget, and what to do next." /></label>

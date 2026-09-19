@@ -38,6 +38,8 @@ export type CrmLead = {
   email?: string | null
   productInterest?: string | null
   notes?: string | null
+  estimatedValue?: number | null
+  tags?: string[]
   priority?: string
   ownerUserId?: string | null
   unqualifiedReason?: string | null
@@ -93,7 +95,7 @@ export type CrmTask = {
 }
 
 export type CrmLeadWorkspace = {
-  lead: CrmLead & { tags?: string[] }
+  lead: CrmLead
   activities: CrmActivity[]
   followUps: CrmFollowUp[]
   tasks: CrmTask[]
@@ -130,6 +132,7 @@ export async function createCrmLead(input: {
   productInterest?: string
   notes?: string
   priority?: string
+  estimatedValue?: number | null
 }) {
   const response = await crmFetch(`/leads`, {
     method: 'POST',
@@ -159,6 +162,7 @@ export async function updateCrmLeadProfile(leadId: string, input: {
   email?: string
   productInterest?: string
   notes?: string
+  estimatedValue?: number | null
 }) {
   const response = await crmFetch(`/leads/${leadId}/profile`, {
     method: 'POST',
@@ -263,6 +267,7 @@ export type CrmAccount = {
   status: string
   primaryContact?: CrmContact | null
   contacts: CrmContact[]
+  groups: string[]
 }
 
 export type CrmOpportunity = {
@@ -292,6 +297,7 @@ export async function createCrmAccount(input: {
   contactName?: string
   email?: string
   phone?: string
+  groups?: string[]
 }) {
   const response = await crmFetch(`/accounts`, {
     method: 'POST',
@@ -299,6 +305,36 @@ export async function createCrmAccount(input: {
     body: JSON.stringify(input),
   })
   return parseResponse<CrmAccount>(response)
+}
+
+export async function updateCrmAccountProfile(accountId: string, input: {
+  name: string
+  legalName?: string
+  gstin?: string
+  displayCode?: string
+  status?: string
+  groups?: string[]
+}) {
+  const response = await crmFetch(`/accounts/${accountId}/profile`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmAccount>(response)
+}
+
+export async function bulkUpdateCrmAccounts(input: {
+  accountIds: string[]
+  status?: string
+  addGroup?: string
+  removeGroup?: string
+}) {
+  const response = await crmFetch('/accounts/bulk', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<{ updated: string[]; failed: Array<{ accountId: string; error: string }> }>(response)
 }
 
 export async function addCrmContact(accountId: string, input: {

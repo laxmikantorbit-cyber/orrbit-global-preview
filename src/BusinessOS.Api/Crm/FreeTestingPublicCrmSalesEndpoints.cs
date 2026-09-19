@@ -44,6 +44,8 @@ public static class FreeTestingPublicCrmSalesEndpoints
                 var account = new Organisation(Guid.NewGuid(), DemoTenantId, request.Name,
                     request.LegalName, request.Gstin, request.DisplayCode);
                 account.AddRole(OrganisationRole.Customer);
+                if (request.Groups is not null)
+                    foreach (var customerGroup in request.Groups.Where(x => !string.IsNullOrWhiteSpace(x))) account.AddGroup(customerGroup);
                 if (!string.IsNullOrWhiteSpace(request.ContactName))
                     account.AddContact(new ContactPerson(Guid.NewGuid(), request.ContactName,
                         request.Email, request.Phone, true));
@@ -88,6 +90,7 @@ public static class FreeTestingPublicCrmSalesEndpoints
                     return Results.Conflict(new ErrorResponse($"Duplicate customer prevented: {duplicate.Value.Reason} matches '{duplicate.Value.Account.Name}'."));
                 account.UpdateProfile(request.Name, request.LegalName, request.Gstin);
                 account.SetDisplayCode(request.DisplayCode);
+                if (request.Groups is not null) account.ReplaceGroups(request.Groups);
                 if (!string.IsNullOrWhiteSpace(request.Status))
                 {
                     if (!Enum.TryParse<OrganisationStatus>(request.Status, true, out var status))
@@ -103,6 +106,58 @@ public static class FreeTestingPublicCrmSalesEndpoints
             {
                 return Results.BadRequest(new ErrorResponse(ex.Message));
             }
+        });
+
+        group.MapPost("/accounts/bulk", async (
+            CrmBulkAccountRequest request,
+            IConfiguration configuration,
+            IHostEnvironment environment,
+            HttpContext context,
+            ICrmAccountStore accounts,
+            ICrmManagementStore management,
+            CancellationToken cancellationToken) =>
+        {
+            if (!Enabled(configuration, environment)) return Disabled();
+            if (request.AccountIds is null || request.AccountIds.Count == 0)
+                return Results.BadRequest(new ErrorResponse("At least one customer id is required."));
+
+            OrganisationStatus? status = null;
+            if (!string.IsNullOrWhiteSpace(request.Status))
+            {
+                if (!Enum.TryParse<OrganisationStatus>(request.Status, true, out var parsedStatus))
+                    return Results.BadRequest(new ErrorResponse("Valid customer status is required."));
+                status = parsedStatus;
+            }
+            if (!status.HasValue && string.IsNullOrWhiteSpace(request.AddGroup) && string.IsNullOrWhiteSpace(request.RemoveGroup))
+                return Results.BadRequest(new ErrorResponse("Choose a status or group bulk action."));
+
+            var updated = new List<Guid>();
+            var failed = new List<CrmBulkAccountFailure>();
+            foreach (var accountId in request.AccountIds.Distinct())
+            {
+                var account = await accounts.GetAsync(DemoTenantId, accountId, cancellationToken);
+                if (account is null)
+                {
+                    failed.Add(new CrmBulkAccountFailure(accountId, "Customer not found."));
+                    continue;
+                }
+                try
+                {
+                    if (status.HasValue) account.SetStatus(status.Value);
+                    if (!string.IsNullOrWhiteSpace(request.AddGroup)) account.AddGroup(request.AddGroup);
+                    if (!string.IsNullOrWhiteSpace(request.RemoveGroup)) account.RemoveGroup(request.RemoveGroup);
+                    await accounts.SaveAsync(account, cancellationToken);
+                    await AuditAsync(management, context, "AccountBulkUpdated", "Account", account.Id,
+                        $"status={account.Status}; addGroup={request.AddGroup ?? "-"}; removeGroup={request.RemoveGroup ?? "-"}",
+                        cancellationToken);
+                    updated.Add(account.Id);
+                }
+                catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+                {
+                    failed.Add(new CrmBulkAccountFailure(accountId, ex.Message));
+                }
+            }
+            return Results.Ok(new CrmBulkAccountResponse(updated, failed));
         });
 
         group.MapPost("/accounts/{accountId:guid}/contacts", async (
@@ -394,7 +449,8 @@ public static class FreeTestingPublicCrmSalesEndpoints
         x.Id, x.Name, x.LegalName, x.Gstin, x.DisplayCode, x.Status.ToString(),
         x.PrimaryContact is null ? null : new CrmContactResponse(x.PrimaryContact.Id,
             x.PrimaryContact.Name, x.PrimaryContact.Email, x.PrimaryContact.Phone, true),
-        x.Contacts.Select(c => new CrmContactResponse(c.Id, c.Name, c.Email, c.Phone, c.IsPrimary)).ToArray());
+        x.Contacts.Select(c => new CrmContactResponse(c.Id, c.Name, c.Email, c.Phone, c.IsPrimary)).ToArray(),
+        x.Groups.OrderBy(group => group).ToArray());
 
     private static CrmOpportunityResponse ToOpportunity(Opportunity x) => new(
         x.Id, x.OrganisationId, x.OriginatingLeadId, x.Title, x.Stage.ToString(),
@@ -486,14 +542,27 @@ public sealed record CreateCrmAccountRequest(
     string? DisplayCode,
     string? ContactName,
     string? Email,
-    string? Phone);
+    string? Phone,
+    IReadOnlyList<string>? Groups = null);
 
 public sealed record UpdateCrmAccountRequest(
     string Name,
     string? LegalName,
     string? Gstin,
     string? DisplayCode,
-    string? Status);
+    string? Status,
+    IReadOnlyList<string>? Groups = null);
+
+public sealed record CrmBulkAccountRequest(
+    IReadOnlyList<Guid> AccountIds,
+    string? Status,
+    string? AddGroup,
+    string? RemoveGroup);
+
+public sealed record CrmBulkAccountFailure(Guid AccountId, string Error);
+public sealed record CrmBulkAccountResponse(
+    IReadOnlyList<Guid> Updated,
+    IReadOnlyList<CrmBulkAccountFailure> Failed);
 
 public sealed record AddCrmContactRequest(
     string Name,
@@ -544,7 +613,8 @@ public sealed record CrmAccountResponse(
     string? DisplayCode,
     string Status,
     CrmContactResponse? PrimaryContact,
-    IReadOnlyList<CrmContactResponse> Contacts);
+    IReadOnlyList<CrmContactResponse> Contacts,
+    IReadOnlyList<string> Groups);
 public sealed record CrmOpportunityResponse(
     Guid Id,
     Guid AccountId,

@@ -156,8 +156,10 @@ CREATE TABLE IF NOT EXISTS businessos_crm.leads (
     updated_at_utc timestamptz NOT NULL,
     last_contact_at_utc timestamptz NULL,
     next_follow_up_at_utc timestamptz NULL,
-    tags jsonb NOT NULL DEFAULT '[]'::jsonb
+    tags jsonb NOT NULL DEFAULT '[]'::jsonb,
+    estimated_value numeric(18,2) NULL
 );
+ALTER TABLE businessos_crm.leads ADD COLUMN IF NOT EXISTS estimated_value numeric(18,2) NULL;
 CREATE INDEX IF NOT EXISTS ix_businessos_crm_leads_tenant ON businessos_crm.leads(tenant_id, created_at_utc DESC);
 CREATE TABLE IF NOT EXISTS businessos_crm.activities (
     id uuid PRIMARY KEY,
@@ -208,8 +210,10 @@ CREATE TABLE IF NOT EXISTS businessos_crm.accounts (
     status integer NOT NULL,
     roles jsonb NOT NULL DEFAULT '[]'::jsonb,
     contacts jsonb NOT NULL DEFAULT '[]'::jsonb,
-    addresses jsonb NOT NULL DEFAULT '[]'::jsonb
+    addresses jsonb NOT NULL DEFAULT '[]'::jsonb,
+    groups jsonb NOT NULL DEFAULT '[]'::jsonb
 );
+ALTER TABLE businessos_crm.accounts ADD COLUMN IF NOT EXISTS groups jsonb NOT NULL DEFAULT '[]'::jsonb;
 CREATE INDEX IF NOT EXISTS ix_businessos_crm_accounts_tenant ON businessos_crm.accounts(tenant_id, name);
 CREATE TABLE IF NOT EXISTS businessos_crm.opportunities (
     id uuid PRIMARY KEY,

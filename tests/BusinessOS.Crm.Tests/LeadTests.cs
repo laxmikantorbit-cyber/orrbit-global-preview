@@ -78,6 +78,31 @@ public sealed class LeadTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => repository.AddAsync(second));
     }
 
+    [Fact]
+    public void Lead_Value_Can_Be_Set_Cleared_And_Cannot_Be_Negative()
+    {
+        var lead = NewLead(TenantA);
+
+        lead.SetEstimatedValue(29999m);
+        Assert.Equal(29999m, lead.EstimatedValue);
+
+        lead.SetEstimatedValue(null);
+        Assert.Null(lead.EstimatedValue);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => lead.SetEstimatedValue(-1m));
+    }
+
+    [Fact]
+    public void Lead_Restore_Preserves_Estimated_Value()
+    {
+        var lead = Lead.Restore(
+            Guid.NewGuid(), TenantA, Guid.NewGuid(), "Repair Software", Attribution(),
+            null, null, null, null, null, LeadPriority.Normal, LeadStatus.New, null,
+            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, null, [], 17700m);
+
+        Assert.Equal(17700m, lead.EstimatedValue);
+    }
+
     private static Lead NewLead(Guid tenantId) =>
         new(Guid.NewGuid(), tenantId, Guid.NewGuid(), "Repair Software", Attribution());
 

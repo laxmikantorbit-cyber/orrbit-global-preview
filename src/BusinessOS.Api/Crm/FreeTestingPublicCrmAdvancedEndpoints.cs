@@ -82,9 +82,10 @@ public static class FreeTestingPublicCrmAdvancedEndpoints
                 return Results.BadRequest(new ErrorResponse("At least one lead id is required."));
             var member = CrmFreeTestingAccessMiddleware.Current(context);
             CrmTeamMember? newOwner = null;
-            if (request.OwnerUserId.HasValue)
+            if (request.ChangeOwner && !CrmRolePolicy.Allows(member.Role, CrmPermission.AssignLead))
+                return Forbidden("Lead assignment permission is required.");
+            if (request.ChangeOwner && request.OwnerUserId.HasValue)
             {
-                if (!CrmRolePolicy.Allows(member.Role, CrmPermission.AssignLead)) return Forbidden("Lead assignment permission is required.");
                 newOwner = await team.GetAsync(DemoTenantId, request.OwnerUserId.Value, ct);
                 if (newOwner is null || !newOwner.Active) return Results.BadRequest(new ErrorResponse("Assigned CRM user must be active."));
             }

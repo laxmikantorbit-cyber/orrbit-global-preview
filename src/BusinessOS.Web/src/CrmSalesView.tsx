@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react'
 import {
   addCrmContact,
+  bulkUpdateCrmAccounts,
   changeCrmOpportunityStage,
   createCrmAccount,
   createCrmOpportunity,
+  updateCrmAccountProfile,
   type CrmAccount,
   type CrmOpportunity,
 } from './crmApi'
+import { exportCrmSpreadsheet, pickCrmSpreadsheet, type CrmSpreadsheetFormat } from './crmSpreadsheet'
 
 type Props = {
   view: 'accounts' | 'opportunities'
@@ -21,58 +24,13 @@ type Props = {
 
 const stages = ['Discovery', 'SolutionFit', 'Proposal', 'Negotiation', 'Won', 'Lost']
 
-
-function csvCell(value: unknown) {
-  const text = value == null ? '' : String(value)
-  return `"${text.replaceAll('"', '""')}"`
-}
-
-function downloadCsv(filename: string, headers: string[], rows: unknown[][]) {
-  const csv = [headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\n')
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url; link.download = filename; link.click(); URL.revokeObjectURL(url)
-}
-
-function parseCsv(text: string) {
-  const rows: string[][] = []
-  let row: string[] = [], cell = '', quoted = false
-  for (let i = 0; i < text.length; i += 1) {
-    const ch = text[i]
-    if (ch === '"' && quoted && text[i + 1] === '"') { cell += '"'; i += 1; continue }
-    if (ch === '"') { quoted = !quoted; continue }
-    if (ch === ',' && !quoted) { row.push(cell.trim()); cell = ''; continue }
-    if ((ch === '\n' || ch === '\r') && !quoted) {
-      if (ch === '\r' && text[i + 1] === '\n') i += 1
-      row.push(cell.trim()); cell = ''
-      if (row.some(Boolean)) rows.push(row)
-      row = []
-      continue
-    }
-    cell += ch
-  }
-  row.push(cell.trim())
-  if (row.some(Boolean)) rows.push(row)
-  return rows
-}
-
-function pickCsvFile(onText: (text: string) => void) {
-  const input = document.createElement('input')
-  input.type = 'file'; input.accept = '.csv,text/csv'
-  input.onchange = () => {
-    const file = input.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => onText(String(reader.result || ''))
-    reader.readAsText(file)
-  }
-  input.click()
-}
-
 function money(value: number, currency: string) {
   try { return new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value) }
   catch { return `${currency} ${value.toLocaleString('en-IN')}` }
+}
+
+function parseGroups(value: string) {
+  return Array.from(new Set(value.split(/[;,|]/).map((group) => group.trim()).filter(Boolean)))
 }
 
 export function CrmSalesView({ view, accounts, opportunities, busy, refresh, notify, canManageAccounts, canManageOpportunities }: Props) {
@@ -83,7 +41,21 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
   const [contactName, setContactName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
+  const [accountGroups, setAccountGroups] = useState('')
   const [contactDraft, setContactDraft] = useState('')
+  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([])
+  const [customerQuery, setCustomerQuery] = useState('')
+  const [customerStatusFilter, setCustomerStatusFilter] = useState('Active')
+  const [customerGroupFilter, setCustomerGroupFilter] = useState('All')
+  const [bulkCustomerStatus, setBulkCustomerStatus] = useState('')
+  const [bulkCustomerGroup, setBulkCustomerGroup] = useState('')
+  const [bulkCustomerGroupMode, setBulkCustomerGroupMode] = useState<'add' | 'remove'>('add')
+  const [detailName, setDetailName] = useState('')
+  const [detailLegalName, setDetailLegalName] = useState('')
+  const [detailGstin, setDetailGstin] = useState('')
+  const [detailCode, setDetailCode] = useState('')
+  const [detailStatus, setDetailStatus] = useState('Active')
+  const [detailGroups, setDetailGroups] = useState('')
   const [dealAccountId, setDealAccountId] = useState('')
   const [dealTitle, setDealTitle] = useState('')
   const [dealValue, setDealValue] = useState('29999')
@@ -94,6 +66,24 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
     () => accounts.find((item) => item.id === selectedAccountId) ?? null,
     [accounts, selectedAccountId],
   )
+  const customerGroups = useMemo(
+    () => Array.from(new Set(accounts.flatMap((account) => account.groups || []))).sort((a, b) => a.localeCompare(b)),
+    [accounts],
+  )
+  const filteredAccounts = useMemo(() => {
+    const search = customerQuery.trim().toLowerCase()
+    return accounts.filter((account) => {
+      const groups = account.groups || []
+      const matchesStatus = customerStatusFilter === 'All' || account.status === customerStatusFilter
+      const matchesGroup = customerGroupFilter === 'All' || groups.some((group) => group.toLowerCase() === customerGroupFilter.toLowerCase())
+      const haystack = [
+        account.name, account.legalName, account.gstin, account.displayCode,
+        account.primaryContact?.name, account.primaryContact?.email, account.primaryContact?.phone,
+        ...groups,
+      ].filter(Boolean).join(' ').toLowerCase()
+      return matchesStatus && matchesGroup && (!search || haystack.includes(search))
+    })
+  }, [accounts, customerGroupFilter, customerQuery, customerStatusFilter])
   const totalPipeline = opportunities
     .filter((item) => !['Won', 'Lost'].includes(item.stage))
     .reduce((sum, item) => sum + item.estimatedValue, 0)
@@ -114,8 +104,9 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
       await createCrmAccount({
         name: accountName.trim(), contactName: contactName.trim() || undefined,
         phone: phone.trim() || undefined, email: email.trim() || undefined,
+        groups: parseGroups(accountGroups),
       })
-      setAccountName(''); setContactName(''); setPhone(''); setEmail(''); setShowAccount(false)
+      setAccountName(''); setContactName(''); setPhone(''); setEmail(''); setAccountGroups(''); setShowAccount(false)
     }, 'Customer account created')
   }
 
@@ -142,60 +133,167 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
   }
 
 
-  function exportCustomersCsv() {
-    downloadCsv('crm-customers.csv', ['Company', 'Primary Contact', 'Email', 'Phone', 'GSTIN', 'Status', 'Contacts'],
-      accounts.map((account) => [account.name, account.primaryContact?.name || '', account.primaryContact?.email || '', account.primaryContact?.phone || '', account.gstin || '', account.status, account.contacts.length]))
-    notify(`Exported ${accounts.length} customer(s) to CSV`)
+  function openAccount(account: CrmAccount) {
+    setSelectedAccountId(account.id)
+    setDetailName(account.name)
+    setDetailLegalName(account.legalName || '')
+    setDetailGstin(account.gstin || '')
+    setDetailCode(account.displayCode || '')
+    setDetailStatus(account.status)
+    setDetailGroups((account.groups || []).join(', '))
   }
 
-  function importCustomersCsv() {
-    pickCsvFile((text) => {
-      const [header, ...rows] = parseCsv(text)
-      if (!header || rows.length === 0) { notify('CSV has no customer rows'); return }
-      const keys = header.map((x) => x.toLowerCase().replace(/[^a-z0-9]/g, ''))
+  function toggleSelectedAccount(id: string, checked: boolean) {
+    setSelectedAccountIds((ids) => checked ? Array.from(new Set([...ids, id])) : ids.filter((item) => item !== id))
+  }
+
+  async function saveSelectedAccount() {
+    if (!selectedAccount || !detailName.trim()) return
+    await perform(
+      () => updateCrmAccountProfile(selectedAccount.id, {
+        name: detailName.trim(),
+        legalName: detailLegalName.trim() || undefined,
+        gstin: detailGstin.trim() || undefined,
+        displayCode: detailCode.trim() || undefined,
+        status: detailStatus,
+        groups: parseGroups(detailGroups),
+      }),
+      'Customer profile updated',
+    )
+  }
+
+  async function toggleAccountStatus(account: CrmAccount) {
+    await perform(
+      () => updateCrmAccountProfile(account.id, {
+        name: account.name,
+        legalName: account.legalName || undefined,
+        gstin: account.gstin || undefined,
+        displayCode: account.displayCode || undefined,
+        status: account.status === 'Active' ? 'Inactive' : 'Active',
+        groups: account.groups || [],
+      }),
+      `Customer ${account.status === 'Active' ? 'deactivated' : 'activated'}`,
+    )
+  }
+
+  async function applyCustomerBulkAction() {
+    if (selectedAccountIds.length === 0) { notify('Select at least one customer first'); return }
+    if (!bulkCustomerStatus && !bulkCustomerGroup.trim()) { notify('Choose a bulk status or group action'); return }
+    let updated = 0
+    let failed = 0
+    await perform(async () => {
+      const result = await bulkUpdateCrmAccounts({
+        accountIds: selectedAccountIds,
+        status: bulkCustomerStatus || undefined,
+        addGroup: bulkCustomerGroupMode === 'add' ? bulkCustomerGroup.trim() || undefined : undefined,
+        removeGroup: bulkCustomerGroupMode === 'remove' ? bulkCustomerGroup.trim() || undefined : undefined,
+      })
+      updated = result.updated.length
+      failed = result.failed.length
+      setSelectedAccountIds([])
+      setBulkCustomerStatus('')
+      setBulkCustomerGroup('')
+    }, 'Customer bulk action completed')
+    if (failed) notify(`Bulk updated ${updated} customer(s); ${failed} failed`)
+  }
+
+  async function exportCustomers(format: CrmSpreadsheetFormat) {
+    await exportCrmSpreadsheet('crm-customers', {
+      headers: ['Company', 'Legal Name', 'Primary Contact', 'Email', 'Phone', 'GSTIN', 'Code', 'Status', 'Groups', 'Contacts'],
+      rows: filteredAccounts.map((account) => [
+        account.name, account.legalName || '', account.primaryContact?.name || '',
+        account.primaryContact?.email || '', account.primaryContact?.phone || '',
+        account.gstin || '', account.displayCode || '', account.status,
+        (account.groups || []).join('; '), account.contacts.length,
+      ]),
+    }, format)
+    notify(`Exported ${filteredAccounts.length} customer(s) to ${format === 'xlsx' ? 'Excel' : 'CSV'}`)
+  }
+
+  function importCustomers() {
+    pickCrmSpreadsheet((sheetRows, fileName) => {
+      const [header, ...rows] = sheetRows
+      if (!header || rows.length === 0) { notify('Spreadsheet has no customer rows'); return }
+      const keys = header.map((cell) => cell.toLowerCase().replace(/[^a-z0-9]/g, ''))
       const value = (row: string[], names: string[]) => {
-        const index = names.map((n) => keys.indexOf(n)).find((i) => i >= 0) ?? -1
+        const index = names.map((name) => keys.indexOf(name)).find((item) => item >= 0) ?? -1
         return index >= 0 ? row[index] : ''
       }
-      void perform(async () => {
+      void (async () => {
+        let created = 0
+        let failed = 0
         for (const row of rows) {
-          const company = value(row, ['company','business','name','customer'])
+          const company = value(row, ['company', 'business', 'name', 'customer'])
           if (!company) continue
-          await createCrmAccount({
-            name: company,
-            legalName: value(row, ['legalname']) || undefined,
-            contactName: value(row, ['contact','contactperson','primarycontact','person']) || undefined,
-            phone: value(row, ['phone','mobile','mobilenumber']) || undefined,
-            email: value(row, ['email','mail']) || undefined,
-            gstin: value(row, ['gstin']) || undefined,
-          })
+          try {
+            const account = await createCrmAccount({
+              name: company,
+              legalName: value(row, ['legalname']) || undefined,
+              contactName: value(row, ['contact', 'contactperson', 'primarycontact', 'person']) || undefined,
+              phone: value(row, ['phone', 'mobile', 'mobilenumber']) || undefined,
+              email: value(row, ['email', 'mail']) || undefined,
+              gstin: value(row, ['gstin']) || undefined,
+              displayCode: value(row, ['code', 'displaycode', 'customercode']) || undefined,
+              groups: parseGroups(value(row, ['groups', 'group', 'customergroup'])),
+            })
+            const importedStatus = value(row, ['status', 'customerstatus'])
+            if (['Active', 'Inactive', 'Archived'].includes(importedStatus) && importedStatus !== 'Active') {
+              await updateCrmAccountProfile(account.id, {
+                name: account.name,
+                legalName: account.legalName || undefined,
+                gstin: account.gstin || undefined,
+                displayCode: account.displayCode || undefined,
+                status: importedStatus,
+                groups: account.groups || [],
+              })
+            }
+            created += 1
+          } catch {
+            failed += 1
+          }
         }
-      }, `Imported ${rows.length} customer row(s) from CSV`)
-    })
+        notify(`Imported ${created} customer(s) from ${fileName}${failed ? `; ${failed} failed` : ''}`)
+        await refresh()
+      })().catch((error) => notify(error instanceof Error ? error.message : String(error)))
+    }, notify)
   }
 
   if (view === 'accounts') {
-    const activeCustomers = accounts.filter((account) => account.status !== 'Inactive').length
+    const activeCustomers = accounts.filter((account) => account.status === 'Active').length
+    const inactiveCustomers = accounts.filter((account) => account.status === 'Inactive').length
     const activeContacts = accounts.reduce((sum, account) => sum + account.contacts.length, 0)
     return (
       <section className="crm2-ref-list-page">
         <div className="crm2-ref-action-row">
           {canManageAccounts ? <button className="crm2-ref-primary" onClick={() => setShowAccount(true)}>+ New Customer</button> : null}
-          <button className="crm2-ref-primary" onClick={importCustomersCsv}>Import Customers</button>
-          <button className="crm2-ref-outline" onClick={() => accounts[0] && setSelectedAccountId(accounts[0].id)}>Contacts</button>
-          <button className="crm2-filter-button">Filter</button>
+          <button className="crm2-ref-primary" onClick={importCustomers}>Import CSV / Excel</button>
+          <button className="crm2-ref-outline" onClick={() => accounts[0] && openAccount(accounts[0])}>Contacts</button>
         </div>
         <section className="crm2-ref-summary-card">
           <h2>Customers Summary</h2>
-          <div className="crm2-ref-summary-line"><strong>{accounts.length}</strong><span>Total Customers</span><strong>{activeCustomers}</strong><span className="good">Active Customers</span><strong>{accounts.length - activeCustomers}</strong><span className="bad">Inactive Customers</span><strong>{activeContacts}</strong><span>Active Contacts</span><strong>0</strong><span>Contacts Logged In...</span></div>
+          <div className="crm2-ref-summary-line"><strong>{accounts.length}</strong><span>Total Customers</span><strong>{activeCustomers}</strong><span className="good">Active Customers</span><strong>{inactiveCustomers}</strong><span className="bad">Inactive Customers</span><strong>{activeContacts}</strong><span>Active Contacts</span><strong>{customerGroups.length}</strong><span>Customer Groups</span></div>
+        </section>
+        <section className="crm2-ref-filter-card">
+          <strong>Filter by</strong>
+          <div className="crm2-ref-filter-grid">
+            <select value={customerStatusFilter} onChange={(e) => setCustomerStatusFilter(e.target.value)}><option value="All">All statuses</option><option>Active</option><option>Inactive</option><option>Archived</option></select>
+            <select value={customerGroupFilter} onChange={(e) => setCustomerGroupFilter(e.target.value)}><option value="All">All groups</option>{customerGroups.map((group) => <option key={group}>{group}</option>)}</select>
+            <input value={customerQuery} onChange={(e) => setCustomerQuery(e.target.value)} placeholder="Company, contact, GSTIN, group..." />
+          </div>
         </section>
         <section className="crm2-ref-table-card">
-          <label className="crm2-ref-check"><input type="checkbox" defaultChecked /> Exclude Inactive Customers</label>
-          <div className="crm2-ref-table-tools"><select><option>25</option><option>50</option></select><button onClick={exportCustomersCsv}>Export</button><button>Bulk Actions</button><button onClick={refresh}>Refresh</button><span /><label><b>⌕</b><input placeholder="Search..." /></label></div>
-          <div className="crm2-ref-customers-head"><span><input type="checkbox" /></span><span>#</span><span>Company</span><span>Primary Contact</span><span>Primary Email</span><span>Phone</span><span>Active</span><span>Groups</span></div>
-          {accounts.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : accounts.map((account, index) => (
-            <article className="crm2-ref-customers-row" key={account.id} onClick={() => setSelectedAccountId(account.id)}>
-              <span><input type="checkbox" onClick={(e) => e.stopPropagation()} /></span><span>{176 - index}</span><span><a>{account.name}</a></span><span>{account.primaryContact?.name || '-'}</span><span><a>{account.primaryContact?.email || '-'}</a></span><span>{account.primaryContact?.phone || '-'}</span><span><label className="crm2-ref-switch"><input type="checkbox" checked={account.status !== 'Inactive'} readOnly /><i /></label></span><span><em>{account.status === 'Active' ? 'Customer' : account.status}</em></span>
+          <div className="crm2-ref-table-tools">
+            <select><option>25</option><option>50</option></select>
+            <button onClick={() => void exportCustomers('csv')}>Export CSV</button>
+            <button onClick={() => void exportCustomers('xlsx')}>Export Excel</button>
+            {canManageAccounts ? <><select value={bulkCustomerStatus} onChange={(e) => setBulkCustomerStatus(e.target.value)}><option value="">Bulk Status</option><option>Active</option><option>Inactive</option><option>Archived</option></select><select value={bulkCustomerGroupMode} onChange={(e) => setBulkCustomerGroupMode(e.target.value as 'add' | 'remove')}><option value="add">Add Group</option><option value="remove">Remove Group</option></select><input value={bulkCustomerGroup} onChange={(e) => setBulkCustomerGroup(e.target.value)} placeholder="Group name" /><button disabled={busy} onClick={() => void applyCustomerBulkAction()}>Apply Bulk</button></> : null}
+            <button onClick={refresh}>Refresh</button><span />
+            <label><b>⌕</b><input value={customerQuery} onChange={(e) => setCustomerQuery(e.target.value)} placeholder="Search..." /></label>
+          </div>
+          <div className="crm2-ref-customers-head"><span><input type="checkbox" checked={filteredAccounts.length > 0 && filteredAccounts.every((account) => selectedAccountIds.includes(account.id))} onChange={(e) => setSelectedAccountIds((ids) => e.target.checked ? Array.from(new Set([...ids, ...filteredAccounts.map((account) => account.id)])) : ids.filter((id) => !filteredAccounts.some((account) => account.id === id)))} /></span><span>#</span><span>Company</span><span>Primary Contact</span><span>Primary Email</span><span>Phone</span><span>Active</span><span>Groups</span></div>
+          {filteredAccounts.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : filteredAccounts.map((account, index) => (
+            <article className="crm2-ref-customers-row" key={account.id} onClick={() => openAccount(account)}>
+              <span><input type="checkbox" checked={selectedAccountIds.includes(account.id)} onClick={(e) => e.stopPropagation()} onChange={(e) => toggleSelectedAccount(account.id, e.target.checked)} /></span><span>{index + 1}</span><span><a>{account.name}</a></span><span>{account.primaryContact?.name || '-'}</span><span><a>{account.primaryContact?.email || '-'}</a></span><span>{account.primaryContact?.phone || '-'}</span><span><label className="crm2-ref-switch" onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={account.status === 'Active'} disabled={busy || !canManageAccounts} onChange={() => void toggleAccountStatus(account)} /><i /></label></span><span>{(account.groups || []).length ? (account.groups || []).map((group) => <em key={group}>{group}</em>) : <small>—</small>}</span>
             </article>
           ))}
         </section>
@@ -208,6 +306,7 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
               <label>Primary contact<input value={contactName} onChange={(e) => setContactName(e.target.value)} /></label>
               <label>Phone<input value={phone} onChange={(e) => setPhone(e.target.value)} /></label>
               <label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+              <label>Customer groups<input value={accountGroups} onChange={(e) => setAccountGroups(e.target.value)} placeholder="VIP, Dealer, Partner" /></label>
               <div className="crm2-drawer-actions"><button className="crm2-cancel" onClick={() => setShowAccount(false)}>Cancel</button><button className="crm2-primary" disabled={busy || !accountName.trim()} onClick={() => void saveAccount()}>Create account</button></div>
             </section>
           </div>
@@ -222,6 +321,17 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
                 <div><span>GSTIN</span><strong>{selectedAccount.gstin || '—'}</strong></div>
                 <div><span>Code</span><strong>{selectedAccount.displayCode || '—'}</strong></div>
               </div>
+              {canManageAccounts ? <div className="crm2-form-section">
+                <div className="crm2-form-grid">
+                  <label>Business name<input value={detailName} onChange={(e) => setDetailName(e.target.value)} /></label>
+                  <label>Legal name<input value={detailLegalName} onChange={(e) => setDetailLegalName(e.target.value)} /></label>
+                  <label>GSTIN<input value={detailGstin} onChange={(e) => setDetailGstin(e.target.value)} /></label>
+                  <label>Customer code<input value={detailCode} onChange={(e) => setDetailCode(e.target.value)} /></label>
+                  <label>Status<select value={detailStatus} onChange={(e) => setDetailStatus(e.target.value)}><option>Active</option><option>Inactive</option><option>Archived</option></select></label>
+                  <label>Groups<input value={detailGroups} onChange={(e) => setDetailGroups(e.target.value)} placeholder="VIP, Dealer, Partner" /></label>
+                </div>
+                <div className="crm2-drawer-actions"><button className="crm2-primary" disabled={busy || !detailName.trim()} onClick={() => void saveSelectedAccount()}>Save customer</button></div>
+              </div> : null}
               <div className="crm2-contact-list">
                 {selectedAccount.contacts.length === 0 ? <p className="crm2-muted">No contacts yet.</p> : selectedAccount.contacts.map((contact) => (
                   <article key={contact.id}><div><strong>{contact.name}</strong><span>{contact.phone || contact.email || 'No contact details'}</span></div>{contact.isPrimary ? <em>Primary</em> : null}</article>

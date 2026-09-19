@@ -16,13 +16,15 @@ public sealed class Lead
         string? productInterest = null,
         string? notes = null,
         LeadPriority priority = LeadPriority.Normal,
-        DateTimeOffset? createdAtUtc = null)
+        DateTimeOffset? createdAtUtc = null,
+        decimal? estimatedValue = null)
     {
         if (id == Guid.Empty) throw new ArgumentException("Lead id is required.", nameof(id));
         if (tenantId == Guid.Empty) throw new ArgumentException("Tenant id is required.", nameof(tenantId));
         if (organisationId == Guid.Empty) throw new ArgumentException("Organisation id is required.", nameof(organisationId));
         if (string.IsNullOrWhiteSpace(title)) throw new ArgumentException("Lead title is required.", nameof(title));
         if (!Enum.IsDefined(priority)) throw new ArgumentOutOfRangeException(nameof(priority));
+        if (estimatedValue < 0) throw new ArgumentOutOfRangeException(nameof(estimatedValue));
         Id = id;
         TenantId = tenantId;
         OrganisationId = organisationId;
@@ -33,6 +35,7 @@ public sealed class Lead
         Email = Clean(email);
         ProductInterest = Clean(productInterest);
         Notes = Clean(notes);
+        EstimatedValue = estimatedValue;
         Priority = priority;
         Status = LeadStatus.New;
         CreatedAtUtc = createdAtUtc ?? DateTimeOffset.UtcNow;
@@ -48,6 +51,7 @@ public sealed class Lead
     public string? Email { get; private set; }
     public string? ProductInterest { get; private set; }
     public string? Notes { get; private set; }
+    public decimal? EstimatedValue { get; private set; }
     public LeadStatus Status { get; private set; }
     public LeadPriority Priority { get; private set; }
     public LeadAttribution Attribution { get; private set; }
@@ -63,10 +67,10 @@ public sealed class Lead
         string? contactName, string? mobileNumber, string? email, string? productInterest,
         string? notes, LeadPriority priority, LeadStatus status, string? unqualifiedReason,
         DateTimeOffset createdAtUtc, DateTimeOffset updatedAtUtc, DateTimeOffset? lastContactAtUtc,
-        DateTimeOffset? nextFollowUpAtUtc, IEnumerable<string>? tags = null)
+        DateTimeOffset? nextFollowUpAtUtc, IEnumerable<string>? tags = null, decimal? estimatedValue = null)
     {
         var lead = new Lead(id, tenantId, organisationId, title, attribution, contactName,
-            mobileNumber, email, productInterest, notes, priority, createdAtUtc)
+            mobileNumber, email, productInterest, notes, priority, createdAtUtc, estimatedValue)
         {
             Status = status,
             UnqualifiedReason = Clean(unqualifiedReason),
@@ -97,6 +101,14 @@ public sealed class Lead
         Notes = Clean(notes);
         Touch();
     }
+    public void SetEstimatedValue(decimal? estimatedValue)
+    {
+        EnsureOpen();
+        if (estimatedValue < 0) throw new ArgumentOutOfRangeException(nameof(estimatedValue));
+        EstimatedValue = estimatedValue;
+        Touch();
+    }
+
     public void SetPriority(LeadPriority priority)
     {
         EnsureOpen();

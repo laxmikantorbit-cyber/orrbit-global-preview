@@ -55,6 +55,7 @@ public static class FreeTestingPublicCrmOperationsEndpoints
             {
                 lead.UpdateProfile(request.Title, request.ContactName, request.MobileNumber,
                     request.Email, request.ProductInterest, request.Notes);
+                lead.SetEstimatedValue(request.EstimatedValue);
                 await leads.SaveAsync(lead, cancellationToken);
                 await AddActivity(work, leadId, CrmActivityType.ProfileUpdated,
                     "Lead profile updated", null, cancellationToken);
@@ -405,7 +406,9 @@ public static class FreeTestingPublicCrmOperationsEndpoints
         lead.ContactName,
         lead.MobileNumber,
         lead.Email,
-        lead.ProductInterest,        lead.Notes,
+        lead.ProductInterest,
+        lead.Notes,
+        lead.EstimatedValue,
         lead.Status.ToString(),
         lead.Priority.ToString(),
         lead.Attribution.LeadSource,
@@ -434,7 +437,8 @@ public sealed record UpdateLeadProfileRequest(
     string? ContactName,    string? MobileNumber,
     string? Email,
     string? ProductInterest,
-    string? Notes);
+    string? Notes,
+    decimal? EstimatedValue);
 
 public sealed record AssignLeadRequest(Guid? OwnerUserId);
 public sealed record ChangeLeadPriorityRequest(string Priority);
@@ -469,6 +473,7 @@ public sealed record CrmLeadDetailResponse(
     string? Email,
     string? ProductInterest,
     string? Notes,
+    decimal? EstimatedValue,
     string Status,
     string Priority,
     string? LeadSource,

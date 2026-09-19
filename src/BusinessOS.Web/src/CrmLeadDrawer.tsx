@@ -10,6 +10,7 @@ import {
   convertCrmLead,
   getCrmLeadWorkspace,
   updateCrmLeadProfile,
+  updateCrmLeadTag,
   type CrmLeadWorkspace,
   type CrmTeamMember,
 } from './crmApi'
@@ -47,6 +48,8 @@ export function CrmLeadDrawer({ leadId, teamMembers, onClose, onChanged, notify,
   const [mobile, setMobile] = useState('')
   const [email, setEmail] = useState('')
   const [product, setProduct] = useState('')
+  const [leadEstimatedValue, setLeadEstimatedValue] = useState('')
+  const [tagDraft, setTagDraft] = useState('')
   const [notes, setNotes] = useState('')
   const [activityType, setActivityType] = useState('Note')
   const [activitySummary, setActivitySummary] = useState('')
@@ -74,9 +77,11 @@ export function CrmLeadDrawer({ leadId, teamMembers, onClose, onChanged, notify,
       setMobile(data.lead.mobileNumber || '')
       setEmail(data.lead.email || '')
       setProduct(data.lead.productInterest || '')
+      setLeadEstimatedValue(data.lead.estimatedValue == null ? '' : String(data.lead.estimatedValue))
       setNotes(data.lead.notes || '')
       setAccountName((current) => current || data.lead.title)
       setOpportunityTitle((current) => current || (data.lead.productInterest || data.lead.title) + ' Deal')
+      setEstimatedValue((current) => data.lead.estimatedValue != null && current === '29999' ? String(data.lead.estimatedValue) : current)
       setFollowUpOwnerId((current) => current || currentUserId || '')
       setTaskAssigneeId((current) => current || currentUserId || '')
     } catch (error) {
@@ -144,8 +149,22 @@ export function CrmLeadDrawer({ leadId, teamMembers, onClose, onChanged, notify,
               <label>Mobile<input value={mobile} disabled={!can('EditLead')} onChange={(e) => setMobile(e.target.value)} /></label>
               <label>Email<input type="email" value={email} disabled={!can('EditLead')} onChange={(e) => setEmail(e.target.value)} /></label>
               <label>Product interest<input value={product} disabled={!can('EditLead')} onChange={(e) => setProduct(e.target.value)} placeholder="AI Repair, School, etc." /></label>
+              <label>Lead value (₹)<input type="number" min="0" value={leadEstimatedValue} disabled={!can('EditLead')} onChange={(e) => setLeadEstimatedValue(e.target.value)} placeholder="e.g. 29999" /></label>
               <label>Priority<select value={lead.priority || 'Normal'} disabled={busy || !can('EditLead')} onChange={(e) => void run(() => changeCrmLeadPriority(lead.id, e.target.value), 'Priority updated')}><option>Low</option><option>Normal</option><option>High</option><option>Urgent</option></select></label>
               <label>Lead owner<select value={lead.ownerUserId || ''} disabled={busy || !can('AssignLead')} onChange={(e) => void run(() => assignCrmLead(lead.id, e.target.value || null), 'Lead owner updated')}><option value="">Unassigned</option>{activeTeam.map((member) => <option key={member.id} value={member.id}>{member.displayName} · {member.role}</option>)}</select></label>
+            </div>
+            <div className="crm2-tag-editor">
+              <strong>Tags</strong>
+              <div className="crm2-tag-list">
+                {(lead.tags || []).length === 0 ? <span className="crm2-muted">No tags</span> : (lead.tags || []).map((tag) => (
+                  <em key={tag}>{tag}{can('EditLead') ? <button disabled={busy} onClick={() => void run(() => updateCrmLeadTag(lead.id, tag, true), `Tag removed: ${tag}`)}>×</button> : null}</em>
+                ))}
+              </div>
+              {can('EditLead') ? <div className="crm2-inline-create"><input value={tagDraft} onChange={(e) => setTagDraft(e.target.value)} placeholder="Add tag" /><button className="crm2-primary" disabled={busy || !tagDraft.trim()} onClick={() => {
+                const tag = tagDraft.trim()
+                setTagDraft('')
+                void run(() => updateCrmLeadTag(lead.id, tag), `Tag added: ${tag}`)
+              }}>Add tag</button></div> : null}
             </div>
             <label>Internal notes<textarea value={notes} disabled={!can('EditLead')} onChange={(e) => setNotes(e.target.value)} rows={4} /></label>
             <div className="crm2-drawer-actions">
@@ -153,6 +172,7 @@ export function CrmLeadDrawer({ leadId, teamMembers, onClose, onChanged, notify,
                 () => updateCrmLeadProfile(lead.id, {
                   title: title.trim(), contactName, mobileNumber: mobile, email,
                   productInterest: product, notes,
+                  estimatedValue: leadEstimatedValue.trim() ? Number(leadEstimatedValue) : null,
                 }),
                 'Lead profile saved',
               )}>{busy ? 'Saving…' : 'Save profile'}</button> : <span className="crm2-readonly-badge">Read only</span>}
