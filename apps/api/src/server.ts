@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import Fastify from "fastify";
 import { Pool } from "pg";
 import { createLocalProvisioningPlan, type ProvisioningPlan } from "@orrbit/ai-orchestrator";
-import { createImportWorkspaceFromPlan, createMartialArtsErpPilotPlan, createProjectImportPlan, evaluateImportWorkspaceDeployGate, martialArtsPilotAcceptance, martialArtsPilotModules, validateImportSource, type CreateImportPlanInput, type ProjectImportPlan, type ProjectImportWorkspace } from "@orrbit/project-importer";
+import { confirmImportWorkspaceSourceReference, createImportWorkspaceFromPlan, createMartialArtsErpPilotPlan, createProjectImportPlan, evaluateImportWorkspaceDeployGate, martialArtsPilotAcceptance, martialArtsPilotModules, updateImportWorkspaceCaptureItem, validateImportSource, type CreateImportPlanInput, type ProjectImportPlan, type ProjectImportWorkspace, type WorkspaceCaptureKind, type WorkspaceCaptureStatus } from "@orrbit/project-importer";
 import { classifyRisk, requiresApproval } from "@orrbit/policy-engine";
 import { providerCapabilities, DryRunGitHubProvider, DryRunCloudflarePagesProvider, DryRunCloudRunProvider, DryRunDatabaseProvider, DryRunOpenAiProvider, DryRunSecretProvider } from "@orrbit/provider-adapters";
 import { buildRuntimeProjectManifest, projectCreateSchema } from "@orrbit/project-manifest";
@@ -456,6 +456,46 @@ app.get<{ Params: { id: string } }>("/api/import-workspaces/:id/deploy-gate", as
   const workspace = await getImportWorkspace(request.params.id);
   if (!workspace) return reply.code(404).send({ error: "import_workspace_not_found" });
   return evaluateImportWorkspaceDeployGate(workspace);
+});
+
+
+app.patch<{ Params: { id: string }; Body: { sourceRef?: string } }>("/api/import-workspaces/:id/source-reference", async (request, reply) => {
+  const workspace = await getImportWorkspace(request.params.id);
+  if (!workspace) return reply.code(404).send({ error: "import_workspace_not_found" });
+  try {
+    const updated = confirmImportWorkspaceSourceReference(workspace, request.body?.sourceRef ?? "");
+    await saveImportWorkspace(updated);
+    await audit(updated.projectId ?? null, "import_workspace_source_confirmed", { workspaceId: updated.id, sourceRef: updated.sourceRef });
+    return updated;
+  } catch (error) {
+    return reply.code(400).send({ error: error instanceof Error ? error.message : "source_reference_update_failed" });
+  }
+});
+
+app.patch<{
+  Params: { id: string };
+  Body: { kind?: WorkspaceCaptureKind; key?: string; status?: WorkspaceCaptureStatus };
+}>("/api/import-workspaces/:id/capture", async (request, reply) => {
+  const workspace = await getImportWorkspace(request.params.id);
+  if (!workspace) return reply.code(404).send({ error: "import_workspace_not_found" });
+  if (!request.body?.kind || !request.body?.key || !request.body?.status) {
+    return reply.code(400).send({ error: "capture_kind_key_status_required" });
+  }
+  try {
+    const updated = updateImportWorkspaceCaptureItem(workspace, {
+      kind: request.body.kind,
+      key: request.body.key,
+      status: request.body.status
+    });
+    await saveImportWorkspace(updated);
+    await audit(updated.projectId ?? null, "import_workspace_capture_updated", {
+      workspaceId: updated.id, kind: request.body.kind, key: request.body.key, status: request.body.status,
+      canDeploy: updated.deployGate.canDeploy
+    });
+    return updated;
+  } catch (error) {
+    return reply.code(409).send({ error: error instanceof Error ? error.message : "capture_update_failed" });
+  }
 });
 
 app.post<{ Params: { id: string } }>("/api/import-plans/:id/workspace", async (request, reply) => {

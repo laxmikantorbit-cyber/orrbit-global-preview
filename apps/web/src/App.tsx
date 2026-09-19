@@ -60,6 +60,8 @@ type ImportPlan = {
 };
 
 type CaptureRecord = { key: string; label: string; status: string; blocker?: string };
+type RouteCaptureRecord = { path: string; kind: string; status: string; notes?: string };
+type ModuleCaptureRecord = { name: string; status: string; notes?: string };
 
 type ImportWorkspace = {
   id: string;
@@ -67,8 +69,8 @@ type ImportWorkspace = {
   projectId?: string;
   status: string;
   sourceReferenceStatus: string;
-  routeCapture: CaptureRecord[];
-  moduleCapture: CaptureRecord[];
+  routeCapture: RouteCaptureRecord[];
+  moduleCapture: ModuleCaptureRecord[];
   captureChecklist: CaptureRecord[];
   deployGate: { canDeploy: boolean; blockers: string[] };
 };
@@ -91,6 +93,7 @@ export default function App() {
   const [importWorkspaces, setImportWorkspaces] = useState<ImportWorkspace[]>([]);
   const [activeWorkspace, setActiveWorkspace] = useState<ImportWorkspace | null>(null);
   const [deployGate, setDeployGate] = useState<DeployGate | null>(null);
+  const [sourceRefDraft, setSourceRefDraft] = useState("");
   const [envDraft, setEnvDraft] = useState({
     status: "unconfigured",
     frontendProvider: "",
@@ -186,6 +189,7 @@ export default function App() {
     setImportPlans((current) => [result, ...current]);
     setActiveWorkspace(null);
     setDeployGate(null);
+    setSourceRefDraft("");
     setMessage("Martial Arts ERP pilot plan ready; source reference pending");
   }
 
@@ -198,6 +202,7 @@ export default function App() {
     setActiveImportPlan(result.importPlan);
     if (result.workspace) {
       setActiveWorkspace(result.workspace);
+      setSourceRefDraft(result.workspace.sourceReferenceStatus === "pending" ? "" : result.workspace.sourceRef);
       setImportWorkspaces((current) => [result.workspace, ...current]);
       await loadDeployGate(result.workspace.id);
     }
@@ -211,8 +216,39 @@ export default function App() {
     const result = await response.json();
     if (!response.ok) return setMessage(result.error ?? "Workspace failed");
     setActiveWorkspace(result);
+    setSourceRefDraft(result.sourceReferenceStatus === "pending" ? "" : result.sourceRef);
     await loadDeployGate(result.id);
     setMessage("Import workspace ready");
+  }
+
+  async function confirmSourceReference() {
+    if (!activeWorkspace) return;
+    setMessage("Confirming source reference...");
+    const response = await fetch(`${apiBase}/api/import-workspaces/${activeWorkspace.id}/source-reference`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sourceRef: sourceRefDraft.trim() })
+    });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "Source reference update failed");
+    setActiveWorkspace(result);
+    setImportWorkspaces((current) => current.map((item) => item.id === result.id ? result : item));
+    await loadDeployGate(result.id);
+    setMessage("Source reference confirmed; capture unlocked");
+  }
+
+  async function updateCapture(kind: "route" | "module" | "checklist", key: string, status = "captured") {
+    if (!activeWorkspace) return;
+    setMessage("Updating capture status...");
+    const response = await fetch(`${apiBase}/api/import-workspaces/${activeWorkspace.id}/capture`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind, key, status })
+    });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "Capture update failed");
+    setActiveWorkspace(result);
+    setImportWorkspaces((current) => current.map((item) => item.id === result.id ? result : item));
+    await loadDeployGate(result.id);
+    setMessage("Capture status updated");
   }
 
   async function loadDeployGate(workspaceId: string) {
@@ -369,6 +405,11 @@ export default function App() {
                 Source {activeWorkspace.sourceReferenceStatus}</span></div>
             {activeWorkspace.sourceReferenceStatus === "pending" && <div className="warningBox">
               Source reference pending. Deploy, DNS, live payment and production actions are disabled until capture is verified.
+              <div className="sourceConfirmRow">
+                <input value={sourceRefDraft} onChange={(e) => setSourceRefDraft(e.target.value)}
+                  placeholder="Paste ChatGPT Sites source reference" />
+                <button onClick={confirmSourceReference} disabled={!sourceRefDraft.trim()}>Confirm Source</button>
+              </div>
             </div>}
             <div className="captureGrid">
               <div><span className="eyebrow">Route/Page capture</span>
@@ -378,8 +419,15 @@ export default function App() {
               <div><span className="eyebrow">Deploy gate</span>
                 <strong>{(deployGate ?? activeWorkspace.deployGate).canDeploy ? "Ready" : "Blocked"}</strong></div>
             </div>
+            <div className="captureControlBox"><span className="eyebrow">Route capture controls</span>
+              {activeWorkspace.routeCapture.map((item) => <p key={item.path}>{item.path}<span>{item.status}</span>
+                <button onClick={() => updateCapture("route", item.path)} disabled={activeWorkspace.sourceReferenceStatus === "pending" || item.status === "captured"}>Mark captured</button></p>)}</div>
+            <div className="captureControlBox"><span className="eyebrow">Module capture controls</span>
+              {activeWorkspace.moduleCapture.map((item) => <p key={item.name}>{item.name}<span>{item.status}</span>
+                <button onClick={() => updateCapture("module", item.name)} disabled={activeWorkspace.sourceReferenceStatus === "pending" || item.status === "captured"}>Mark captured</button></p>)}</div>
             <div className="checklistBox"><span className="eyebrow">Capture checklist</span>
-              {activeWorkspace.captureChecklist.map((item) => <p key={item.key}>{item.label}<span>{item.status}</span></p>)}</div>
+              {activeWorkspace.captureChecklist.map((item) => <p key={item.key}>{item.label}<span>{item.status}</span>
+                {item.key === "manifest-review" && <button onClick={() => updateCapture("checklist", item.key)} disabled={item.status === "captured"}>Mark reviewed</button>}</p>)}</div>
             <div className="blockedBox"><span className="eyebrow">Deploy blockers</span>
               {(deployGate ?? activeWorkspace.deployGate).blockers.map((blocker) => <p key={blocker}>{blocker}</p>)}</div>
             <button disabled title="Deploy disabled until source capture is verified">Deploy disabled until capture verified</button>

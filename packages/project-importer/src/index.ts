@@ -277,3 +277,86 @@ export function evaluateImportWorkspaceDeployGate(workspace: ProjectImportWorksp
     blockers
   };
 }
+
+
+export type WorkspaceCaptureKind = "route" | "module" | "checklist";
+export type WorkspaceCaptureStatus = "needs_capture" | CaptureStatus;
+
+function routeStatusFromCapture(status: WorkspaceCaptureStatus): ImportRouteInventoryItem["status"] {
+  if (status === "captured") return "captured";
+  if (status === "manual_review") return "manual_review";
+  return "needs_capture";
+}
+
+function recomputeWorkspaceChecklist(workspace: ProjectImportWorkspace): CaptureChecklistItem[] {
+  const sourceProvided = workspace.sourceReferenceStatus === "provided";
+  const allRoutesCaptured = workspace.routeCapture.every((route) => route.status === "captured");
+  const allModulesCaptured = workspace.moduleCapture.length === 0 || workspace.moduleCapture.every((item) => item.status === "captured");
+  return workspace.captureChecklist.map((item) => {
+    if (item.key === "source-reference") return { ...item, status: sourceProvided ? "captured" : "blocked", blocker: sourceProvided ? undefined : "Source reference is required before capture." };
+    if (item.key === "route-capture") return { ...item, status: !sourceProvided ? "blocked" : allRoutesCaptured ? "captured" : "pending", blocker: !sourceProvided ? "Blocked until source reference is confirmed." : undefined };
+    if (item.key === "module-capture") return { ...item, status: !sourceProvided ? "blocked" : allModulesCaptured ? "captured" : "pending", blocker: !sourceProvided ? "Blocked until source reference is confirmed." : undefined };
+    return item;
+  });
+}
+
+
+function recomputeWorkspaceStatus(workspace: ProjectImportWorkspace): ImportWorkspaceStatus {
+  if (workspace.sourceReferenceStatus === "pending") return "source_pending";
+  const gate = evaluateImportWorkspaceDeployGate({ ...workspace, status: "capture_complete" });
+  if (gate.canDeploy) return "capture_complete";
+  const anyCaptured = workspace.routeCapture.some((route) => route.status === "captured")
+    || workspace.moduleCapture.some((item) => item.status === "captured")
+    || workspace.captureChecklist.some((item) => item.status === "captured" && item.key !== "no-production-touch");
+  return anyCaptured ? "capturing" : "capture_ready";
+}
+
+function finalizeWorkspace(workspace: ProjectImportWorkspace): ProjectImportWorkspace {
+  const withChecklist = { ...workspace, captureChecklist: recomputeWorkspaceChecklist(workspace) };
+  const status = recomputeWorkspaceStatus(withChecklist);
+  const updated = { ...withChecklist, status, updatedAt: new Date().toISOString() };
+  return { ...updated, deployGate: evaluateImportWorkspaceDeployGate(updated) };
+}
+
+export function confirmImportWorkspaceSourceReference(workspace: ProjectImportWorkspace, sourceRef: string): ProjectImportWorkspace {
+  const clean = sourceRef.trim();
+  if (!clean) throw new Error("sourceRef_required");
+  return finalizeWorkspace({
+    ...workspace,
+    sourceRef: clean,
+    sourceReferenceStatus: "provided",
+    routeCapture: workspace.routeCapture.map((route) => route.status === "manual_review" ? { ...route, status: "needs_capture" } : route),
+    moduleCapture: workspace.moduleCapture.map((item) => item.status === "blocked" ? { ...item, status: "pending", notes: undefined } : item)
+  });
+}
+
+
+export function updateImportWorkspaceCaptureItem(workspace: ProjectImportWorkspace, input: {
+  kind: WorkspaceCaptureKind;
+  key: string;
+  status: WorkspaceCaptureStatus;
+}): ProjectImportWorkspace {
+  if (!input.key.trim()) throw new Error("capture_key_required");
+  if (workspace.sourceReferenceStatus === "pending" && input.kind !== "checklist") {
+    throw new Error("source_reference_pending");
+  }
+  if (input.kind === "route") {
+    const routeStatus = routeStatusFromCapture(input.status);
+    const found = workspace.routeCapture.some((route) => route.path === input.key);
+    if (!found) throw new Error("route_capture_not_found");
+    return finalizeWorkspace({ ...workspace, routeCapture: workspace.routeCapture.map((route) =>
+      route.path === input.key ? { ...route, status: routeStatus } : route) });
+  }
+  if (input.kind === "module") {
+    const moduleStatus: CaptureStatus = input.status === "needs_capture" ? "pending" : input.status;
+    const found = workspace.moduleCapture.some((item) => item.name === input.key);
+    if (!found) throw new Error("module_capture_not_found");
+    return finalizeWorkspace({ ...workspace, moduleCapture: workspace.moduleCapture.map((item) =>
+      item.name === input.key ? { ...item, status: moduleStatus } : item) });
+  }
+  const checklistStatus: CaptureStatus = input.status === "needs_capture" ? "pending" : input.status;
+  const found = workspace.captureChecklist.some((item) => item.key === input.key);
+  if (!found) throw new Error("checklist_item_not_found");
+  return finalizeWorkspace({ ...workspace, captureChecklist: workspace.captureChecklist.map((item) =>
+    item.key === input.key ? { ...item, status: checklistStatus, blocker: checklistStatus === "captured" ? undefined : item.blocker } : item) });
+}
