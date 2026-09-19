@@ -43,6 +43,22 @@ type Plan = {
   executionAllowed: boolean;
 };
 
+type ImportPlan = {
+  id: string;
+  sourceType: string;
+  sourceRef: string;
+  requestedProjectName: string;
+  projectType: string;
+  targetEnvironment: string;
+  risk: string;
+  status: string;
+  routeInventory: Array<{ path: string; kind: string; status: string; notes: string }>;
+  manifestDraft: { projectName: string; projectType: string; targetEnvironment: string; productionProtected: boolean };
+  actions: string[];
+  blockedActions: string[];
+  createdAt: string;
+};
+
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export default function App() {
@@ -54,6 +70,8 @@ export default function App() {
   const [planName, setPlanName] = useState("");
   const [planRepository, setPlanRepository] = useState("");
   const [commandCentre, setCommandCentre] = useState<CommandCentre | null>(null);
+  const [importPlans, setImportPlans] = useState<ImportPlan[]>([]);
+  const [activeImportPlan, setActiveImportPlan] = useState<ImportPlan | null>(null);
   const [envDraft, setEnvDraft] = useState({
     status: "unconfigured",
     frontendProvider: "",
@@ -66,7 +84,14 @@ export default function App() {
       .then((r) => r.json())
       .then((d) => setProjects(d.projects ?? []))
       .catch(() => setMessage("API offline"));
+    loadImportPlans();
   }, []);
+
+  async function loadImportPlans() {
+    const response = await fetch(`${apiBase}/api/import-plans`);
+    const result = await response.json();
+    if (response.ok) setImportPlans(result.importPlans ?? []);
+  }
 
   async function createManual(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -122,6 +147,37 @@ export default function App() {
     setProjects((current) => [...current, result.project]);
     setMessage("Development project created safely");
     setPlan(null);
+  }
+
+  async function createMartialArtsImportPlan() {
+    setMessage("Creating Martial Arts ERP import plan...");
+    const response = await fetch(`${apiBase}/api/import-plans`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sourceType: "chatgpt-sites",
+        sourceRef: "ChatGPT Sites / Martial Arts ERP current development project",
+        projectName: "Martial Arts ERP",
+        projectType: "saas",
+        targetEnvironment: "development",
+        knownRoutes: ["/", "/login", "/dashboard", "/students", "/attendance", "/fees", "/belt-grading", "/reports"]
+      })
+    });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "Import plan failed");
+    setActiveImportPlan(result);
+    setImportPlans((current) => [result, ...current]);
+    setMessage("Martial Arts ERP import plan ready");
+  }
+
+  async function approveImportPlan(planId: string) {
+    setMessage("Approving import plan for Development...");
+    const response = await fetch(`${apiBase}/api/import-plans/${planId}/approve`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "Import approval failed");
+    setProjects((current) => [...current, result.project]);
+    setActiveImportPlan(result.importPlan);
+    await loadImportPlans();
+    setMessage("Import approved as protected Development project");
   }
 
   async function openCommandCentre(projectId: string) {
@@ -223,6 +279,43 @@ export default function App() {
         </button>
       </div>}
     </section>}
+
+    <section className="importPanel">
+      <div className="builderHead">
+        <div><span className="eyebrow">Import Planning</span>
+          <h2>Martial Arts ERP Pilot Import</h2>
+          <p>Planning-only flow: capture inventory, draft manifest, approve Development project. Production/DNS/live payment remain locked.</p></div>
+        <button onClick={createMartialArtsImportPlan}>Create Martial Arts Import Plan</button>
+      </div>
+      <div className="importLayout">
+        <div className="importList">
+          <span className="eyebrow">Import plans</span>
+          {importPlans.length === 0 ? <p className="muted">No import plan yet.</p> : importPlans.map((item) => <button
+            className={activeImportPlan?.id === item.id ? "importItem active" : "importItem"}
+            key={item.id} onClick={() => setActiveImportPlan(item)}>
+            <strong>{item.requestedProjectName}</strong>
+            <span>{item.sourceType} � {item.status} � {item.routeInventory.length} routes</span>
+          </button>)}
+        </div>
+        {activeImportPlan ? <div className="importDetail">
+          <div className="planTop"><div><span className="eyebrow">Selected import plan</span>
+            <h3>{activeImportPlan.requestedProjectName}</h3></div>
+            <span className={"risk risk-" + activeImportPlan.risk}>{activeImportPlan.risk} risk</span></div>
+          <dl>
+            <div><dt>Source</dt><dd>{activeImportPlan.sourceRef}</dd></div>
+            <div><dt>Target</dt><dd>{activeImportPlan.targetEnvironment}</dd></div>
+            <div><dt>Manifest</dt><dd>{activeImportPlan.manifestDraft.projectType} � protected={String(activeImportPlan.manifestDraft.productionProtected)}</dd></div>
+          </dl>
+          <div className="routeBox"><span className="eyebrow">Route inventory</span>
+            {activeImportPlan.routeInventory.map((route) => <p key={route.path}>{route.path} <span>{route.kind} � {route.status}</span></p>)}</div>
+          <div className="blockedBox"><span className="eyebrow">Blocked in V1</span>
+            {activeImportPlan.blockedActions.map((action) => <p key={action}>{action}</p>)}</div>
+          <button onClick={() => approveImportPlan(activeImportPlan.id)} disabled={activeImportPlan.status === "approved"}>
+            {activeImportPlan.status === "approved" ? "Approved as Development Project" : "Approve Import to Development"}
+          </button>
+        </div> : <div className="importDetail empty">Create or select an import plan to review inventory and blocked actions.</div>}
+      </div>
+    </section>
 
     {commandCentre && <section className="commandCentre">
       <div className="builderHead">

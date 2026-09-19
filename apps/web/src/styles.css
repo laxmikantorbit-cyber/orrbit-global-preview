@@ -76,3 +76,20 @@ dd { margin: 0; font-weight: 650; text-align: right; }
   .form, .planControls, .commandSummary, .historyGrid { grid-template-columns: 1fr; width: 100%; }
   .headerActions { width: 100%; justify-content: space-between; }
 }
+.importPanel { background: #fff; border: 1px solid #dfe5ea; border-radius: 16px; padding: 20px; margin: 0 0 30px; }
+.importPanel h2 { margin: 2px 0 4px; }
+.importPanel .builderHead p { margin: 0; color: #697688; max-width: 760px; }
+.importPanel .builderHead button, .importDetail > button { border: 0; border-radius: 10px; padding: 11px 16px; background: #17202a; color: #fff; }
+.importLayout { display: grid; grid-template-columns: 310px 1fr; gap: 16px; margin-top: 18px; }
+.importList { border: 1px solid #e1e6ea; border-radius: 12px; padding: 14px; background: #f8fafb; }
+.importItem { width: 100%; text-align: left; display: grid; gap: 5px; border: 1px solid #dfe5ea; border-radius: 10px; background: #fff; padding: 11px; margin-top: 10px; }
+.importItem.active { border-color: #17202a; }
+.importItem span, .routeBox span, .blockedBox span { color: #748092; font-size: 12px; }
+.importDetail { border: 1px solid #e1e6ea; border-radius: 12px; padding: 16px; background: #fff; }
+.routeBox, .blockedBox { margin: 14px 0; display: grid; gap: 7px; }
+.routeBox p, .blockedBox p { margin: 0; padding: 9px 10px; background: #f8fafb; border-radius: 8px; font-size: 13px; }
+.routeBox p { display: flex; justify-content: space-between; gap: 10px; }
+@media (max-width: 680px) {
+  .importLayout { grid-template-columns: 1fr; }
+  .routeBox p { display: grid; }
+}
