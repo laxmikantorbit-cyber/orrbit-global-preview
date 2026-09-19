@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import Fastify from "fastify";
 import { Pool } from "pg";
 import { createLocalProvisioningPlan, type ProvisioningPlan } from "@orrbit/ai-orchestrator";
-import { createProjectImportPlan, validateImportSource, type CreateImportPlanInput, type ProjectImportPlan } from "@orrbit/project-importer";
+import { createMartialArtsErpPilotPlan, createProjectImportPlan, martialArtsPilotAcceptance, martialArtsPilotModules, validateImportSource, type CreateImportPlanInput, type ProjectImportPlan } from "@orrbit/project-importer";
 import { classifyRisk, requiresApproval } from "@orrbit/policy-engine";
 import { providerCapabilities, DryRunGitHubProvider, DryRunCloudflarePagesProvider, DryRunCloudRunProvider, DryRunDatabaseProvider, DryRunOpenAiProvider, DryRunSecretProvider } from "@orrbit/provider-adapters";
 import { buildRuntimeProjectManifest, projectCreateSchema } from "@orrbit/project-manifest";
@@ -328,6 +328,29 @@ app.post<{
   await saveJob(job, plan.prompt);
   await audit(project.id, "project_plan_approved", { planId: plan.id, jobId: job.id, evidence: job.evidence });
   return reply.code(201).send({ approved: true, project, job });
+});
+
+app.get("/api/pilots/martial-arts-erp", async () => ({
+  projectName: "Martial Arts ERP",
+  mode: "development-import-pilot",
+  sourceType: "chatgpt-sites",
+  sourceReferenceRequiredBeforeCapture: true,
+  productionProtected: true,
+  realCloudProvisioningEnabled: false,
+  modules: martialArtsPilotModules,
+  acceptance: martialArtsPilotAcceptance
+}));
+
+app.post<{ Body: { sourceRef?: string } }>("/api/pilots/martial-arts-erp/import-plan", async (request, reply) => {
+  const plan = createMartialArtsErpPilotPlan({ sourceRef: request.body?.sourceRef });
+  await saveImportPlan(plan);
+  await audit(null, "martial_arts_pilot_import_plan_created", {
+    importPlanId: plan.id,
+    sourceReferenceStatus: plan.pilot.sourceReferenceStatus,
+    routeCount: plan.routeInventory.length,
+    moduleCount: plan.pilot.modules.length
+  });
+  return reply.code(201).send(plan);
 });
 
 app.get("/api/import-plans", async () => ({ importPlans: await listImportPlans() }));

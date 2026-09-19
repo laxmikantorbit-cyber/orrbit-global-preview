@@ -105,3 +105,76 @@ export function validateImportSource(input: CreateImportPlanInput): string | nul
   if (input.targetEnvironment && input.targetEnvironment !== "development") return "only_development_import_enabled_in_v1";
   return null;
 }
+
+const martialArtsRoutes = [
+  "/", "/login", "/dashboard", "/academies", "/branches", "/students",
+  "/guardians", "/instructors", "/attendance", "/memberships", "/fees",
+  "/belt-ranks", "/grading-exams", "/class-schedule",
+  "/events-tournaments", "/reports", "/settings"
+];
+
+export const martialArtsPilotModules = [
+  "Academy/Tenant setup",
+  "Branch management",
+  "Student/member management",
+  "Parent/guardian records",
+  "Instructor management",
+  "Attendance",
+  "Membership plans",
+  "Fee collection",
+  "Belt/rank history",
+  "Grading/examination",
+  "Class scheduling",
+  "Events/tournaments",
+  "Reports",
+  "Role-based access"
+];
+export const martialArtsPilotAcceptance = [
+  "Create import plan without touching production",
+  "Mark source reference as pending when ChatGPT Sites reference is missing",
+  "Create development-only protected project after owner approval",
+  "Keep production, DNS, live payment and destructive DB actions blocked",
+  "Generate route inventory and manifest draft for SaaS development mode"
+];
+
+export function createMartialArtsErpPilotPlan(input?: { sourceRef?: string }): ProjectImportPlan & {
+  pilot: {
+    sourceReferenceStatus: "provided" | "pending";
+    modules: string[];
+    acceptance: string[];
+  };
+} {
+  const now = new Date().toISOString();
+  const sourceRef = input?.sourceRef?.trim() || "PENDING_CHATGPT_SITES_REFERENCE";
+  const sourcePending = sourceRef === "PENDING_CHATGPT_SITES_REFERENCE";
+  const plan = createProjectImportPlan({
+    sourceType: "chatgpt-sites",
+    sourceRef,
+    projectName: "Martial Arts ERP",
+    projectType: "saas",
+    targetEnvironment: "development",
+    knownRoutes: martialArtsRoutes
+  });
+  return {
+    ...plan,
+    actions: [
+      "Confirm or attach ChatGPT Sites source reference",
+      "Capture current screens/routes/modules as reference inventory",
+      "Create isolated development SaaS workspace",
+      "Draft multi-tenant SaaS manifest",
+      "Run parity/safety checks before any preview or deploy"
+    ],
+    blockedActions: [...plan.blockedActions, "No customer/tenant production data import", "No production domain connection"],
+    routeInventory: plan.routeInventory.map((route) => ({
+      ...route,
+      notes: sourcePending
+        ? "Pilot placeholder; source reference must be confirmed before capture."
+        : "Capture from confirmed ChatGPT Sites reference during import workspace stage."
+    })),
+    pilot: {
+      sourceReferenceStatus: sourcePending ? "pending" : "provided",
+      modules: martialArtsPilotModules,
+      acceptance: martialArtsPilotAcceptance
+    }
+  };
+}
