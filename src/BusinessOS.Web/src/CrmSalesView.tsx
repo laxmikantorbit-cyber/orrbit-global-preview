@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { apiBase } from './businessosApi'
 import {
   addCrmContact,
   changeCrmOpportunityStage,
@@ -20,7 +21,7 @@ type Props = {
 }
 
 const stages = ['Discovery', 'SolutionFit', 'Proposal', 'Negotiation', 'Won', 'Lost']
-
+const crmUserKey = 'businessos.crm.demoUserId'
 
 function csvCell(value: unknown) {
   const text = value == null ? '' : String(value)
@@ -32,12 +33,17 @@ function downloadCsv(filename: string, headers: string[], rows: unknown[][]) {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
-  link.href = url; link.download = filename; link.click(); URL.revokeObjectURL(url)
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 function parseCsv(text: string) {
   const rows: string[][] = []
-  let row: string[] = [], cell = '', quoted = false
+  let row: string[] = []
+  let cell = ''
+  let quoted = false
   for (let i = 0; i < text.length; i += 1) {
     const ch = text[i]
     if (ch === '"' && quoted && text[i + 1] === '"') { cell += '"'; i += 1; continue }
@@ -45,7 +51,8 @@ function parseCsv(text: string) {
     if (ch === ',' && !quoted) { row.push(cell.trim()); cell = ''; continue }
     if ((ch === '\n' || ch === '\r') && !quoted) {
       if (ch === '\r' && text[i + 1] === '\n') i += 1
-      row.push(cell.trim()); cell = ''
+      row.push(cell.trim())
+      cell = ''
       if (row.some(Boolean)) rows.push(row)
       row = []
       continue
@@ -59,7 +66,8 @@ function parseCsv(text: string) {
 
 function pickCsvFile(onText: (text: string) => void) {
   const input = document.createElement('input')
-  input.type = 'file'; input.accept = '.csv,text/csv'
+  input.type = 'file'
+  input.accept = '.csv,text/csv'
   input.onchange = () => {
     const file = input.files?.[0]
     if (!file) return
@@ -73,6 +81,29 @@ function pickCsvFile(onText: (text: string) => void) {
 function money(value: number, currency: string) {
   try { return new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value) }
   catch { return `${currency} ${value.toLocaleString('en-IN')}` }
+}
+
+async function updateAccountStatus(account: CrmAccount, status: 'Active' | 'Inactive') {
+  const headers = new Headers({ 'Content-Type': 'application/json' })
+  const userId = window.localStorage.getItem(crmUserKey)
+  if (userId) headers.set('X-CRM-Demo-User-Id', userId)
+  const response = await fetch(`${apiBase}/api/testing/public/crm/accounts/${account.id}/profile`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      name: account.name,
+      legalName: account.legalName,
+      gstin: account.gstin,
+      displayCode: account.displayCode,
+      status,
+    }),
+  })
+  const text = await response.text()
+  const data = text ? JSON.parse(text) : null
+  if (!response.ok) {
+    throw new Error(data?.error || data?.detail || data?.title || `HTTP ${response.status}`)
+  }
+  return data as CrmAccount
 }
 
 export function CrmSalesView({ view, accounts, opportunities, busy, refresh, notify, canManageAccounts, canManageOpportunities }: Props) {
@@ -112,10 +143,16 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
     if (!accountName.trim()) return
     await perform(async () => {
       await createCrmAccount({
-        name: accountName.trim(), contactName: contactName.trim() || undefined,
-        phone: phone.trim() || undefined, email: email.trim() || undefined,
+        name: accountName.trim(),
+        contactName: contactName.trim() || undefined,
+        phone: phone.trim() || undefined,
+        email: email.trim() || undefined,
       })
-      setAccountName(''); setContactName(''); setPhone(''); setEmail(''); setShowAccount(false)
+      setAccountName('')
+      setContactName('')
+      setPhone('')
+      setEmail('')
+      setShowAccount(false)
     }, 'Customer account created')
   }
 
@@ -129,7 +166,11 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
         probabilityPercent: Number(dealProbability || 0),
         expectedCloseDate: closeDate || undefined,
       })
-      setDealTitle(''); setDealValue('29999'); setDealProbability('50'); setCloseDate(''); setShowOpportunity(false)
+      setDealTitle('')
+      setDealValue('29999')
+      setDealProbability('50')
+      setCloseDate('')
+      setShowOpportunity(false)
     }, 'Opportunity created')
   }
 
@@ -141,6 +182,11 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
     }, 'Contact added')
   }
 
+  async function toggleAccountStatus(account: CrmAccount) {
+    if (!canManageAccounts) return
+    const nextStatus = account.status === 'Inactive' ? 'Active' : 'Inactive'
+    await perform(() => updateAccountStatus(account, nextStatus), `Customer marked ${nextStatus}`)
+  }
 
   function exportCustomersCsv() {
     downloadCsv('crm-customers.csv', ['Company', 'Primary Contact', 'Email', 'Phone', 'GSTIN', 'Status', 'Contacts'],
@@ -154,19 +200,19 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
       if (!header || rows.length === 0) { notify('CSV has no customer rows'); return }
       const keys = header.map((x) => x.toLowerCase().replace(/[^a-z0-9]/g, ''))
       const value = (row: string[], names: string[]) => {
-        const index = names.map((n) => keys.indexOf(n)).find((i) => i >= 0) ?? -1
+        const index = names.map((name) => keys.indexOf(name)).find((item) => item >= 0) ?? -1
         return index >= 0 ? row[index] : ''
       }
       void perform(async () => {
         for (const row of rows) {
-          const company = value(row, ['company','business','name','customer'])
+          const company = value(row, ['company', 'business', 'name', 'customer'])
           if (!company) continue
           await createCrmAccount({
             name: company,
             legalName: value(row, ['legalname']) || undefined,
-            contactName: value(row, ['contact','contactperson','primarycontact','person']) || undefined,
-            phone: value(row, ['phone','mobile','mobilenumber']) || undefined,
-            email: value(row, ['email','mail']) || undefined,
+            contactName: value(row, ['contact', 'contactperson', 'primarycontact', 'person']) || undefined,
+            phone: value(row, ['phone', 'mobile', 'mobilenumber']) || undefined,
+            email: value(row, ['email', 'mail']) || undefined,
             gstin: value(row, ['gstin']) || undefined,
           })
         }
@@ -195,26 +241,26 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
           <div className="crm2-ref-customers-head"><span><input type="checkbox" /></span><span>#</span><span>Company</span><span>Primary Contact</span><span>Primary Email</span><span>Phone</span><span>Active</span><span>Groups</span></div>
           {accounts.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : accounts.map((account, index) => (
             <article className="crm2-ref-customers-row" key={account.id} onClick={() => setSelectedAccountId(account.id)}>
-              <span><input type="checkbox" onClick={(e) => e.stopPropagation()} /></span><span>{176 - index}</span><span><a>{account.name}</a></span><span>{account.primaryContact?.name || '-'}</span><span><a>{account.primaryContact?.email || '-'}</a></span><span>{account.primaryContact?.phone || '-'}</span><span><label className="crm2-ref-switch"><input type="checkbox" checked={account.status !== 'Inactive'} readOnly /><i /></label></span><span><em>{account.status === 'Active' ? 'Customer' : account.status}</em></span>
+              <span><input type="checkbox" onClick={(event) => event.stopPropagation()} /></span><span>{176 - index}</span><span><a>{account.name}</a></span><span>{account.primaryContact?.name || '-'}</span><span><a>{account.primaryContact?.email || '-'}</a></span><span>{account.primaryContact?.phone || '-'}</span><span><label className="crm2-ref-switch" onClick={(event) => event.stopPropagation()}><input type="checkbox" checked={account.status !== 'Inactive'} disabled={busy || !canManageAccounts} onChange={() => void toggleAccountStatus(account)} /><i /></label></span><span><em>{account.status === 'Active' ? 'Customer' : account.status}</em></span>
             </article>
           ))}
         </section>
 
         {showAccount && canManageAccounts ? (
           <div className="crm2-overlay" onMouseDown={() => setShowAccount(false)}>
-            <section className="crm2-drawer" onMouseDown={(e) => e.stopPropagation()}>
+            <section className="crm2-drawer" onMouseDown={(event) => event.stopPropagation()}>
               <div className="crm2-drawer-head"><div><span className="crm2-kicker">NEW CUSTOMER</span><h2>Create account</h2></div><button onClick={() => setShowAccount(false)}>×</button></div>
-              <label>Business / account name<input autoFocus value={accountName} onChange={(e) => setAccountName(e.target.value)} /></label>
-              <label>Primary contact<input value={contactName} onChange={(e) => setContactName(e.target.value)} /></label>
-              <label>Phone<input value={phone} onChange={(e) => setPhone(e.target.value)} /></label>
-              <label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+              <label>Business / account name<input autoFocus value={accountName} onChange={(event) => setAccountName(event.target.value)} /></label>
+              <label>Primary contact<input value={contactName} onChange={(event) => setContactName(event.target.value)} /></label>
+              <label>Phone<input value={phone} onChange={(event) => setPhone(event.target.value)} /></label>
+              <label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
               <div className="crm2-drawer-actions"><button className="crm2-cancel" onClick={() => setShowAccount(false)}>Cancel</button><button className="crm2-primary" disabled={busy || !accountName.trim()} onClick={() => void saveAccount()}>Create account</button></div>
             </section>
           </div>
         ) : null}
         {selectedAccount ? (
           <div className="crm2-overlay" onMouseDown={() => setSelectedAccountId(null)}>
-            <section className="crm2-drawer crm2-wide-drawer" onMouseDown={(e) => e.stopPropagation()}>
+            <section className="crm2-drawer crm2-wide-drawer" onMouseDown={(event) => event.stopPropagation()}>
               <div className="crm2-drawer-head"><div><span className="crm2-kicker">ACCOUNT</span><h2>{selectedAccount.name}</h2></div><button onClick={() => setSelectedAccountId(null)}>×</button></div>
               <div className="crm2-detail-summary">
                 <div><span>Status</span><strong>{selectedAccount.status}</strong></div>
@@ -227,7 +273,7 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
                   <article key={contact.id}><div><strong>{contact.name}</strong><span>{contact.phone || contact.email || 'No contact details'}</span></div>{contact.isPrimary ? <em>Primary</em> : null}</article>
                 ))}
               </div>
-              {canManageAccounts ? <div className="crm2-inline-create"><input value={contactDraft} onChange={(e) => setContactDraft(e.target.value)} placeholder="Add contact name" /><button className="crm2-primary" disabled={busy || !contactDraft.trim()} onClick={() => void addContact()}>Add contact</button></div> : null}
+              {canManageAccounts ? <div className="crm2-inline-create"><input value={contactDraft} onChange={(event) => setContactDraft(event.target.value)} placeholder="Add contact name" /><button className="crm2-primary" disabled={busy || !contactDraft.trim()} onClick={() => void addContact()}>Add contact</button></div> : null}
             </section>
           </div>
         ) : null}
@@ -243,9 +289,9 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
       </div>
       <div className="crm2-deal-summary">
         <article><span>Open pipeline</span><strong>{money(totalPipeline, 'INR')}</strong></article>
-        <article><span>Open deals</span><strong>{opportunities.filter((x) => !['Won', 'Lost'].includes(x.stage)).length}</strong></article>
-        <article><span>Won</span><strong>{opportunities.filter((x) => x.stage === 'Won').length}</strong></article>
-        <article><span>Lost</span><strong>{opportunities.filter((x) => x.stage === 'Lost').length}</strong></article>
+        <article><span>Open deals</span><strong>{opportunities.filter((item) => !['Won', 'Lost'].includes(item.stage)).length}</strong></article>
+        <article><span>Won</span><strong>{opportunities.filter((item) => item.stage === 'Won').length}</strong></article>
+        <article><span>Lost</span><strong>{opportunities.filter((item) => item.stage === 'Lost').length}</strong></article>
       </div>
       <div className="crm2-opportunity-table">
         <div className="crm2-opportunity-head"><span>Opportunity</span><span>Account</span><span>Value</span><span>Probability</span><span>Stage</span></div>
@@ -256,9 +302,9 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
             <span>{account?.name || 'Unknown account'}</span>
             <span>{money(deal.estimatedValue, deal.currencyCode)}</span>
             <span>{deal.probabilityPercent}%</span>
-            <select value={deal.stage} disabled={busy || !canManageOpportunities || ['Won', 'Lost'].includes(deal.stage)} onChange={(e) => void perform(
-              () => changeCrmOpportunityStage(deal.id, e.target.value, e.target.value === 'Lost' ? 'Closed as lost' : undefined),
-              `Opportunity moved to ${e.target.value}`,
+            <select value={deal.stage} disabled={busy || !canManageOpportunities || ['Won', 'Lost'].includes(deal.stage)} onChange={(event) => void perform(
+              () => changeCrmOpportunityStage(deal.id, event.target.value, event.target.value === 'Lost' ? 'Closed as lost' : undefined),
+              `Opportunity moved to ${event.target.value}`,
             )}>{stages.map((stage) => <option key={stage}>{stage}</option>)}</select>
           </article>
         })}
@@ -266,13 +312,13 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
 
       {showOpportunity && canManageOpportunities ? (
         <div className="crm2-overlay" onMouseDown={() => setShowOpportunity(false)}>
-          <section className="crm2-drawer" onMouseDown={(e) => e.stopPropagation()}>
+          <section className="crm2-drawer" onMouseDown={(event) => event.stopPropagation()}>
             <div className="crm2-drawer-head"><div><span className="crm2-kicker">NEW DEAL</span><h2>Create opportunity</h2></div><button onClick={() => setShowOpportunity(false)}>×</button></div>
-            <label>Customer account<select value={dealAccountId} onChange={(e) => setDealAccountId(e.target.value)}>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
-            <label>Opportunity title<input value={dealTitle} onChange={(e) => setDealTitle(e.target.value)} placeholder="AI Repair software sale" /></label>
-            <label>Estimated value<input type="number" min="0" value={dealValue} onChange={(e) => setDealValue(e.target.value)} /></label>
-            <label>Probability %<input type="number" min="0" max="100" value={dealProbability} onChange={(e) => setDealProbability(e.target.value)} /></label>
-            <label>Expected close date<input type="date" value={closeDate} onChange={(e) => setCloseDate(e.target.value)} /></label>
+            <label>Customer account<select value={dealAccountId} onChange={(event) => setDealAccountId(event.target.value)}>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
+            <label>Opportunity title<input value={dealTitle} onChange={(event) => setDealTitle(event.target.value)} placeholder="AI Repair software sale" /></label>
+            <label>Estimated value<input type="number" min="0" value={dealValue} onChange={(event) => setDealValue(event.target.value)} /></label>
+            <label>Probability %<input type="number" min="0" max="100" value={dealProbability} onChange={(event) => setDealProbability(event.target.value)} /></label>
+            <label>Expected close date<input type="date" value={closeDate} onChange={(event) => setCloseDate(event.target.value)} /></label>
             <div className="crm2-drawer-actions"><button className="crm2-cancel" onClick={() => setShowOpportunity(false)}>Cancel</button><button className="crm2-primary" disabled={busy || !dealAccountId || !dealTitle.trim()} onClick={() => void saveOpportunity()}>Create opportunity</button></div>
           </section>
         </div>
