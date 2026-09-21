@@ -103,6 +103,26 @@ type SourceAcquisition = {
   createdAt: string;
   updatedAt: string;
 };
+type SourceBuild = {
+  id: string;
+  acquisitionId: string;
+  workspaceId: string;
+  projectId: string;
+  status: string;
+  framework: string;
+  packageManager: string;
+  projectSubdir: string;
+  installCommand: string;
+  buildCommand: string;
+  stages: Array<{ name: string; status: string; detail?: string }>;
+  artifactDirectory: string | null;
+  preview: null | { containerName: string; networkName: string; url: string; hostPort: number; kind: string };
+  logs: string[];
+  blockers: string[];
+  protections: Record<string, boolean>;
+  createdAt: string;
+  updatedAt: string;
+};
 type ImportExecution = {
   id: string;
   workspaceId: string;
@@ -141,6 +161,8 @@ export default function App() {
   const [deployGate, setDeployGate] = useState<DeployGate | null>(null);
   const [activeExecution, setActiveExecution] = useState<ImportExecution | null>(null);
   const [activeAcquisition, setActiveAcquisition] = useState<SourceAcquisition | null>(null);
+  const [activeBuild, setActiveBuild] = useState<SourceBuild | null>(null);
+  const [sandboxReady, setSandboxReady] = useState<boolean | null>(null);
   const [sourcePackage, setSourcePackage] = useState<File | null>(null);
   const [sourceRefDraft, setSourceRefDraft] = useState("");
   const [envDraft, setEnvDraft] = useState({
@@ -240,6 +262,7 @@ export default function App() {
     setDeployGate(null);
     setActiveExecution(null);
     setActiveAcquisition(null);
+    setActiveBuild(null);
     setSourcePackage(null);
     setSourceRefDraft("");
     setMessage("Martial Arts ERP pilot plan ready; source reference pending");
@@ -256,6 +279,7 @@ export default function App() {
       setActiveWorkspace(result.workspace);
       setActiveExecution(null);
       setActiveAcquisition(null);
+      setActiveBuild(null);
       setSourcePackage(null);
       setSourceRefDraft(result.workspace.sourceReferenceStatus === "pending" ? "" : result.workspace.sourceRef);
       setImportWorkspaces((current) => [result.workspace, ...current]);
@@ -270,6 +294,7 @@ export default function App() {
     setDeployGate(null);
     setActiveExecution(null);
     setActiveAcquisition(null);
+    setActiveBuild(null);
     setSourcePackage(null);
     const response = await fetch(`${apiBase}/api/import-workspaces/${workspaceId}`);
     const result = await response.json();
@@ -330,7 +355,48 @@ export default function App() {
     if (response.ok) {
       const latest = (result.acquisitions ?? []).find((item: SourceAcquisition) => item.status !== "discarded") ?? null;
       setActiveAcquisition(latest);
+      if (latest) await loadLatestBuild(latest.id);
+      else setActiveBuild(null);
     }
+  }
+
+  async function loadLatestBuild(acquisitionId: string) {
+    const response = await fetch(`${apiBase}/api/source-acquisitions/${acquisitionId}/builds`);
+    const result = await response.json();
+    if (response.ok) setActiveBuild(result.builds?.[0] ?? null);
+  }
+
+  async function loadSandboxStatus() {
+    const response = await fetch(`${apiBase}/api/source-builds/sandbox-status`);
+    const result = await response.json();
+    if (response.ok) setSandboxReady(Boolean(result.dockerSandboxReady));
+  }
+
+  async function startSourceBuild() {
+    if (!activeAcquisition) return;
+    setMessage("Running isolated actual-source build...");
+    await loadSandboxStatus();
+    const response = await fetch(`${apiBase}/api/source-acquisitions/${activeAcquisition.id}/builds`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
+    });
+    const result = await response.json();
+    setActiveBuild(result);
+    if (!response.ok) return setMessage(result.error ?? "Source build failed");
+    if (result.status === "preview_ready") setMessage("Actual source build complete; isolated local preview ready");
+    else if (result.blockers?.includes("sandbox_unavailable")) setMessage("Build safely blocked: Docker sandbox is not running");
+    else setMessage(`Source build finished with status: ${result.status}`);
+  }
+
+  async function resetSourceBuild() {
+    if (!activeBuild) return;
+    setMessage("Resetting source build and stopping preview...");
+    const response = await fetch(`${apiBase}/api/source-builds/${activeBuild.id}/reset`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
+    });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "Source build reset failed");
+    setActiveBuild(result);
+    setMessage("Source build reset; isolated build files and preview stopped");
   }
 
   async function uploadSourcePackage() {
@@ -344,7 +410,7 @@ export default function App() {
     });
     const result = await response.json();
     const acquisition = result.acquisition ?? null;
-    if (acquisition) setActiveAcquisition(acquisition);
+    if (acquisition) { setActiveAcquisition(acquisition); setActiveBuild(null); }
     if (!response.ok) {
       const issues = acquisition?.issues?.join(", ");
       return setMessage(issues ? `Source package rejected: ${issues}` : (result.error ?? "Source acquisition failed"));
@@ -362,6 +428,7 @@ export default function App() {
     const result = await response.json();
     if (!response.ok) return setMessage(result.error ?? "Source package discard failed");
     setActiveAcquisition(null);
+    setActiveBuild(null);
     setSourcePackage(null);
     setMessage("Source package discarded; production remains untouched");
   }
@@ -570,6 +637,33 @@ export default function App() {
               {activeAcquisition?.status === "acquired" && <div className="readyBox sourceReady">Actual source acquired and extracted only into the isolated control-plane inbox. No source code has been executed.</div>}
               {activeAcquisition && <button className="secondary sourceDiscard" onClick={discardSourcePackage}>Discard Isolated Source Package</button>}
             </div>
+            {activeAcquisition?.status === "acquired" && <div className="sourceBuildPanel">
+              <div className="planTop"><div><span className="eyebrow">Isolated Actual Source Build</span>
+                <h3>{activeBuild?.status ?? "Ready to build"}</h3></div>
+                <span className={sandboxReady ? "okBadge" : "lockBadge"}>{sandboxReady === null ? "Sandbox unchecked" : sandboxReady ? "Docker sandbox ready" : "Docker sandbox unavailable"}</span></div>
+              <div className="buildActions">
+                <button className="secondary" onClick={loadSandboxStatus}>Check Sandbox</button>
+                <button onClick={startSourceBuild} disabled={activeBuild?.status === "preview_ready"}>Build Actual Source</button>
+                <button disabled title="Production deployment remains locked">Deploy Locked</button>
+              </div>
+              <div className="protectionStrip">Docker sandbox required · Host execution disabled · Build network disabled · Production/DNS/payment/live DB/customer data locked</div>
+              {activeBuild && <>
+                <div className="buildSummary">
+                  <div><span>Framework</span><strong>{activeBuild.framework}</strong></div>
+                  <div><span>Package manager</span><strong>{activeBuild.packageManager}</strong></div>
+                  <div><span>Project root</span><strong>{activeBuild.projectSubdir}</strong></div>
+                  <div><span>Artifact</span><strong>{activeBuild.artifactDirectory ?? "Not ready"}</strong></div>
+                </div>
+                <div className="executionStages">
+                  {activeBuild.stages.map((stage) => <div key={stage.name}><strong>{stage.name}</strong><span>{stage.status}</span>{stage.detail && <small>{stage.detail}</small>}</div>)}
+                </div>
+                {activeBuild.blockers.length > 0 && <div className="warningBox"><strong>Build blockers:</strong> {activeBuild.blockers.join(" · ")}</div>}
+                <div className="buildCommands"><span>Install</span><code>{activeBuild.installCommand || "pending"}</code><span>Build</span><code>{activeBuild.buildCommand || "pending"}</code></div>
+                {activeBuild.preview && <div className="actualPreviewBox"><span className="eyebrow">Actual local preview</span><a href={activeBuild.preview.url} target="_blank" rel="noreferrer">Open {activeBuild.preview.url}</a></div>}
+                {activeBuild.logs.length > 0 && <details className="buildLogs"><summary>Build logs</summary><pre>{activeBuild.logs.join("\n\n")}</pre></details>}
+                <div className="buildActions"><button className="secondary" onClick={resetSourceBuild} disabled={activeBuild.status === "reset"}>Reset Build / Stop Preview</button><button disabled>External Deploy Locked</button></div>
+              </>}
+            </div>}
             <div className="captureGrid">
               <div><span className="eyebrow">Route/Page capture</span>
                 <strong>{activeWorkspace.routeCapture.filter((x) => x.status === "captured").length}/{activeWorkspace.routeCapture.length}</strong></div>

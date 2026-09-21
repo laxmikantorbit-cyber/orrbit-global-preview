@@ -10,6 +10,7 @@ import { confirmImportWorkspaceSourceReference, createDevelopmentImportExecution
 import { classifyRisk, requiresApproval } from "@orrbit/policy-engine";
 import { providerCapabilities, DryRunGitHubProvider, DryRunCloudflarePagesProvider, DryRunCloudRunProvider, DryRunDatabaseProvider, DryRunOpenAiProvider, DryRunSecretProvider } from "@orrbit/provider-adapters";
 import { buildRuntimeProjectManifest, projectCreateSchema } from "@orrbit/project-manifest";
+import { createSourceBuildJob, isDockerSandboxReady, resetSourceBuildJob, runSourceBuild, type SourceBuildJob } from "./source-build-runner.js";
 import {
   MemoryProjectRegistry,
   PostgresProjectRegistry,
@@ -29,6 +30,8 @@ const importPlans = new Map<string, ProjectImportPlan>();
 const importWorkspaces = new Map<string, ProjectImportWorkspace>();
 const importExecutions = new Map<string, ImportExecutionJob>();
 const sourceAcquisitions = new Map<string, SourceAcquisitionRecord>();
+
+const sourceBuildJobs = new Map<string, SourceBuildJob>();
 
 type OnboardingJob = {
   id: string;
@@ -212,6 +215,39 @@ async function listSourceAcquisitions(workspaceId: string): Promise<SourceAcquis
     "SELECT acquisition_data FROM source_acquisitions WHERE workspace_id=$1 ORDER BY created_at DESC LIMIT 50", [workspaceId]
   );
   return result.rows.map((row) => row.acquisition_data);
+}
+
+async function saveSourceBuildJob(job: SourceBuildJob) {
+  if (!pool) {
+    sourceBuildJobs.set(job.id, job);
+    return;
+  }
+  await pool.query(
+    `INSERT INTO source_build_jobs
+      (id, acquisition_id, workspace_id, project_id, status, build_data, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$7)
+     ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,
+       build_data=EXCLUDED.build_data, updated_at=NOW()`,
+    [job.id, job.acquisitionId, job.workspaceId, job.projectId, job.status, JSON.stringify(job), job.createdAt]
+  );
+}
+
+async function getSourceBuildJob(id: string): Promise<SourceBuildJob | undefined> {
+  if (!pool) return sourceBuildJobs.get(id);
+  const result = await pool.query<{ build_data: SourceBuildJob }>(
+    "SELECT build_data FROM source_build_jobs WHERE id=$1", [id]
+  );
+  return result.rows[0]?.build_data;
+}
+
+async function listSourceBuildJobs(acquisitionId: string): Promise<SourceBuildJob[]> {
+  if (!pool) return [...sourceBuildJobs.values()]
+    .filter((job) => job.acquisitionId === acquisitionId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const result = await pool.query<{ build_data: SourceBuildJob }>(
+    "SELECT build_data FROM source_build_jobs WHERE acquisition_id=$1 ORDER BY created_at DESC LIMIT 50", [acquisitionId]
+  );
+  return result.rows.map((row) => row.build_data);
 }
 
 function acquisitionFolder(workspaceId: string, acquisitionId: string) {
@@ -657,6 +693,12 @@ app.get<{ Params: { id: string } }>("/api/source-acquisitions/:id", async (reque
 app.post<{ Params: { id: string } }>("/api/source-acquisitions/:id/discard", async (request, reply) => {
   const record = await getSourceAcquisition(request.params.id);
   if (!record) return reply.code(404).send({ error: "source_acquisition_not_found" });
+  const builds = await listSourceBuildJobs(record.id);
+  for (const build of builds) {
+    if (build.status === "reset") continue;
+    const resetBuild = await resetSourceBuildJob(build, importInboxRoot);
+    await saveSourceBuildJob(resetBuild);
+  }
   const discarded = discardSourceAcquisition(record);
   await rm(acquisitionFolder(record.workspaceId, record.id), { recursive: true, force: true });
   await saveSourceAcquisition(discarded);
@@ -664,6 +706,76 @@ app.post<{ Params: { id: string } }>("/api/source-acquisitions/:id/discard", asy
     workspaceId: record.workspaceId, acquisitionId: record.id
   });
   return discarded;
+});
+
+app.get("/api/source-builds/sandbox-status", async () => ({
+  dockerSandboxReady: await isDockerSandboxReady(),
+  hostExecutionDisabled: true,
+  buildNetworkDisabled: true
+}));
+
+app.post<{ Params: { id: string } }>("/api/source-acquisitions/:id/builds", async (request, reply) => {
+  const record = await getSourceAcquisition(request.params.id);
+  if (!record) return reply.code(404).send({ error: "source_acquisition_not_found" });
+  const previous = await listSourceBuildJobs(record.id);
+  if (previous.some((job) => job.preview?.containerName && job.status === "preview_ready")) {
+    return reply.code(409).send({ error: "active_preview_exists_reset_first" });
+  }
+  const queued = createSourceBuildJob(record);
+  await saveSourceBuildJob(queued);
+  try {
+    const completed = await runSourceBuild(queued, record, importInboxRoot);
+    await saveSourceBuildJob(completed);
+    await audit(record.projectId, "source_build_completed", {
+      acquisitionId: record.id,
+      buildId: completed.id,
+      status: completed.status,
+      framework: completed.framework,
+      packageManager: completed.packageManager,
+      artifactDirectory: completed.artifactDirectory,
+      blockers: completed.blockers,
+      previewUrl: completed.preview?.url ?? null
+    });
+    return reply.code(201).send(completed);
+  } catch (error) {
+    queued.status = "failed";
+    queued.blockers = ["source_build_runner_error"];
+    queued.logs.push(error instanceof Error ? error.message : "source_build_runner_error");
+    queued.updatedAt = new Date().toISOString();
+    await saveSourceBuildJob(queued);
+    return reply.code(500).send(queued);
+  }
+});
+
+app.get<{ Params: { id: string } }>("/api/source-acquisitions/:id/builds", async (request, reply) => {
+  const record = await getSourceAcquisition(request.params.id);
+  if (!record) return reply.code(404).send({ error: "source_acquisition_not_found" });
+  return { builds: await listSourceBuildJobs(record.id) };
+});
+
+app.get<{ Params: { id: string } }>("/api/source-builds/:id", async (request, reply) => {
+  const job = await getSourceBuildJob(request.params.id);
+  if (!job) return reply.code(404).send({ error: "source_build_not_found" });
+  return job;
+});
+
+app.post<{ Params: { id: string } }>("/api/source-builds/:id/reset", async (request, reply) => {
+  const job = await getSourceBuildJob(request.params.id);
+  if (!job) return reply.code(404).send({ error: "source_build_not_found" });
+  const reset = await resetSourceBuildJob(job, importInboxRoot);
+  await saveSourceBuildJob(reset);
+  await audit(reset.projectId, "source_build_reset", { buildId: reset.id, acquisitionId: reset.acquisitionId });
+  return reset;
+});
+
+app.post<{ Params: { id: string } }>("/api/source-builds/:id/deploy", async (request, reply) => {
+  const job = await getSourceBuildJob(request.params.id);
+  if (!job) return reply.code(404).send({ error: "source_build_not_found" });
+  return reply.code(409).send({
+    error: "real_deployment_locked",
+    targetEnvironment: "development",
+    protections: job.protections
+  });
 });
 
 app.post<{ Params: { id: string } }>("/api/import-workspaces/:id/executions", async (request, reply) => {

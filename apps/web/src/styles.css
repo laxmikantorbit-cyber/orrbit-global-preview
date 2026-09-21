@@ -145,3 +145,22 @@ dd { margin: 0; font-weight: 650; text-align: right; }
 .sourceReady { margin-top: 10px; padding: 10px; border-radius: 9px; font-size: 13px; }
 .sourceDiscard { margin-top: 10px; }
 @media (max-width: 680px) { .sourceUploadRow { grid-template-columns: 1fr; } }
+
+.sourceBuildPanel { margin: 14px 0; padding: 14px; border: 1px solid #cad7df; border-radius: 12px; background: #f7fafc; }
+.sourceBuildPanel h3 { margin: 3px 0 0; text-transform: capitalize; }
+.buildActions { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 9px; margin-top: 12px; }
+.buildActions button { border-radius: 9px; padding: 10px 12px; }
+.buildActions button:not(.secondary) { border: 0; background: #17202a; color: #fff; }
+.buildSummary { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 8px; margin: 12px 0; }
+.buildSummary > div { display: grid; gap: 5px; padding: 10px; border: 1px solid #e1e6ea; border-radius: 9px; background: #fff; }
+.buildSummary span, .buildCommands span { color: #748092; font-size: 12px; }
+.buildSummary strong { overflow-wrap: anywhere; font-size: 13px; }
+.executionStages small { color: #687586; overflow-wrap: anywhere; }
+.buildCommands { display: grid; grid-template-columns: auto 1fr; gap: 7px 10px; margin-top: 10px; align-items: center; }
+.buildCommands code { padding: 7px 9px; background: #17202a; color: #f4f7f9; border-radius: 7px; overflow-wrap: anywhere; white-space: normal; }
+.actualPreviewBox { margin-top: 12px; padding: 11px; display: grid; gap: 6px; border: 1px solid #9fd9bd; border-radius: 9px; background: #eefaf4; }
+.actualPreviewBox a { color: #075e3d; font-weight: 700; overflow-wrap: anywhere; }
+.buildLogs { margin-top: 12px; border: 1px solid #d8e2e8; border-radius: 9px; background: #fff; padding: 10px; }
+.buildLogs summary { cursor: pointer; font-weight: 700; }
+.buildLogs pre { max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+@media (max-width: 680px) { .buildCommands { grid-template-columns: 1fr; } }
