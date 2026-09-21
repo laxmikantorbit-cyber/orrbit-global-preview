@@ -229,6 +229,29 @@ CREATE TABLE IF NOT EXISTS businessos_crm.opportunities (
     loss_reason text NULL
 );
 CREATE INDEX IF NOT EXISTS ix_businessos_crm_opportunities_tenant ON businessos_crm.opportunities(tenant_id, stage);
+CREATE TABLE IF NOT EXISTS businessos_crm.sales_documents (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    account_id uuid NOT NULL,
+    opportunity_id uuid NULL,
+    kind integer NOT NULL,
+    document_number text NOT NULL,
+    subject text NOT NULL,
+    status integer NOT NULL,
+    currency_code varchar(3) NOT NULL,
+    issue_date date NOT NULL,
+    expiry_date date NULL,
+    discount_percent numeric(5,2) NOT NULL DEFAULT 0,
+    notes text NULL,
+    terms text NULL,
+    lines jsonb NOT NULL DEFAULT '[]'::jsonb,
+    created_at_utc timestamptz NOT NULL,
+    updated_at_utc timestamptz NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_businessos_crm_sales_document_number
+    ON businessos_crm.sales_documents(tenant_id, kind, document_number);
+CREATE INDEX IF NOT EXISTS ix_businessos_crm_sales_documents_tenant
+    ON businessos_crm.sales_documents(tenant_id, kind, status, issue_date DESC);
 CREATE TABLE IF NOT EXISTS businessos_crm.team_members (
     id uuid PRIMARY KEY,
     tenant_id uuid NOT NULL,
