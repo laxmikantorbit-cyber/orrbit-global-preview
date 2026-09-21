@@ -20,6 +20,7 @@ import {
   listCrmLeads,
   listCrmOpportunities,
   listCrmRoles,
+  listCrmSalesDocuments,
   listCrmTasks,
   listCrmTeam,
   type CrmAccount,
@@ -30,6 +31,7 @@ import {
   type CrmLead,
   type CrmOpportunity,
   type CrmRole,
+  type CrmSalesDocument,
   type CrmSession,
   type CrmTask,
   type CrmTeamMember,
@@ -38,6 +40,7 @@ import {
 import { CrmLeadDrawer } from './CrmLeadDrawer'
 import { CrmWorkView } from './CrmWorkView'
 import { CrmSalesView } from './CrmSalesView'
+import { CrmSalesDocumentsView } from './CrmSalesDocumentsView'
 import { CrmTeamView } from './CrmTeamView'
 import { exportCrmSpreadsheet, pickCrmSpreadsheet, type CrmSpreadsheetFormat } from './crmSpreadsheet'
 
@@ -121,6 +124,7 @@ export function CrmDemo() {
   const [tasks, setTasks] = useState<CrmTask[]>([])
   const [accounts, setAccounts] = useState<CrmAccount[]>([])
   const [opportunities, setOpportunities] = useState<CrmOpportunity[]>([])
+  const [salesDocuments, setSalesDocuments] = useState<CrmSalesDocument[]>([])
   const [teamMembers, setTeamMembers] = useState<CrmTeamMember[]>([])
   const [roles, setRoles] = useState<CrmRole[]>([])
   const [session, setSession] = useState<CrmSession | null>(null)
@@ -291,7 +295,7 @@ export function CrmDemo() {
         ownerUserId: bulkOwnerId === '__unassigned__' ? null : bulkOwnerId || undefined,
         note: 'Updated from CRM lead bulk action',
       })
-      setMessage(`Bulk updated ${result.updated.length} lead(s)${result.failed.length ? `, ${result.failed.length} failed` : ''}`)
+      setMessage(`Bulk updated ${result.updatedLeadIds.length} lead(s)${result.failed.length ? `, ${result.failed.length} failed` : ''}`)
       setSelectedLeadIds([]); setBulkStatus(''); setBulkPriority(''); setBulkOwnerId('')
       await refresh()
     } catch (error) {
@@ -317,7 +321,7 @@ export function CrmDemo() {
       const sessionResult = await getCrmSession()
       setSession(sessionResult)
       const allowed = (permission: string) => sessionResult.member.permissions.includes(permission)
-      const [leadResult, dashResult, followResult, taskResult, workResult, accountResult, opportunityResult, teamResult, roleResult, readyResult] = await Promise.all([
+      const [leadResult, dashResult, followResult, taskResult, workResult, accountResult, opportunityResult, salesResult, teamResult, roleResult, readyResult] = await Promise.all([
         allowed('ViewLeads') ? listCrmLeads() : Promise.resolve({ leads: [] as CrmLead[] }),
         allowed('ViewDashboard') ? crmDashboard() : Promise.resolve(initialDashboard()),
         allowed('ManageFollowUps') ? listCrmFollowUps() : Promise.resolve({ followUps: [] as CrmFollowUp[] }),
@@ -325,6 +329,7 @@ export function CrmDemo() {
         allowed('ViewDashboard') ? crmWorkSummary() : Promise.resolve(initialWorkSummary()),
         allowed('ViewAccounts') ? listCrmAccounts() : Promise.resolve({ accounts: [] as CrmAccount[] }),
         allowed('ViewOpportunities') ? listCrmOpportunities() : Promise.resolve({ opportunities: [] as CrmOpportunity[] }),
+        allowed('ViewSales') ? listCrmSalesDocuments() : Promise.resolve({ documents: [] as CrmSalesDocument[] }),
         allowed('ViewTeam') ? listCrmTeam() : Promise.resolve({ members: [sessionResult.member] }),
         allowed('ViewDashboard') ? listCrmRoles() : Promise.resolve({ roles: [] as CrmRole[] }),
         readiness(),
@@ -336,6 +341,7 @@ export function CrmDemo() {
       setWorkSummary(workResult)
       setAccounts(accountResult.accounts)
       setOpportunities(opportunityResult.opportunities)
+      setSalesDocuments(salesResult.documents)
       setTeamMembers(teamResult.members)
       setRoles(roleResult.roles)
       setStorageLabel(readyResult.storageMode === 'Postgres' ? 'Saved online data' : 'Temporary test data')
@@ -442,7 +448,7 @@ export function CrmDemo() {
         <nav className="crm2-nav crm2-reference-nav" aria-label="CRM navigation">
           <button className={view === 'overview' ? 'active' : ''} onClick={() => setView('overview')}><span>⌂</span>Dashboard</button>
           <button className={view === 'accounts' ? 'active' : ''} onClick={() => setView('accounts')}><span>○</span>Customers <b>{accounts.length}</b></button>
-          <button className={view === 'sales' ? 'active' : ''} onClick={() => setView('sales')}><span>▣</span>Sales</button>
+          {can('ViewSales') ? <button className={view === 'sales' ? 'active' : ''} onClick={() => setView('sales')}><span>▣</span>Sales <b>{salesDocuments.length}</b></button> : null}
           <button className={view === 'subscriptions' ? 'active' : ''} onClick={() => setView('subscriptions')}><span>↻</span>Subscriptions</button>
           <button className={view === 'expenses' ? 'active' : ''} onClick={() => setView('expenses')}><span>□</span>Expenses</button>
           <button className={view === 'contracts' ? 'active' : ''} onClick={() => setView('contracts')}><span>▤</span>Contracts</button>
@@ -596,7 +602,7 @@ export function CrmDemo() {
             </section>
           </section>
         ) : null}
-        {referenceModuleContent[view] ? (
+        {referenceModuleContent[view] && view !== 'sales' ? (
           <section className="crm2-reference-module">
             <div className="crm2-reference-module-head">
               <div><span className="crm2-kicker">BUSINESS MODULE</span><h2>{referenceModuleContent[view].title}</h2><p>{referenceModuleContent[view].subtitle}</p></div>
@@ -633,6 +639,9 @@ export function CrmDemo() {
           </section>
         ) : null}
 
+        {view === 'sales' && can('ViewSales') ? (
+          <CrmSalesDocumentsView accounts={accounts} opportunities={opportunities} documents={salesDocuments} busy={loading} refresh={refresh} notify={setMessage} canManageSales={can('ManageSales')} />
+        ) : null}
         {view === 'accounts' || view === 'opportunities' ? (
           <CrmSalesView view={view} accounts={accounts} opportunities={opportunities} busy={loading} refresh={refresh} notify={setMessage} canManageAccounts={can('ManageAccounts')} canManageOpportunities={can('ManageOpportunities')} />
         ) : null}
