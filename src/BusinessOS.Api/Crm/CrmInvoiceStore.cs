@@ -215,11 +215,11 @@ public sealed class PostgresCrmInvoiceStore : ICrmInvoiceStore
         const string sql = """
 INSERT INTO businessos_crm.invoices(
  id,tenant_id,account_id,opportunity_id,source_document_id,invoice_number,subject,status,
- currency_code,issue_date,due_date,discount_percent,amount_paid,notes,terms,lines,
+ currency_code,issue_date,due_date,discount_percent,amount_paid,amount_credited,notes,terms,lines,
  created_at_utc,updated_at_utc)
 VALUES(
  @id,@tenant,@account,@opportunity,@source,@number,@subject,@status,
- @currency,@issue,@due,@discount,@paid,@notes,@terms,CAST(@lines AS jsonb),
+ @currency,@issue,@due,@discount,@paid,@credited,@notes,@terms,CAST(@lines AS jsonb),
  @created,@updated);
 """;
 
@@ -401,14 +401,14 @@ VALUES(
         return (invoice, payment);
     }
 
-    private const string SelectInvoiceSql = """
+    internal const string SelectInvoiceSql = """
 SELECT id,tenant_id,account_id,opportunity_id,source_document_id,invoice_number,subject,status,
-       currency_code,issue_date,due_date,discount_percent,amount_paid,notes,terms,lines::text,
+       currency_code,issue_date,due_date,discount_percent,amount_paid,amount_credited,notes,terms,lines::text,
        created_at_utc,updated_at_utc
 FROM businessos_crm.invoices
 """;
 
-    private const string UpdateInvoiceSql = """
+    internal const string UpdateInvoiceSql = """
 UPDATE businessos_crm.invoices SET
  account_id=@account,
  opportunity_id=@opportunity,
@@ -419,6 +419,7 @@ UPDATE businessos_crm.invoices SET
  due_date=@due,
  discount_percent=@discount,
  amount_paid=@paid,
+ amount_credited=@credited,
  notes=@notes,
  terms=@terms,
  lines=CAST(@lines AS jsonb),
@@ -426,7 +427,7 @@ UPDATE businessos_crm.invoices SET
 WHERE tenant_id=@tenant AND id=@id;
 """;
 
-    private static void AddInvoiceParameters(NpgsqlCommand command, SalesInvoice invoice)
+    internal static void AddInvoiceParameters(NpgsqlCommand command, SalesInvoice invoice)
     {
         command.Parameters.AddWithValue("id", invoice.Id);
         command.Parameters.AddWithValue("tenant", invoice.TenantId);
@@ -441,6 +442,7 @@ WHERE tenant_id=@tenant AND id=@id;
         command.Parameters.AddWithValue("due", NpgsqlDbType.Date, invoice.DueDate);
         command.Parameters.AddWithValue("discount", invoice.DiscountPercent);
         command.Parameters.AddWithValue("paid", invoice.AmountPaid);
+        command.Parameters.AddWithValue("credited", invoice.AmountCredited);
         Nullable(command, "notes", NpgsqlDbType.Text, invoice.Notes);
         Nullable(command, "terms", NpgsqlDbType.Text, invoice.Terms);
         command.Parameters.AddWithValue("lines", JsonSerializer.Serialize(invoice.Lines, JsonOptions));
@@ -463,9 +465,9 @@ WHERE tenant_id=@tenant AND id=@id;
         command.Parameters.AddWithValue("created", payment.CreatedAtUtc);
     }
 
-    private static SalesInvoice ReadInvoice(NpgsqlDataReader reader)
+    internal static SalesInvoice ReadInvoice(NpgsqlDataReader reader)
     {
-        var lines = JsonSerializer.Deserialize<SalesDocumentLine[]>(reader.GetString(15), JsonOptions) ?? [];
+        var lines = JsonSerializer.Deserialize<SalesDocumentLine[]>(reader.GetString(16), JsonOptions) ?? [];
         return SalesInvoice.Restore(
             reader.GetGuid(0),
             reader.GetGuid(1),
@@ -478,13 +480,14 @@ WHERE tenant_id=@tenant AND id=@id;
             reader.GetFieldValue<DateOnly>(10),
             reader.GetDecimal(11),
             reader.GetDecimal(12),
+            reader.GetDecimal(13),
             reader.IsDBNull(3) ? null : reader.GetGuid(3),
             reader.IsDBNull(4) ? null : reader.GetGuid(4),
-            reader.IsDBNull(13) ? null : reader.GetString(13),
             reader.IsDBNull(14) ? null : reader.GetString(14),
+            reader.IsDBNull(15) ? null : reader.GetString(15),
             (SalesInvoiceStatus)reader.GetInt32(7),
-            reader.GetFieldValue<DateTimeOffset>(16),
-            reader.GetFieldValue<DateTimeOffset>(17));
+            reader.GetFieldValue<DateTimeOffset>(17),
+            reader.GetFieldValue<DateTimeOffset>(18));
     }
 
     private static SalesInvoicePayment ReadPayment(NpgsqlDataReader reader) =>

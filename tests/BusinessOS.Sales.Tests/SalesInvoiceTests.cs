@@ -100,13 +100,56 @@ public sealed class SalesInvoiceTests
         var invoice = SalesInvoice.Restore(
             Guid.NewGuid(), TenantId, "INV-000007", AccountId, "Restored",
             [DefaultLine()], "INR", new DateOnly(2026, 9, 20), new DateOnly(2026, 9, 30),
-            0m, 100m, null, null, "Note", "Terms",
+            0m, 100m, 0m, null, null, "Note", "Terms",
             SalesInvoiceStatus.PartiallyPaid, created, updated);
 
         Assert.Equal(100m, invoice.AmountPaid);
         Assert.Equal(SalesInvoiceStatus.PartiallyPaid, invoice.Status);
         Assert.Equal(created, invoice.CreatedAtUtc);
         Assert.Equal(updated, invoice.UpdatedAtUtc);
+    }
+
+    [Fact]
+    public void Credit_Note_Reduces_Net_Total_And_Balance()
+    {
+        var invoice = NewInvoice();
+        invoice.ChangeStatus(SalesInvoiceStatus.Sent);
+
+        invoice.ApplyCredit(1000m, new DateOnly(2026, 9, 21));
+
+        Assert.Equal(1000m, invoice.AmountCredited);
+        Assert.Equal(invoice.Totals.Total - 1000m, invoice.NetTotal);
+        Assert.Equal(invoice.Totals.Total - 1000m, invoice.Balance);
+        Assert.Equal(SalesInvoiceStatus.PartiallyPaid, invoice.Status);
+    }
+
+    [Fact]
+    public void Credit_Note_On_Paid_Invoice_Tracks_Overpayment()
+    {
+        var invoice = NewInvoice();
+        invoice.ChangeStatus(SalesInvoiceStatus.Sent);
+        invoice.RecordPayment(invoice.Balance, new DateOnly(2026, 9, 21));
+
+        invoice.ApplyCredit(500m, new DateOnly(2026, 9, 21));
+
+        Assert.Equal(500m, invoice.AmountCredited);
+        Assert.Equal(500m, invoice.OverpaidAmount);
+        Assert.Equal(0m, invoice.Balance);
+        Assert.Equal(SalesInvoiceStatus.Paid, invoice.Status);
+    }
+
+    [Fact]
+    public void Reversing_Credit_Restores_Invoice_Balance()
+    {
+        var invoice = NewInvoice();
+        invoice.ChangeStatus(SalesInvoiceStatus.Sent);
+        invoice.ApplyCredit(1000m, new DateOnly(2026, 9, 21));
+
+        invoice.ReverseCredit(1000m, new DateOnly(2026, 9, 21));
+
+        Assert.Equal(0m, invoice.AmountCredited);
+        Assert.Equal(invoice.Totals.Total, invoice.Balance);
+        Assert.Equal(SalesInvoiceStatus.Sent, invoice.Status);
     }
 
     private static SalesInvoice NewInvoice(decimal discountPercent = 0m) =>

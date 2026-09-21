@@ -292,7 +292,7 @@ public static class FreeTestingPublicCrmInvoiceEndpoints
     private static string Currency(string? value) =>
         string.IsNullOrWhiteSpace(value) ? "INR" : value.Trim();
 
-    private static CrmInvoiceResponse ToResponse(SalesInvoice invoice)
+    internal static CrmInvoiceResponse ToResponse(SalesInvoice invoice)
     {
         var totals = invoice.Totals;
         return new CrmInvoiceResponse(
@@ -308,7 +308,10 @@ public static class FreeTestingPublicCrmInvoiceEndpoints
             invoice.DueDate,
             invoice.DiscountPercent,
             invoice.AmountPaid,
+            invoice.AmountCredited,
+            invoice.NetTotal,
             invoice.Balance,
+            invoice.OverpaidAmount,
             invoice.Notes,
             invoice.Terms,
             invoice.Lines.Select(line => new CrmSalesDocumentLineResponse(
@@ -418,7 +421,10 @@ public sealed record CrmInvoiceResponse(
     DateOnly DueDate,
     decimal DiscountPercent,
     decimal AmountPaid,
+    decimal AmountCredited,
+    decimal NetTotal,
     decimal Balance,
+    decimal OverpaidAmount,
     string? Notes,
     string? Terms,
     IReadOnlyList<CrmSalesDocumentLineResponse> Lines,

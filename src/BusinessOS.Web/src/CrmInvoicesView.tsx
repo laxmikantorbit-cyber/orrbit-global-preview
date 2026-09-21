@@ -11,6 +11,7 @@ import {
   type CrmInvoicePayment,
   type CrmOpportunity,
   type CrmSalesDocument,
+  type CrmSalesItem,
 } from './crmApi'
 
 type Props = {
@@ -18,6 +19,7 @@ type Props = {
   opportunities: CrmOpportunity[]
   documents: CrmSalesDocument[]
   invoices: CrmInvoice[]
+  salesItems: CrmSalesItem[]
   busy: boolean
   refresh: () => Promise<void>
   notify: (message: string) => void
@@ -26,6 +28,7 @@ type Props = {
 
 type DraftLine = {
   id?: string
+  itemId?: string
   description: string
   quantity: string
   unitPrice: string
@@ -40,7 +43,7 @@ const addDays = (date: string, days: number) => {
   value.setDate(value.getDate() + days)
   return value.toISOString().slice(0, 10)
 }
-const emptyLine = (): DraftLine => ({ description: '', quantity: '1', unitPrice: '0', taxPercent: '18' })
+const emptyLine = (): DraftLine => ({ itemId: '', description: '', quantity: '1', unitPrice: '0', taxPercent: '18' })
 
 function money(value: number, currency = 'INR') {
   try { return new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 2 }).format(value) }
@@ -52,7 +55,7 @@ function lineSubtotal(line: DraftLine) {
 }
 
 export function CrmInvoicesView({
-  accounts, opportunities, documents, invoices, busy, refresh, notify, canManageSales,
+  accounts, opportunities, documents, invoices, salesItems, busy, refresh, notify, canManageSales,
 }: Props) {
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<(typeof statuses)[number]>('All')
@@ -146,7 +149,7 @@ export function CrmInvoicesView({
     setNotes(invoice.notes || '')
     setTerms(invoice.terms || '')
     setLines(invoice.lines.map((line) => ({
-      id: line.id, description: line.description, quantity: String(line.quantity),
+      id: line.id, itemId: line.itemId || '', description: line.description, quantity: String(line.quantity),
       unitPrice: String(line.unitPrice), taxPercent: String(line.taxPercent),
     })))
     setEditing(true)
@@ -154,6 +157,16 @@ export function CrmInvoicesView({
 
   function updateLine(index: number, patch: Partial<DraftLine>) {
     setLines((items) => items.map((line, i) => i === index ? { ...line, ...patch } : line))
+  }
+
+  function selectItem(index: number, itemId: string) {
+    const item = salesItems.find((x) => x.id === itemId)
+    updateLine(index, item ? {
+      itemId: item.id,
+      description: item.description || item.name,
+      unitPrice: String(item.defaultRate),
+      taxPercent: String(item.defaultTaxPercent),
+    } : { itemId: '' })
   }
 
   async function saveInvoice() {
@@ -165,7 +178,7 @@ export function CrmInvoicesView({
       issueDate, dueDate, discountPercent: Math.max(0, Number(discountPercent) || 0),
       notes: notes.trim() || undefined, terms: terms.trim() || undefined,
       lines: cleanLines.map((line) => ({
-        id: line.id, description: line.description.trim(), quantity: Number(line.quantity) || 0,
+        id: line.id, itemId: line.itemId || null, description: line.description.trim(), quantity: Number(line.quantity) || 0,
         unitPrice: Number(line.unitPrice) || 0, taxPercent: Number(line.taxPercent) || 0,
       })),
     }
@@ -300,6 +313,8 @@ export function CrmInvoicesView({
           <div className="crm2-sales-total-box">
             <span>Subtotal <b>{money(selected.subtotal)}</b></span><span>Discount <b>{money(selected.discountAmount)}</b></span>
             <span>GST / Tax <b>{money(selected.taxAmount)}</b></span><span>Paid <b>{money(selected.amountPaid)}</b></span>
+            <span>Credited <b>{money(selected.amountCredited)}</b></span><span>Net total <b>{money(selected.netTotal)}</b></span>
+            {selected.overpaidAmount > 0 ? <span>Customer credit <b>{money(selected.overpaidAmount)}</b></span> : null}
             <strong>Balance <b>{money(selected.balance)}</b></strong>
           </div>
           <section className="crm2-payment-history">
@@ -328,7 +343,11 @@ export function CrmInvoicesView({
           <label>Subject<input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Invoice subject" /></label>
           <div className="crm2-sales-edit-lines">
             <div className="crm2-sales-edit-head"><strong>Line items</strong><button onClick={() => setLines((items) => [...items, emptyLine()])}>+ Add line</button></div>
-            {lines.map((line, index) => <div className="crm2-sales-edit-line" key={line.id || index}>
+            {lines.map((line, index) => <div className="crm2-sales-edit-line crm2-sales-edit-line-with-item" key={line.id || index}>
+              <select value={line.itemId || ''} onChange={(e) => selectItem(index, e.target.value)}>
+                <option value="">Custom line</option>
+                {salesItems.filter((x) => x.status === 'Active').map((x) => <option key={x.id} value={x.id}>{x.code} — {x.name}</option>)}
+              </select>
               <input value={line.description} onChange={(e) => updateLine(index, { description: e.target.value })} placeholder="Product / service" />
               <input type="number" min="0.01" step="0.01" value={line.quantity} onChange={(e) => updateLine(index, { quantity: e.target.value })} />
               <input type="number" min="0" step="0.01" value={line.unitPrice} onChange={(e) => updateLine(index, { unitPrice: e.target.value })} />

@@ -87,6 +87,7 @@ public sealed class SalesInvoice
     public DateOnly DueDate { get; private set; }
     public decimal DiscountPercent { get; private set; }
     public decimal AmountPaid { get; private set; }
+    public decimal AmountCredited { get; private set; }
     public string? Notes { get; private set; }
     public string? Terms { get; private set; }
     public IReadOnlyList<SalesDocumentLine> Lines => _lines;
@@ -105,7 +106,9 @@ public sealed class SalesInvoice
         }
     }
 
-    public decimal Balance => Money(Math.Max(0m, Totals.Total - AmountPaid));
+    public decimal NetTotal => Money(Math.Max(0m, Totals.Total - AmountCredited));
+    public decimal Balance => Money(Math.Max(0m, NetTotal - AmountPaid));
+    public decimal OverpaidAmount => Money(Math.Max(0m, AmountPaid - NetTotal));
 
     public void UpdateDraft(
         Guid accountId,
@@ -139,7 +142,7 @@ public sealed class SalesInvoice
         {
             case SalesInvoiceStatus.Sent when Status == SalesInvoiceStatus.Draft:
                 break;
-            case SalesInvoiceStatus.Draft when Status == SalesInvoiceStatus.Sent && AmountPaid == 0m:
+            case SalesInvoiceStatus.Draft when Status == SalesInvoiceStatus.Sent && AmountPaid == 0m && AmountCredited == 0m:
                 break;
             case SalesInvoiceStatus.Overdue
                 when Status is SalesInvoiceStatus.Sent or SalesInvoiceStatus.PartiallyPaid
@@ -148,7 +151,8 @@ public sealed class SalesInvoice
                 break;
             case SalesInvoiceStatus.Void
                 when Status is SalesInvoiceStatus.Draft or SalesInvoiceStatus.Sent or SalesInvoiceStatus.Overdue
-                     && AmountPaid == 0m:
+                     && AmountPaid == 0m
+                     && AmountCredited == 0m:
                 break;
             default:
                 throw new InvalidOperationException($"Cannot move {Status} invoice to {status}.");
@@ -182,6 +186,33 @@ public sealed class SalesInvoice
         UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 
+    public void ApplyCredit(decimal amount, DateOnly? asOf = null)
+    {
+        if (Status is SalesInvoiceStatus.Draft or SalesInvoiceStatus.Void)
+            throw new InvalidOperationException("Invoice cannot receive a credit note in its current state.");
+        if (amount <= 0m) throw new ArgumentOutOfRangeException(nameof(amount));
+
+        amount = Money(amount);
+        if (amount > Totals.Total - AmountCredited)
+            throw new InvalidOperationException("Credit note cannot exceed the remaining creditable invoice amount.");
+
+        AmountCredited = Money(AmountCredited + amount);
+        RecalculateSettlementStatus(asOf);
+        UpdatedAtUtc = DateTimeOffset.UtcNow;
+    }
+
+    public void ReverseCredit(decimal amount, DateOnly? asOf = null)
+    {
+        if (amount <= 0m) throw new ArgumentOutOfRangeException(nameof(amount));
+        amount = Money(amount);
+        if (amount > AmountCredited)
+            throw new InvalidOperationException("Credit reversal cannot exceed credited amount.");
+
+        AmountCredited = Money(AmountCredited - amount);
+        RecalculateSettlementStatus(asOf);
+        UpdatedAtUtc = DateTimeOffset.UtcNow;
+    }
+
     public static SalesInvoice Restore(
         Guid id,
         Guid tenantId,
@@ -194,6 +225,7 @@ public sealed class SalesInvoice
         DateOnly dueDate,
         decimal discountPercent,
         decimal amountPaid,
+        decimal amountCredited,
         Guid? opportunityId,
         Guid? sourceDocumentId,
         string? notes,
@@ -208,7 +240,10 @@ public sealed class SalesInvoice
             notes, terms, createdAtUtc);
         if (amountPaid < 0m || amountPaid > invoice.Totals.Total)
             throw new ArgumentOutOfRangeException(nameof(amountPaid));
+        if (amountCredited < 0m || amountCredited > invoice.Totals.Total)
+            throw new ArgumentOutOfRangeException(nameof(amountCredited));
         invoice.AmountPaid = Money(amountPaid);
+        invoice.AmountCredited = Money(amountCredited);
         invoice.Status = status;
         invoice.UpdatedAtUtc = updatedAtUtc;
         return invoice;
@@ -261,6 +296,26 @@ public sealed class SalesInvoice
             Id = line.Id == Guid.Empty ? Guid.NewGuid() : line.Id,
             Description = line.Description.Trim()
         };
+    }
+
+    private void RecalculateSettlementStatus(DateOnly? asOf)
+    {
+        if (Balance == 0m)
+        {
+            Status = SalesInvoiceStatus.Paid;
+            return;
+        }
+
+        var today = asOf ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        if (DueDate < today)
+        {
+            Status = SalesInvoiceStatus.Overdue;
+            return;
+        }
+
+        Status = AmountPaid > 0m || AmountCredited > 0m
+            ? SalesInvoiceStatus.PartiallyPaid
+            : SalesInvoiceStatus.Sent;
     }
 
     private static decimal LineSubtotal(SalesDocumentLine line) => line.Quantity * line.UnitPrice;

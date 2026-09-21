@@ -6,6 +6,7 @@ import {
   type CrmAccount,
   type CrmOpportunity,
   type CrmSalesDocument,
+  type CrmSalesItem,
 } from './crmApi'
 import { exportCrmSpreadsheet, type CrmSpreadsheetFormat } from './crmSpreadsheet'
 
@@ -13,6 +14,7 @@ type Props = {
   accounts: CrmAccount[]
   opportunities: CrmOpportunity[]
   documents: CrmSalesDocument[]
+  salesItems: CrmSalesItem[]
   busy: boolean
   refresh: () => Promise<void>
   notify: (message: string) => void
@@ -21,6 +23,7 @@ type Props = {
 
 type DraftLine = {
   id?: string
+  itemId?: string
   description: string
   quantity: string
   unitPrice: string
@@ -28,7 +31,7 @@ type DraftLine = {
 }
 
 const statuses = ['All', 'Draft', 'Sent', 'Accepted', 'Rejected', 'Expired'] as const
-const emptyLine = (): DraftLine => ({ description: '', quantity: '1', unitPrice: '0', taxPercent: '18' })
+const emptyLine = (): DraftLine => ({ itemId: '', description: '', quantity: '1', unitPrice: '0', taxPercent: '18' })
 const today = () => new Date().toISOString().slice(0, 10)
 
 function money(value: number, currency = 'INR') {
@@ -41,7 +44,7 @@ function lineSubtotal(line: DraftLine) {
 }
 
 export function CrmSalesDocumentsView({
-  accounts, opportunities, documents, busy, refresh, notify, canManageSales,
+  accounts, opportunities, documents, salesItems, busy, refresh, notify, canManageSales,
 }: Props) {
   const [kindFilter, setKindFilter] = useState<'All' | 'Proposal' | 'Estimate'>('All')
   const [statusFilter, setStatusFilter] = useState<(typeof statuses)[number]>('All')
@@ -123,6 +126,7 @@ export function CrmSalesDocumentsView({
     setTerms(document.terms || '')
     setLines(document.lines.map((line) => ({
       id: line.id,
+      itemId: line.itemId || '',
       description: line.description,
       quantity: String(line.quantity),
       unitPrice: String(line.unitPrice),
@@ -133,6 +137,16 @@ export function CrmSalesDocumentsView({
 
   function updateLine(index: number, patch: Partial<DraftLine>) {
     setLines((items) => items.map((line, lineIndex) => lineIndex === index ? { ...line, ...patch } : line))
+  }
+
+  function selectItem(index: number, itemId: string) {
+    const item = salesItems.find((x) => x.id === itemId)
+    updateLine(index, item ? {
+      itemId: item.id,
+      description: item.description || item.name,
+      unitPrice: String(item.defaultRate),
+      taxPercent: String(item.defaultTaxPercent),
+    } : { itemId: '' })
   }
 
   async function saveDraft() {
@@ -152,6 +166,7 @@ export function CrmSalesDocumentsView({
       terms: terms.trim() || undefined,
       lines: cleanLines.map((line) => ({
         id: line.id,
+        itemId: line.itemId || null,
         description: line.description.trim(),
         quantity: Math.max(0, Number(line.quantity) || 0),
         unitPrice: Math.max(0, Number(line.unitPrice) || 0),
@@ -300,7 +315,11 @@ export function CrmSalesDocumentsView({
           <label>Subject<input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. AI Repair Software proposal" /></label>
           <div className="crm2-sales-edit-lines">
             <div className="crm2-sales-edit-head"><strong>Line items</strong><button onClick={() => setLines((items) => [...items, emptyLine()])}>+ Add line</button></div>
-            {lines.map((line, index) => <div className="crm2-sales-edit-line" key={line.id || index}>
+            {lines.map((line, index) => <div className="crm2-sales-edit-line crm2-sales-edit-line-with-item" key={line.id || index}>
+              <select value={line.itemId || ''} onChange={(e) => selectItem(index, e.target.value)}>
+                <option value="">Custom line</option>
+                {salesItems.filter((x) => x.status === 'Active').map((x) => <option key={x.id} value={x.id}>{x.code} — {x.name}</option>)}
+              </select>
               <input value={line.description} onChange={(e) => updateLine(index, { description: e.target.value })} placeholder="Product / service" />
               <input type="number" min="0.01" step="0.01" value={line.quantity} onChange={(e) => updateLine(index, { quantity: e.target.value })} placeholder="Qty" />
               <input type="number" min="0" step="0.01" value={line.unitPrice} onChange={(e) => updateLine(index, { unitPrice: e.target.value })} placeholder="Rate" />

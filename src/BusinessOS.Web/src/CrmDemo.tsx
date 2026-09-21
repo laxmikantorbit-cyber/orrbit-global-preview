@@ -18,6 +18,8 @@ import {
   listCrmAccounts,
   listCrmFollowUps,
   listCrmInvoices,
+  listCrmCreditNotes,
+  listCrmSalesItems,
   listCrmLeads,
   listCrmOpportunities,
   listCrmRoles,
@@ -30,6 +32,8 @@ import {
   type CrmGlobalSearchHit,
   type CrmNotificationItem,
   type CrmInvoice,
+  type CrmCreditNote,
+  type CrmSalesItem,
   type CrmLead,
   type CrmOpportunity,
   type CrmRole,
@@ -128,6 +132,8 @@ export function CrmDemo() {
   const [opportunities, setOpportunities] = useState<CrmOpportunity[]>([])
   const [salesDocuments, setSalesDocuments] = useState<CrmSalesDocument[]>([])
   const [invoices, setInvoices] = useState<CrmInvoice[]>([])
+  const [salesItems, setSalesItems] = useState<CrmSalesItem[]>([])
+  const [creditNotes, setCreditNotes] = useState<CrmCreditNote[]>([])
   const [teamMembers, setTeamMembers] = useState<CrmTeamMember[]>([])
   const [roles, setRoles] = useState<CrmRole[]>([])
   const [session, setSession] = useState<CrmSession | null>(null)
@@ -324,7 +330,7 @@ export function CrmDemo() {
       const sessionResult = await getCrmSession()
       setSession(sessionResult)
       const allowed = (permission: string) => sessionResult.member.permissions.includes(permission)
-      const [leadResult, dashResult, followResult, taskResult, workResult, accountResult, opportunityResult, salesResult, invoiceResult, teamResult, roleResult, readyResult] = await Promise.all([
+      const [leadResult, dashResult, followResult, taskResult, workResult, accountResult, opportunityResult, salesResult, invoiceResult, salesItemResult, creditNoteResult, teamResult, roleResult, readyResult] = await Promise.all([
         allowed('ViewLeads') ? listCrmLeads() : Promise.resolve({ leads: [] as CrmLead[] }),
         allowed('ViewDashboard') ? crmDashboard() : Promise.resolve(initialDashboard()),
         allowed('ManageFollowUps') ? listCrmFollowUps() : Promise.resolve({ followUps: [] as CrmFollowUp[] }),
@@ -334,6 +340,8 @@ export function CrmDemo() {
         allowed('ViewOpportunities') ? listCrmOpportunities() : Promise.resolve({ opportunities: [] as CrmOpportunity[] }),
         allowed('ViewSales') ? listCrmSalesDocuments() : Promise.resolve({ documents: [] as CrmSalesDocument[] }),
         allowed('ViewSales') ? listCrmInvoices() : Promise.resolve({ invoices: [] as CrmInvoice[] }),
+        allowed('ViewSales') ? listCrmSalesItems() : Promise.resolve({ items: [] as CrmSalesItem[] }),
+        allowed('ViewSales') ? listCrmCreditNotes() : Promise.resolve({ creditNotes: [] as CrmCreditNote[] }),
         allowed('ViewTeam') ? listCrmTeam() : Promise.resolve({ members: [sessionResult.member] }),
         allowed('ViewDashboard') ? listCrmRoles() : Promise.resolve({ roles: [] as CrmRole[] }),
         readiness(),
@@ -347,6 +355,8 @@ export function CrmDemo() {
       setOpportunities(opportunityResult.opportunities)
       setSalesDocuments(salesResult.documents)
       setInvoices(invoiceResult.invoices)
+      setSalesItems(salesItemResult.items)
+      setCreditNotes(creditNoteResult.creditNotes)
       setTeamMembers(teamResult.members)
       setRoles(roleResult.roles)
       setStorageLabel(readyResult.storageMode === 'Postgres' ? 'Saved online data' : 'Temporary test data')
@@ -645,7 +655,7 @@ export function CrmDemo() {
         ) : null}
 
         {view === 'sales' && can('ViewSales') ? (
-          <CrmSalesWorkspace accounts={accounts} opportunities={opportunities} documents={salesDocuments} invoices={invoices} busy={loading} refresh={refresh} notify={setMessage} canManageSales={can('ManageSales')} />
+          <CrmSalesWorkspace accounts={accounts} opportunities={opportunities} documents={salesDocuments} invoices={invoices} salesItems={salesItems} creditNotes={creditNotes} busy={loading} refresh={refresh} notify={setMessage} canManageSales={can('ManageSales')} />
         ) : null}
         {view === 'accounts' || view === 'opportunities' ? (
           <CrmSalesView view={view} accounts={accounts} opportunities={opportunities} busy={loading} refresh={refresh} notify={setMessage} canManageAccounts={can('ManageAccounts')} canManageOpportunities={can('ManageOpportunities')} />

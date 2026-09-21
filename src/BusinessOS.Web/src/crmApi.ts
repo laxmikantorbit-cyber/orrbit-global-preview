@@ -620,7 +620,10 @@ export type CrmInvoice = {
   dueDate: string
   discountPercent: number
   amountPaid: number
+  amountCredited: number
+  netTotal: number
   balance: number
+  overpaidAmount: number
   notes?: string | null
   terms?: string | null
   lines: CrmSalesDocumentLine[]
@@ -729,4 +732,122 @@ export async function recordCrmInvoicePayment(invoiceId: string, input: {
     body: JSON.stringify(input),
   })
   return parseResponse<{ invoice: CrmInvoice; payment: CrmInvoicePayment }>(response)
+}
+
+
+export type CrmSalesItem = {
+  id: string
+  code: string
+  name: string
+  description?: string | null
+  defaultRate: number
+  defaultTaxPercent: number
+  status: 'Active' | 'Inactive'
+  catalogProductId?: string | null
+  createdAtUtc: string
+  updatedAtUtc: string
+}
+
+export type CrmCreditNote = {
+  id: string
+  creditNoteNumber: string
+  invoiceId: string
+  accountId: string
+  issueDate: string
+  amount: number
+  reason: string
+  notes?: string | null
+  status: 'Draft' | 'Issued' | 'Void'
+  createdAtUtc: string
+  updatedAtUtc: string
+}
+
+export async function listCrmSalesItems() {
+  const response = await crmFetch('/sales-items')
+  return parseResponse<{ items: CrmSalesItem[] }>(response)
+}
+
+export async function createCrmSalesItem(input: {
+  code: string
+  name: string
+  description?: string
+  defaultRate: number
+  defaultTaxPercent: number
+  status?: CrmSalesItem['status']
+  catalogProductId?: string | null
+}) {
+  const response = await crmFetch('/sales-items', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmSalesItem>(response)
+}
+
+export async function updateCrmSalesItem(itemId: string, input: {
+  name: string
+  description?: string
+  defaultRate: number
+  defaultTaxPercent: number
+  status: CrmSalesItem['status']
+}) {
+  const response = await crmFetch(`/sales-items/${itemId}/profile`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmSalesItem>(response)
+}
+
+export async function listCrmCreditNotes(invoiceId?: string) {
+  const query = invoiceId ? `?invoiceId=${encodeURIComponent(invoiceId)}` : ''
+  const response = await crmFetch(`/credit-notes${query}`)
+  return parseResponse<{ creditNotes: CrmCreditNote[] }>(response)
+}
+
+export async function createCrmCreditNote(input: {
+  invoiceId: string
+  issueDate?: string
+  amount: number
+  reason: string
+  notes?: string
+}) {
+  const response = await crmFetch('/credit-notes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmCreditNote>(response)
+}
+
+export async function updateCrmCreditNote(creditNoteId: string, input: {
+  issueDate: string
+  amount: number
+  reason: string
+  notes?: string
+}) {
+  const response = await crmFetch(`/credit-notes/${creditNoteId}/profile`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmCreditNote>(response)
+}
+
+export async function issueCrmCreditNote(creditNoteId: string, asOf?: string) {
+  const response = await crmFetch(`/credit-notes/${creditNoteId}/issue`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ asOf }),
+  })
+  return parseResponse<{ creditNote: CrmCreditNote; invoice: CrmInvoice }>(response)
+}
+
+export async function voidCrmCreditNote(creditNoteId: string, asOf?: string) {
+  const response = await crmFetch(`/credit-notes/${creditNoteId}/void`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ asOf }),
+  })
+  return parseResponse<{ creditNote: CrmCreditNote; invoice: CrmInvoice }>(response)
 }

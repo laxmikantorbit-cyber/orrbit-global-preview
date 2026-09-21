@@ -991,3 +991,31 @@
 .crm2-payment-history>div:not(.crm2-sales-edit-head){display:grid;grid-template-columns:110px 110px 1fr 120px 120px;gap:8px;padding:9px 0;border-top:1px solid #edf1f5;align-items:center}
 .crm2-payment-history>div:not(.crm2-sales-edit-head):first-of-type{border-top:0}
 @media(max-width:800px){.crm2-sales-tabs{overflow:auto}.crm2-payment-history>div:not(.crm2-sales-edit-head){grid-template-columns:1fr 1fr}.crm2-payment-history>div:not(.crm2-sales-edit-head) span:nth-child(3){grid-column:1/3}}
+
+
+/* Phase 3C credit notes and reusable sales items */
+.crm2-item-head,.crm2-item-row,.crm2-credit-head,.crm2-credit-row{
+  display:grid;align-items:center
+}
+.crm2-item-head,.crm2-item-row{grid-template-columns:120px 1.1fr 1.6fr 120px 90px 100px}
+.crm2-credit-head,.crm2-credit-row{grid-template-columns:130px 120px 1.1fr 1.4fr 120px 100px}
+.crm2-item-head,.crm2-credit-head{
+  background:#f7f9fc;border:1px solid #e1e8f0;color:#51617a;font-size:13px;font-weight:700
+}
+.crm2-item-head span,.crm2-item-row span,.crm2-credit-head span,.crm2-credit-row span{padding:12px 10px}
+.crm2-item-row,.crm2-credit-row{
+  width:100%;min-height:62px;border:0;border-left:1px solid #e7edf5;border-right:1px solid #e7edf5;
+  border-bottom:1px solid #e7edf5;background:#fff;text-align:left;color:#334155;cursor:pointer
+}
+.crm2-item-row:hover,.crm2-credit-row:hover{background:#f9fbfe}
+.crm2-item-row strong,.crm2-credit-row strong{color:#155dff}
+.crm2-credit-row small{display:block;margin-top:3px;color:#7b8799}
+.crm2-sales-edit-line-with-item{grid-template-columns:1.1fr 1.7fr .55fr .8fr .65fr .8fr 36px}
+.crm2-sales-edit-line-with-item select{min-width:0}
+@media(max-width:900px){
+  .crm2-item-head,.crm2-item-row{min-width:760px}
+  .crm2-credit-head,.crm2-credit-row{min-width:820px}
+  .crm2-sales-edit-line-with-item{grid-template-columns:1fr 1fr 90px 110px}
+  .crm2-sales-edit-line-with-item strong{grid-column:1/4}
+  .crm2-sales-edit-line-with-item>button{grid-column:4}
+}

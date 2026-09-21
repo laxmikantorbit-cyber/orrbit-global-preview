@@ -267,6 +267,7 @@ CREATE TABLE IF NOT EXISTS businessos_crm.invoices (
     due_date date NOT NULL,
     discount_percent numeric(5,2) NOT NULL DEFAULT 0,
     amount_paid numeric(18,2) NOT NULL DEFAULT 0,
+    amount_credited numeric(18,2) NOT NULL DEFAULT 0,
     notes text NULL,
     terms text NULL,
     lines jsonb NOT NULL DEFAULT '[]'::jsonb,
@@ -298,6 +299,46 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_businessos_crm_invoice_payment_number
     ON businessos_crm.invoice_payments(tenant_id, payment_number);
 CREATE INDEX IF NOT EXISTS ix_businessos_crm_invoice_payments_invoice
     ON businessos_crm.invoice_payments(tenant_id, invoice_id, received_at_utc DESC);
+
+ALTER TABLE businessos_crm.invoices
+    ADD COLUMN IF NOT EXISTS amount_credited numeric(18,2) NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS businessos_crm.sales_items (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    code text NOT NULL,
+    name text NOT NULL,
+    description text NULL,
+    default_rate numeric(18,2) NOT NULL DEFAULT 0,
+    default_tax_percent numeric(5,2) NOT NULL DEFAULT 0,
+    status integer NOT NULL,
+    catalog_product_id uuid NULL,
+    created_at_utc timestamptz NOT NULL,
+    updated_at_utc timestamptz NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_businessos_crm_sales_items_code
+    ON businessos_crm.sales_items(tenant_id, upper(code));
+CREATE INDEX IF NOT EXISTS ix_businessos_crm_sales_items_tenant
+    ON businessos_crm.sales_items(tenant_id, status, name);
+
+CREATE TABLE IF NOT EXISTS businessos_crm.credit_notes (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    invoice_id uuid NOT NULL,
+    account_id uuid NOT NULL,
+    credit_note_number text NOT NULL,
+    issue_date date NOT NULL,
+    amount numeric(18,2) NOT NULL,
+    reason text NOT NULL,
+    notes text NULL,
+    status integer NOT NULL,
+    created_at_utc timestamptz NOT NULL,
+    updated_at_utc timestamptz NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_businessos_crm_credit_note_number
+    ON businessos_crm.credit_notes(tenant_id, credit_note_number);
+CREATE INDEX IF NOT EXISTS ix_businessos_crm_credit_notes_invoice
+    ON businessos_crm.credit_notes(tenant_id, invoice_id, issue_date DESC);
 
 CREATE TABLE IF NOT EXISTS businessos_crm.team_members (
     id uuid PRIMARY KEY,
