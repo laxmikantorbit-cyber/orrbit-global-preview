@@ -81,6 +81,18 @@ public sealed class SalesInvoiceTests
     }
 
     [Fact]
+    public void Constructor_Preserves_Source_Document_Link()
+    {
+        var sourceDocumentId = Guid.NewGuid();
+        var invoice = new SalesInvoice(
+            Guid.NewGuid(), TenantId, "INV-000006", AccountId, "Converted",
+            [DefaultLine()], "INR", new DateOnly(2026, 9, 21), new DateOnly(2026, 9, 28),
+            0m, null, sourceDocumentId);
+
+        Assert.Equal(sourceDocumentId, invoice.SourceDocumentId);
+    }
+
+    [Fact]
     public void Restore_Preserves_Paid_Amount_And_Status()
     {
         var created = DateTimeOffset.UtcNow.AddDays(-2);

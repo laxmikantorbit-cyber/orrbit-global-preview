@@ -62,6 +62,7 @@ public sealed class SalesInvoice
         TenantId = tenantId;
         InvoiceNumber = invoiceNumber.Trim().ToUpperInvariant();
         AccountId = accountId;
+        SourceDocumentId = sourceDocumentId;
         Status = SalesInvoiceStatus.Draft;
         AmountPaid = 0m;
         CreatedAtUtc = createdAtUtc ?? DateTimeOffset.UtcNow;
