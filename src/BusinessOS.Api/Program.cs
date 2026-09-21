@@ -52,6 +52,7 @@ if (string.IsNullOrWhiteSpace(crmConnection))
     builder.Services.AddSingleton<ICrmWorkRepository, InMemoryCrmWorkRepository>();
     builder.Services.AddSingleton<ICrmAccountStore, InMemoryCrmAccountStore>();
     builder.Services.AddSingleton<ICrmOpportunityStore, InMemoryCrmOpportunityStore>();
+    builder.Services.AddSingleton<ICrmSalesDocumentStore, InMemoryCrmSalesDocumentStore>();
     builder.Services.AddSingleton<ICrmTeamRepository, InMemoryCrmTeamRepository>();
     builder.Services.AddSingleton<ICrmManagementStore, InMemoryCrmManagementStore>();
     builder.Services.AddSingleton<ICrmNotificationStore, InMemoryCrmNotificationStore>();
@@ -67,6 +68,7 @@ else
     builder.Services.AddSingleton<ICrmWorkRepository, PostgresCrmWorkRepository>();
     builder.Services.AddSingleton<ICrmAccountStore, PostgresCrmAccountStore>();
     builder.Services.AddSingleton<ICrmOpportunityStore, PostgresCrmOpportunityStore>();
+    builder.Services.AddSingleton<ICrmSalesDocumentStore, PostgresCrmSalesDocumentStore>();
     builder.Services.AddSingleton<ICrmTeamRepository, PostgresCrmTeamRepository>();
     builder.Services.AddSingleton<ICrmManagementStore, PostgresCrmManagementStore>();
     builder.Services.AddSingleton<ICrmNotificationStore, PostgresCrmNotificationStore>();
@@ -176,6 +178,7 @@ app.MapFreeTestingPostgresCommerceSmokePageEndpoints();
 app.MapFreeTestingPublicCrmEndpoints();
 app.MapFreeTestingPublicCrmOperationsEndpoints();
 app.MapFreeTestingPublicCrmSalesEndpoints();
+app.MapFreeTestingPublicCrmSalesDocumentEndpoints();
 app.MapFreeTestingPublicCrmAddressEndpoints();
 app.MapFreeTestingPublicCrmAdvancedEndpoints();
 app.MapFreeTestingPublicCrmNotificationEndpoints();
