@@ -19,6 +19,7 @@ import { approveDnsProposal, cancelDnsProposal, createDnsChangeProposal, type Dn
 import { createReleaseEvidence, verifyReleaseEvidence, type ReleaseEvidenceBundle } from "./release-evidence.js";
 import { approveRollbackPlan, cancelRollbackPlan, createRollbackPlan, createVersionLedgerEntry, type RollbackPlan, type VersionLedgerEntry } from "./rollback-history.js";
 import { createCostLedgerEntry, createProjectBudget, summarizeCostBudget, type CostLedgerEntry, type ProjectBudget } from "./cost-budget.js";
+import { approveDevelopmentChange, cancelDevelopmentChange, createDevelopmentChange, prepareDevelopmentPreview, recordDevelopmentValidation, type DevelopmentChangeRequest } from "./development-change.js";
 import {
   MemoryProjectRegistry,
   PostgresProjectRegistry,
@@ -49,6 +50,7 @@ const versionLedger = new Map<string, VersionLedgerEntry>();
 const rollbackPlans = new Map<string, RollbackPlan>();
 const projectBudgets = new Map<string, ProjectBudget>();
 const costLedger = new Map<string, CostLedgerEntry>();
+const developmentChanges = new Map<string, DevelopmentChangeRequest>();
 
 type OnboardingJob = {
   id: string;
@@ -559,6 +561,38 @@ async function listCostLedger(projectId: string): Promise<CostLedgerEntry[]> {
   return result.rows.map((row) => row.entry_data);
 }
 
+async function saveDevelopmentChange(change: DevelopmentChangeRequest) {
+  if (!pool) {
+    developmentChanges.set(change.id, change);
+    return;
+  }
+  await pool.query(
+    `INSERT INTO development_changes (id, project_id, status, change_data, created_at, updated_at)
+     VALUES ($1,$2,$3,$4::jsonb,$5,$5)
+     ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,
+       change_data=EXCLUDED.change_data, updated_at=NOW()`,
+    [change.id, change.projectId, change.status, JSON.stringify(change), change.createdAt]
+  );
+}
+
+async function getDevelopmentChange(id: string): Promise<DevelopmentChangeRequest | undefined> {
+  if (!pool) return developmentChanges.get(id);
+  const result = await pool.query<{ change_data: DevelopmentChangeRequest }>(
+    "SELECT change_data FROM development_changes WHERE id=$1", [id]
+  );
+  return result.rows[0]?.change_data;
+}
+
+async function listDevelopmentChanges(projectId: string): Promise<DevelopmentChangeRequest[]> {
+  if (!pool) return [...developmentChanges.values()]
+    .filter((change) => change.projectId === projectId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const result = await pool.query<{ change_data: DevelopmentChangeRequest }>(
+    "SELECT change_data FROM development_changes WHERE project_id=$1 ORDER BY created_at DESC LIMIT 100", [projectId]
+  );
+  return result.rows.map((row) => row.change_data);
+}
+
 function acquisitionFolder(workspaceId: string, acquisitionId: string) {
   return resolve(importInboxRoot, workspaceId, acquisitionId);
 }
@@ -785,7 +819,7 @@ app.get<{ Params: { id: string } }>("/api/projects/:id/manifest", async (request
 app.get<{ Params: { id: string } }>("/api/projects/:id/command-centre", async (request, reply) => {
   const project = await registry.get(request.params.id);
   if (!project) return reply.code(404).send({ error: "project_not_found" });
-  const [environments, projectJobs, auditEvents, projectWorkspaces, projectSecretReferences, projectDnsProposals, projectReleaseEvidence, projectVersions, projectRollbackPlans, projectBudget, projectCosts] = await Promise.all([
+  const [environments, projectJobs, auditEvents, projectWorkspaces, projectSecretReferences, projectDnsProposals, projectReleaseEvidence, projectVersions, projectRollbackPlans, projectBudget, projectCosts, projectChanges] = await Promise.all([
     registry.listEnvironments(project.id),
     listJobs(project.id),
     listAuditEvents(project.id),
@@ -796,7 +830,8 @@ app.get<{ Params: { id: string } }>("/api/projects/:id/command-centre", async (r
     listVersionLedger(project.id),
     listRollbackPlans(project.id),
     getProjectBudget(project.id),
-    listCostLedger(project.id)
+    listCostLedger(project.id),
+    listDevelopmentChanges(project.id)
   ]);
   return {
     project,
@@ -810,6 +845,7 @@ app.get<{ Params: { id: string } }>("/api/projects/:id/command-centre", async (r
     budget: projectBudget,
     costLedger: projectCosts,
     costSummary: summarizeCostBudget(projectBudget, projectCosts),
+    developmentChanges: projectChanges,
     jobs: projectJobs.slice(0, 10),
     audit: auditEvents.slice(0, 20),
     protection: {
@@ -1297,6 +1333,117 @@ app.post<{
   } catch (error) {
     return reply.code(400).send({ error: error instanceof Error ? error.message : "cost_entry_failed" });
   }
+});
+
+app.get<{ Params: { id: string } }>("/api/projects/:id/development-changes", async (request, reply) => {
+  const project = await registry.get(request.params.id);
+  if (!project) return reply.code(404).send({ error: "project_not_found" });
+  return { developmentChanges: await listDevelopmentChanges(project.id) };
+});
+
+app.post<{ Params: { id: string }; Body: { prompt?: string } }>("/api/projects/:id/development-changes", async (request, reply) => {
+  const project = await registry.get(request.params.id);
+  if (!project) return reply.code(404).send({ error: "project_not_found" });
+  const [budget, entries] = await Promise.all([getProjectBudget(project.id), listCostLedger(project.id)]);
+  const costSummary = summarizeCostBudget(budget, entries);
+  if (costSummary.automationBlocked) {
+    return reply.code(409).send({ error: "budget_automation_blocked", costSummary });
+  }
+  try {
+    const change = await createDevelopmentChange({ projectId: project.id, prompt: request.body?.prompt }, new DryRunOpenAiProvider());
+    await saveDevelopmentChange(change);
+    await audit(project.id, "development_change_planned", {
+      changeId: change.id,
+      risk: change.risk,
+      impactAreas: change.impactAreas,
+      providerMode: change.aiPlan.mode,
+      executionAllowed: change.aiPlan.executionAllowed
+    });
+    return reply.code(201).send(change);
+  } catch (error) {
+    return reply.code(400).send({ error: error instanceof Error ? error.message : "development_change_plan_failed" });
+  }
+});
+
+app.get<{ Params: { id: string } }>("/api/development-changes/:id", async (request, reply) => {
+  const change = await getDevelopmentChange(request.params.id);
+  if (!change) return reply.code(404).send({ error: "development_change_not_found" });
+  return change;
+});
+
+app.post<{
+  Params: { id: string };
+  Body: { typecheck?: string; tests?: string; build?: string; health?: string; evidenceReference?: string };
+}>("/api/development-changes/:id/validation", async (request, reply) => {
+  const change = await getDevelopmentChange(request.params.id);
+  if (!change) return reply.code(404).send({ error: "development_change_not_found" });
+  try {
+    const updated = recordDevelopmentValidation(change, request.body ?? {});
+    await saveDevelopmentChange(updated);
+    await audit(updated.projectId, "development_change_validation_recorded", {
+      changeId: updated.id,
+      passed: updated.validation?.passed,
+      evidenceReference: updated.validation?.evidenceReference
+    });
+    return updated;
+  } catch (error) {
+    return reply.code(409).send({ error: error instanceof Error ? error.message : "development_validation_failed" });
+  }
+});
+
+app.post<{ Params: { id: string } }>("/api/development-changes/:id/preview", async (request, reply) => {
+  const change = await getDevelopmentChange(request.params.id);
+  if (!change) return reply.code(404).send({ error: "development_change_not_found" });
+  try {
+    const updated = await prepareDevelopmentPreview(change, new DryRunCloudflarePagesProvider());
+    await saveDevelopmentChange(updated);
+    await audit(updated.projectId, "development_change_preview_ready", {
+      changeId: updated.id,
+      previewId: updated.preview?.providerDeploymentId,
+      previewUrl: updated.preview?.url,
+      evidence: updated.preview?.evidence
+    });
+    return updated;
+  } catch (error) {
+    return reply.code(409).send({ error: error instanceof Error ? error.message : "development_preview_failed" });
+  }
+});
+
+app.post<{ Params: { id: string } }>("/api/development-changes/:id/approve", async (request, reply) => {
+  const change = await getDevelopmentChange(request.params.id);
+  if (!change) return reply.code(404).send({ error: "development_change_not_found" });
+  try {
+    const updated = approveDevelopmentChange(change);
+    await saveDevelopmentChange(updated);
+    await audit(updated.projectId, "development_change_approved", {
+      changeId: updated.id,
+      approvedAt: updated.approval.approvedAt,
+      productionExecutionLocked: updated.protections.productionExecutionLocked
+    });
+    return updated;
+  } catch (error) {
+    return reply.code(409).send({ error: error instanceof Error ? error.message : "development_change_approval_failed" });
+  }
+});
+
+app.post<{ Params: { id: string } }>("/api/development-changes/:id/cancel", async (request, reply) => {
+  const change = await getDevelopmentChange(request.params.id);
+  if (!change) return reply.code(404).send({ error: "development_change_not_found" });
+  const updated = cancelDevelopmentChange(change);
+  await saveDevelopmentChange(updated);
+  return updated;
+});
+
+app.post<{ Params: { id: string } }>("/api/development-changes/:id/deploy", async (request, reply) => {
+  const change = await getDevelopmentChange(request.params.id);
+  if (!change) return reply.code(404).send({ error: "development_change_not_found" });
+  return reply.code(409).send({
+    error: "development_deployment_locked",
+    changeId: change.id,
+    status: change.status,
+    approval: change.approval,
+    protections: change.protections
+  });
 });
 
 app.post<{ Body: { prompt: string } }>("/api/project-plans", async (request, reply) => {

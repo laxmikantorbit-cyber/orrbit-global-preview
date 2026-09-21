@@ -94,6 +94,16 @@ type ProjectBudget = { id: string; projectId: string; currency: "INR" | "USD"; m
 type CostLedgerEntry = { id: string; projectId: string; provider: string; category: string; amount: number; currency: "INR" | "USD"; note: string; occurredAt: string; createdAt: string };
 type CostSummary = { budget: ProjectBudget | null; currentMonthSpend: number; warningAmount: number | null; remainingAmount: number | null; status: string; entryCount: number; automationBlocked: boolean };
 
+type DevelopmentChange = {
+  id: string; projectId: string; prompt: string; summary: string; impactAreas: string[];
+  risk: "medium" | "high"; status: string;
+  aiPlan: { provider: string; action: string; mode: string; risk: string; requiresApproval: boolean; executionAllowed: boolean; notes: string[] };
+  validation: null | { typecheck: string; tests: string; build: string; health: string; evidenceReference: string | null; passed: boolean };
+  preview: null | { providerDeploymentId: string; url?: string; revision?: string; evidence: string[] };
+  approval: { approved: boolean; approvedAt: string | null };
+  protections: Record<string, boolean>; createdAt: string; updatedAt: string;
+};
+
 type CommandCentre = {
   project: Project;
   environments: ProjectEnvironment[];
@@ -106,6 +116,7 @@ type CommandCentre = {
   budget: ProjectBudget | null;
   costLedger: CostLedgerEntry[];
   costSummary: CostSummary;
+  developmentChanges: DevelopmentChange[];
   jobs: Array<{ id: string; state: string; risk: string; createdAt: string; evidence: string[] }>;
   audit: Array<{ id: string; eventType: string; createdAt: string }>;
   protection: { productionProtected: boolean; nonDevelopmentConfigLocked: boolean; realCloudProvisioningEnabled: boolean };
@@ -891,6 +902,27 @@ export default function App() {
     setCommandCentre((current)=>current?{...current,costLedger:[result.entry,...current.costLedger],costSummary:result.summary}:current); setMessage(result.summary.automationBlocked?"Cost recorded - automation blocked: over budget":"Cost recorded"); event.currentTarget.reset();
   }
 
+  function replaceDevelopmentChange(updated: DevelopmentChange) {
+    setCommandCentre((current)=>current?{...current,developmentChanges:current.developmentChanges.map((item)=>item.id===updated.id?updated:item)}:current);
+  }
+
+  async function createDevelopmentChangeRecord(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if(!commandCentre)return; const data=new FormData(event.currentTarget);
+    const response=await fetch(`${apiBase}/api/projects/${commandCentre.project.id}/development-changes`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:String(data.get("prompt")??"")})});
+    const result=await response.json(); if(!response.ok)return setMessage(result.error??"Development change planning failed");
+    setCommandCentre((current)=>current?{...current,developmentChanges:[result,...current.developmentChanges]}:current); setMessage("AI development change planned"); event.currentTarget.reset();
+  }
+
+  async function recordChangeValidation(id:string,event:FormEvent<HTMLFormElement>) {
+    event.preventDefault(); const data=new FormData(event.currentTarget);
+    const response=await fetch(`${apiBase}/api/development-changes/${id}/validation`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({typecheck:String(data.get("typecheck")??"not_run"),tests:String(data.get("tests")??"not_run"),build:String(data.get("build")??"not_run"),health:String(data.get("health")??"not_run"),evidenceReference:String(data.get("evidenceReference")??"")})});
+    const result=await response.json(); if(!response.ok)return setMessage(result.error??"Validation record failed"); replaceDevelopmentChange(result); setMessage(result.validation?.passed?"Validation passed":"Validation recorded with blockers");
+  }
+
+  async function prepareChangePreview(id:string){const response=await fetch(`${apiBase}/api/development-changes/${id}/preview`,{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});const result=await response.json();if(!response.ok)return setMessage(result.error??"Preview failed");replaceDevelopmentChange(result);setMessage("Development preview revision ready");}
+  async function approveDevelopmentChangeRecord(id:string){const response=await fetch(`${apiBase}/api/development-changes/${id}/approve`,{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});const result=await response.json();if(!response.ok)return setMessage(result.error??"Approval failed");replaceDevelopmentChange(result);setMessage("Development change approved - deployment remains locked");}
+  async function confirmDevelopmentDeployLocked(id:string){const response=await fetch(`${apiBase}/api/development-changes/${id}/deploy`,{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});const result=await response.json();setMessage(response.status===409?"Development deployment is safely locked":(result.error??"Unexpected deploy response"));}
+
   if (!authStatus) {
     return <main className="authShell"><section className="authCard">
       <span className="eyebrow">oRRbit AI Control Plane</span>
@@ -1390,6 +1422,39 @@ export default function App() {
             <div className="gateActions">
               <button onClick={() => approveRollbackPlanRecord(item.id)} disabled={item.status !== "planned"}>Approve Plan</button>
               <button onClick={() => confirmRollbackExecuteLocked(item.id)}>Verify Execute Lock</button>
+            </div>
+          </article>)}
+        </div>
+      </div>
+      <div className="developmentChangePanel">
+        <div className="builderHead"><div><span className="eyebrow">AI Development Change Workflow</span>
+          <h3>Plan → Validate → Preview → Approve</h3>
+          <p>AI planning and preview are development-only. Production deployment remains hard-locked.</p></div>
+          <span className="lockBadge">Production locked</span></div>
+        <form className="developmentChangeForm" onSubmit={createDevelopmentChangeRecord}>
+          <label>Change request<textarea name="prompt" required minLength={10} maxLength={3000}
+            placeholder="Describe the development change, expected behaviour and constraints." /></label>
+          <button type="submit" disabled={commandCentre.costSummary.automationBlocked}>Create AI Change Plan</button>
+        </form>
+        {commandCentre.costSummary.automationBlocked && <div className="warningBox">AI automation is blocked because this project is over its monthly budget.</div>}
+        <div className="developmentChangeList">
+          {commandCentre.developmentChanges.map((item) => <article className="developmentChangeCard" key={item.id}>
+            <div className="cardHead"><h3>{item.summary}</h3><span>{item.status.replaceAll("_"," ")}</span></div>
+            <p><strong>Impact:</strong> {item.impactAreas.join(", ")} · <strong>Risk:</strong> {item.risk}</p>
+            <div className="gitPlanEvidence"><strong>AI plan</strong><span>{item.aiPlan.provider} · {item.aiPlan.mode} · execution allowed={String(item.aiPlan.executionAllowed)}</span></div>
+            {item.validation && <div className={item.validation.passed ? "readyBox" : "warningBox"}>
+              Validation: typecheck {item.validation.typecheck} · tests {item.validation.tests} · build {item.validation.build} · health {item.validation.health}
+            </div>}
+            {item.status === "planned" && <form className="changeValidationForm" onSubmit={(event) => recordChangeValidation(item.id,event)}>
+              {["typecheck","tests","build","health"].map((name) => <label key={name}>{name}<select name={name} defaultValue="passed"><option value="passed">Passed</option><option value="failed">Failed</option><option value="not_run">Not run</option></select></label>)}
+              <label>Evidence ref<input name="evidenceReference" required placeholder="job/build/test evidence" /></label>
+              <button type="submit">Record Validation</button>
+            </form>}
+            {item.preview && <div className="actualPreviewBox"><span className="eyebrow">Preview revision</span><strong>{item.preview.providerDeploymentId}</strong><span>{item.preview.evidence.join(" · ")}</span></div>}
+            <div className="gateActions">
+              <button onClick={() => prepareChangePreview(item.id)} disabled={!item.validation?.passed || item.status !== "validation_recorded"}>Prepare Preview</button>
+              <button onClick={() => approveDevelopmentChangeRecord(item.id)} disabled={item.status !== "preview_ready"}>Approve Change</button>
+              <button onClick={() => confirmDevelopmentDeployLocked(item.id)}>Verify Deploy Lock</button>
             </div>
           </article>)}
         </div>
