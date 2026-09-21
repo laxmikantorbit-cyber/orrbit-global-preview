@@ -788,7 +788,7 @@ export default function App() {
     const result = await response.json();
     if (!response.ok) return setMessage(result.error ?? "Branch plan failed");
     replaceWorkspace(result);
-    setMessage("Branch plan ready — no real branch created");
+    setMessage("Branch plan ready Ã¢â‚¬â€ no real branch created");
   }
 
   async function prepareGitReview(workspaceId: string) {
@@ -799,7 +799,7 @@ export default function App() {
     const result = await response.json();
     if (!response.ok) return setMessage(result.error ?? "Review plan failed");
     replaceWorkspace(result);
-    setMessage("Review plan ready — provider execution remains gated");
+    setMessage("Review plan ready Ã¢â‚¬â€ provider execution remains gated");
   }
 
   async function cancelGitWorkspace(workspaceId: string) {
@@ -829,7 +829,7 @@ export default function App() {
     const result = await response.json();
     if (!response.ok) return setMessage(result.error ?? "Secret reference failed");
     setCommandCentre((current) => current ? { ...current, secretReferences: [result, ...current.secretReferences] } : current);
-    setMessage("Secret reference registered — no secret value stored");
+    setMessage("Secret reference registered Ã¢â‚¬â€ no secret value stored");
     event.currentTarget.reset();
   }
 
@@ -861,7 +861,7 @@ export default function App() {
     const result = await response.json();
     if (!response.ok) return setMessage(result.error ?? "DNS proposal failed");
     setCommandCentre((current) => current ? { ...current, dnsProposals: [result, ...current.dnsProposals] } : current);
-    setMessage("DNS proposal created — execution remains locked");
+    setMessage("DNS proposal created Ã¢â‚¬â€ execution remains locked");
     event.currentTarget.reset();
   }
 
@@ -872,7 +872,7 @@ export default function App() {
     const result = await response.json();
     if (!response.ok) return setMessage(result.error ?? "DNS approval failed");
     replaceDnsProposal(result);
-    setMessage("DNS proposal approved — execution still locked");
+    setMessage("DNS proposal approved Ã¢â‚¬â€ execution still locked");
   }
 
   async function cancelDnsChange(proposalId: string) {
@@ -1035,7 +1035,7 @@ export default function App() {
           {firstSetup ? "Create Secure Owner Access" : "Sign In"}</button>
       </form>
       {authError && <div className="warningBox authError">{authError}</div>}
-      <div className="protectionStrip">HttpOnly session · SameSite Strict · Server-side session hash · Login rate limit</div>
+      <div className="protectionStrip">HttpOnly session Ã‚Â· SameSite Strict Ã‚Â· Server-side session hash Ã‚Â· Login rate limit</div>
     </section></main>;
   }
 
@@ -1051,10 +1051,25 @@ export default function App() {
         <button className="ghost" onClick={logoutOwner}>Sign out</button></div>
     </header>
 
-    <section className="hero">
-      <div><h2>Websites and SaaS, one controlled workflow.</h2>
-        <p>Plan with AI, build in isolation, verify, approve, deploy and roll back.</p></div>
-      <div className="metric"><strong>{projects.length}</strong><span>Registered projects</span></div>
+    <section className="hero saasHero">
+      <div className="heroCopy"><span className="pill">100% Panel Ready Â· Real Import Locked</span>
+        <h2>Manage websites and SaaS like a simple online platform.</h2>
+        <p>Follow guided steps: add project, plan with AI, verify safely, approve, preview, track budget, and keep production protected.</p>
+        <div className="heroActions"><button onClick={() => setAddOpen(true)}>Start New Project</button><a href="#import-engine">Check Import Engine</a></div></div>
+      <div className="heroMetrics"><div className="metric"><strong>{projects.length}</strong><span>Projects</span></div>
+        <div className="metric"><strong>{panelReadiness?.completion.buildProgressPercent ?? 0}%</strong><span>Panel readiness</span></div>
+        <div className="metric lockMetric"><strong>{panelReadiness?.realImportUnlocked ? "ON" : "LOCK"}</strong><span>Real import</span></div></div>
+    </section>
+
+    <section className="quickStartPanel">
+      <div><span className="eyebrow">Layman workflow</span><h2>What should I do here?</h2>
+        <p>Use the cards left to right. Every risky action shows a lock, approval step, or evidence check before anything can move forward.</p></div>
+      <div className="quickStartGrid">
+        <article><span>1</span><strong>Add / select project</strong><p>Create a development project or open an existing one.</p></article>
+        <article><span>2</span><strong>Use guided workflow</strong><p>AI plan, validation, preview and approval are shown step by step.</p></article>
+        <article><span>3</span><strong>Check safety status</strong><p>Budget, DNS, rollback, secrets and import locks stay visible.</p></article>
+        <article><span>4</span><strong>Approve only when ready</strong><p>No real production or import action runs without explicit owner unlock.</p></article>
+      </div>
     </section>
 
     {panelReadiness && <section className="readinessPanel">
@@ -1073,8 +1088,8 @@ export default function App() {
       <div className={panelReadiness.realImportUnlocked ? "readyBox" : "warningBox"}>
         <strong>{panelReadiness.realImportUnlocked ? "Real import unlocked" : "Real import/transfer locked"}</strong>
         {!panelReadiness.realImportUnlocked && (panelReadiness.panelComplete
-          ? " — panel is 100% complete, but real import still requires the explicit owner-controlled completion flag."
-          : " — only explicitly marked synthetic QA fixtures are permitted until every required panel module is ready.")}
+          ? " Ã¢â‚¬â€ panel is 100% complete, but real import still requires the explicit owner-controlled completion flag."
+          : " Ã¢â‚¬â€ only explicitly marked synthetic QA fixtures are permitted until every required panel module is ready.")}
       </div>
       <div className="readinessGrid">
         {panelReadiness.modules.map((item) => <article className={"readinessItem readiness-" + item.status} key={item.key}>
@@ -1111,7 +1126,7 @@ export default function App() {
       </form>}
       {plan && <div className="plan">
         <div className="planTop"><div><span className="eyebrow">Plan preview</span>
-          <h3>{plan.inferredProjectType} · {plan.targetEnvironment}</h3></div>
+          <h3>{plan.inferredProjectType} Ã‚Â· {plan.targetEnvironment}</h3></div>
           <span className={`risk risk-${plan.risk}`}>{plan.risk} risk</span></div>
         <dl><div><dt>Source</dt><dd>{plan.sourceMode}</dd></div>
           <div><dt>Planner</dt><dd>{plan.planner}</dd></div>
@@ -1129,10 +1144,10 @@ export default function App() {
       </div>}
     </section>}
 
-    <section className="importPanel">
+    <section className="importPanel" id="import-engine">
       <div className="builderHead">
         <div><span className="eyebrow">Existing Project Import Engine</span>
-          <h2>{panelReadiness?.realImportUnlocked ? "Import & Transfer" : panelComplete ? "Panel Complete — Real Import Awaiting Owner Enable" : "Synthetic QA Mode — Real Import Locked"}</h2>
+          <h2>{panelReadiness?.realImportUnlocked ? "Import & Transfer" : panelComplete ? "Panel Complete Ã¢â‚¬â€ Real Import Awaiting Owner Enable" : "Synthetic QA Mode Ã¢â‚¬â€ Real Import Locked"}</h2>
           <p>{panelReadiness?.realImportUnlocked
             ? "Controlled import workflow through the panel only."
             : panelComplete
@@ -1177,14 +1192,14 @@ export default function App() {
             className={activeImportPlan?.id === item.id ? "importItem active" : "importItem"}
             key={item.id} onClick={() => setActiveImportPlan(item)}>
             <strong>{item.requestedProjectName}</strong>
-            <span>{item.sourceType} · {item.status} · {item.routeInventory.length} routes · {(item.moduleInventory ?? []).length} modules</span>
+            <span>{item.sourceType} Ã‚Â· {item.status} Ã‚Â· {item.routeInventory.length} routes Ã‚Â· {(item.moduleInventory ?? []).length} modules</span>
           </button>)}
           <div className="workspaceMiniList"><span className="eyebrow">Workspaces</span>
             {importWorkspaces.length === 0 ? <p className="muted">No workspace yet.</p> : importWorkspaces.map((workspace) => <button
               className={activeWorkspace?.id === workspace.id ? "importItem active" : "importItem"}
               key={workspace.id} onClick={() => openWorkspace(workspace.id)}>
               <strong>{workspace.status}</strong>
-              <span>{workspace.sourceReferenceStatus} · routes {workspace.routeCapture.length} · modules {workspace.moduleCapture.length}</span>
+              <span>{workspace.sourceReferenceStatus} Ã‚Â· routes {workspace.routeCapture.length} Ã‚Â· modules {workspace.moduleCapture.length}</span>
             </button>)}
           </div>
         </div>
@@ -1195,10 +1210,10 @@ export default function App() {
           <dl>
             <div><dt>Source</dt><dd>{activeImportPlan.sourceRef}</dd></div>
             <div><dt>Target</dt><dd>{activeImportPlan.targetEnvironment}</dd></div>
-            <div><dt>Manifest</dt><dd>{activeImportPlan.manifestDraft.projectType} · protected={String(activeImportPlan.manifestDraft.productionProtected)}</dd></div>
+            <div><dt>Manifest</dt><dd>{activeImportPlan.manifestDraft.projectType} Ã‚Â· protected={String(activeImportPlan.manifestDraft.productionProtected)}</dd></div>
           </dl>
           <div className="routeBox"><span className="eyebrow">Route inventory</span>
-            {activeImportPlan.routeInventory.map((route) => <p key={route.path}>{route.path} <span>{route.kind} · {route.status}</span></p>)}</div>
+            {activeImportPlan.routeInventory.map((route) => <p key={route.path}>{route.path} <span>{route.kind} Ã‚Â· {route.status}</span></p>)}</div>
           <div className="routeBox"><span className="eyebrow">Module inventory</span>
             {(activeImportPlan.moduleInventory ?? []).length === 0 ? <p className="muted">No modules declared for this import plan.</p> :
               (activeImportPlan.moduleInventory ?? []).map((module) => <p key={module}>{module}<span>needs capture</span></p>)}</div>
@@ -1233,7 +1248,7 @@ export default function App() {
               <div className="assessmentSteps">
                 {importAssessment.steps.map((step) => <div className={step.ready ? "assessmentStep ready" : "assessmentStep blocked"} key={step.key}>
                   <strong>{step.label}</strong><span>{step.ready ? "Ready" : "Pending"}</span>
-                  {step.evidence.length > 0 && <small>{step.evidence.filter(Boolean).join(" · ")}</small>}
+                  {step.evidence.length > 0 && <small>{step.evidence.filter(Boolean).join(" Ã‚Â· ")}</small>}
                 </div>)}
               </div>
               {importAssessment.complete && !importAssessment.realExecutionAuthorized && <div className="warningBox">
@@ -1253,7 +1268,7 @@ export default function App() {
                 <button onClick={uploadSourcePackage} disabled={activeWorkspace.sourceReferenceStatus !== "provided" || !sourcePackage || (importMode === "synthetic" && !syntheticArchiveConfirmed)}>Upload & Validate Source ZIP</button>
               </div>}
               {sourcePackage && !activeAcquisition && <>
-                <p className="muted">Selected: {sourcePackage.name} · {(sourcePackage.size / 1024 / 1024).toFixed(2)} MB</p>
+                <p className="muted">Selected: {sourcePackage.name} Ã‚Â· {(sourcePackage.size / 1024 / 1024).toFixed(2)} MB</p>
                 {importMode === "synthetic" && <label className="syntheticConfirm"><input type="checkbox" checked={syntheticArchiveConfirmed} onChange={(e) => setSyntheticArchiveConfirmed(e.target.checked)} /> I confirm this ZIP contains synthetic QA fixture data only.</label>}
               </>}
               {activeAcquisition && <div className="sourceInventory">
@@ -1264,7 +1279,7 @@ export default function App() {
                 <div><span>package.json</span><strong>{activeAcquisition.inventory.hasPackageJson ? (activeAcquisition.inventory.packageJsonPath ?? "Yes") : "No"}</strong></div>
               </div>}
               {activeAcquisition && <div className="hashBox"><span className="eyebrow">SHA-256 evidence</span><strong>{activeAcquisition.sha256}</strong></div>}
-              {activeAcquisition?.issues.length ? <div className="warningBox">{activeAcquisition.issues.join(" · ")}</div> : null}
+              {activeAcquisition?.issues.length ? <div className="warningBox">{activeAcquisition.issues.join(" Ã‚Â· ")}</div> : null}
               {activeAcquisition?.status === "acquired" && <div className="readyBox sourceReady">Source archive acquired and extracted only into the isolated control-plane inbox. No source code has been executed.</div>}
               {activeAcquisition && <button className="secondary sourceDiscard" onClick={discardSourcePackage}>Discard Isolated Source Package</button>}
             </div>
@@ -1277,7 +1292,7 @@ export default function App() {
                 <button onClick={startSourceBuild} disabled={activeBuild?.status === "preview_ready"}>Build Actual Source</button>
                 <button disabled title="Production deployment remains locked">Deploy Locked</button>
               </div>
-              <div className="protectionStrip">Docker sandbox required · Host execution disabled · Build network disabled · Production/DNS/payment/live DB/customer data locked</div>
+              <div className="protectionStrip">Docker sandbox required Ã‚Â· Host execution disabled Ã‚Â· Build network disabled Ã‚Â· Production/DNS/payment/live DB/customer data locked</div>
               {activeBuild && <>
                 <div className="buildSummary">
                   <div><span>Framework</span><strong>{activeBuild.framework}</strong></div>
@@ -1288,7 +1303,7 @@ export default function App() {
                 <div className="executionStages">
                   {activeBuild.stages.map((stage) => <div key={stage.name}><strong>{stage.name}</strong><span>{stage.status}</span>{stage.detail && <small>{stage.detail}</small>}</div>)}
                 </div>
-                {activeBuild.blockers.length > 0 && <div className="warningBox"><strong>Build blockers:</strong> {activeBuild.blockers.join(" · ")}</div>}
+                {activeBuild.blockers.length > 0 && <div className="warningBox"><strong>Build blockers:</strong> {activeBuild.blockers.join(" Ã‚Â· ")}</div>}
                 <div className="buildCommands"><span>Install</span><code>{activeBuild.installCommand || "pending"}</code><span>Build</span><code>{activeBuild.buildCommand || "pending"}</code></div>
                 {activeBuild.preview && <div className="actualPreviewBox"><span className="eyebrow">Actual local preview</span><a href={activeBuild.preview.url} target="_blank" rel="noreferrer">Open {activeBuild.preview.url}</a></div>}
                 {activeBuild.logs.length > 0 && <details className="buildLogs"><summary>Build logs</summary><pre>{activeBuild.logs.join("\n\n")}</pre></details>}
@@ -1320,7 +1335,7 @@ export default function App() {
               <button className="secondary" onClick={() => loadDeployGate(activeWorkspace.id)}>Recompute Deploy Gate</button>
               <button onClick={startDevelopmentPreview}
                 disabled={!(deployGate ?? activeWorkspace.deployGate).canDeploy || (!!activeExecution && activeExecution.status !== "reset")}>
-                {(deployGate ?? activeWorkspace.deployGate).canDeploy ? "Start Development Preview" : "Preview Blocked — Complete Capture"}
+                {(deployGate ?? activeWorkspace.deployGate).canDeploy ? "Start Development Preview" : "Preview Blocked Ã¢â‚¬â€ Complete Capture"}
               </button>
               <button disabled title="Real deployment execution is intentionally locked">Real Deploy Locked</button>
             </div>
@@ -1342,7 +1357,7 @@ export default function App() {
                 <span className="eyebrow">Safe preview reference</span><strong>{activeExecution.preview.reference}</strong>
               </div>}
               <div className="protectionStrip">
-                Production locked · DNS locked · Live payment locked · Live DB locked · Customer data locked
+                Production locked Ã‚Â· DNS locked Ã‚Â· Live payment locked Ã‚Â· Live DB locked Ã‚Â· Customer data locked
               </div>
               <div className="gateActions">
                 <button className="secondary" onClick={resetDevelopmentPreview} disabled={activeExecution.status === "reset"}>Reset Development Preview</button>
@@ -1358,7 +1373,7 @@ export default function App() {
       <div className="builderHead">
         <div><span className="eyebrow">Project Command Centre</span>
           <h2>{commandCentre.project.name}</h2>
-          <p>{commandCentre.project.type} · {commandCentre.project.lifecycleStatus}</p></div>
+          <p>{commandCentre.project.type} Ã‚Â· {commandCentre.project.lifecycleStatus}</p></div>
         <button className="ghost" onClick={() => setCommandCentre(null)}>Close</button>
       </div>
       <div className="commandSummary">
@@ -1416,11 +1431,11 @@ export default function App() {
                   <div><dt>Feature branch</dt><dd><code>{workspace.branchName}</code></dd></div>
                   <div><dt>Real branch created</dt><dd>{workspace.actualBranchCreated ? "Yes" : "No"}</dd></div>
                 </dl>
-                <div className="protectionStrip">Development only · direct main write disabled · provider execution gated</div>
+                <div className="protectionStrip">Development only Ã‚Â· direct main write disabled Ã‚Â· provider execution gated</div>
                 {workspace.branchPlan && <div className="gitPlanEvidence"><strong>Branch plan</strong>
-                  <span>{workspace.branchPlan.provider} · {workspace.branchPlan.mode} · execution allowed={String(workspace.branchPlan.executionAllowed)}</span></div>}
+                  <span>{workspace.branchPlan.provider} Ã‚Â· {workspace.branchPlan.mode} Ã‚Â· execution allowed={String(workspace.branchPlan.executionAllowed)}</span></div>}
                 {workspace.reviewPlan && <div className="gitPlanEvidence"><strong>Review plan</strong>
-                  <span>{workspace.reviewPlan.provider} · {workspace.reviewPlan.mode} · execution allowed={String(workspace.reviewPlan.executionAllowed)}</span></div>}
+                  <span>{workspace.reviewPlan.provider} Ã‚Â· {workspace.reviewPlan.mode} Ã‚Â· execution allowed={String(workspace.reviewPlan.executionAllowed)}</span></div>}
                 <div className="gateActions">
                   <button onClick={() => prepareGitBranch(workspace.id)}
                     disabled={workspace.status !== "planned"}>Prepare Branch Plan</button>
@@ -1460,7 +1475,7 @@ export default function App() {
                 <div><dt>Provider mode</dt><dd>{item.providerPlan.mode}</dd></div>
                 <div><dt>Secret value stored</dt><dd>{item.secretValueStored ? "Unexpected" : "No"}</dd></div>
               </dl>
-              <div className="protectionStrip">Reference metadata only · no plaintext value · no AI secret exposure</div>
+              <div className="protectionStrip">Reference metadata only Ã‚Â· no plaintext value Ã‚Â· no AI secret exposure</div>
             </article>)}
         </div>
       </div>
@@ -1494,7 +1509,7 @@ export default function App() {
                 <div><dt>Risk</dt><dd>{item.risk}</dd></div>
                 <div><dt>Restore point</dt><dd>{item.restorePointRequired ? "Required" : "Not required"}</dd></div>
               </dl>
-              <div className="protectionStrip">Approval required · restore point required · DNS execution locked · live traffic protected</div>
+              <div className="protectionStrip">Approval required Ã‚Â· restore point required Ã‚Â· DNS execution locked Ã‚Â· live traffic protected</div>
               <div className="gateActions">
                 <button onClick={() => approveDnsChange(item.id)} disabled={item.status !== "proposed"}>Approve Proposal</button>
                 <button className="secondary" onClick={() => cancelDnsChange(item.id)} disabled={item.status === "cancelled"}>Cancel</button>
@@ -1532,7 +1547,7 @@ export default function App() {
                 <div><dt>Complete</dt><dd>{item.complete ? "Yes" : "No"}</dd></div>
                 <div><dt>Blockers</dt><dd>{item.blockers.length ? item.blockers.join(", ") : "None"}</dd></div>
               </dl>
-              <div className="protectionStrip">Evidence only · no deployment execution · production release locked</div>
+              <div className="protectionStrip">Evidence only Ã‚Â· no deployment execution Ã‚Â· production release locked</div>
               <div className="gateActions">
                 <button onClick={() => verifyReleaseEvidenceRecord(item.id)} disabled={item.status !== "draft"}>Verify Evidence</button>
                 <button onClick={() => addVersionFromEvidence(item.id)} disabled={item.status !== "verified"}>Add to Version History</button>
@@ -1550,7 +1565,7 @@ export default function App() {
           {commandCentre.versions.length === 0 ? <p className="muted">No verified versions recorded yet.</p> :
             commandCentre.versions.map((item) => <article className="versionLedgerCard" key={item.id}>
               <div className="cardHead"><h3>{item.sourceRevision}</h3><span>{item.environment}</span></div>
-              <p>Health verified: {item.healthVerified ? "Yes" : "No"} · Evidence: {item.releaseEvidenceId}</p>
+              <p>Health verified: {item.healthVerified ? "Yes" : "No"} Ã‚Â· Evidence: {item.releaseEvidenceId}</p>
             </article>)}
         </div>
         <form className="rollbackForm" onSubmit={createRollbackPlanRecord}>
@@ -1562,8 +1577,8 @@ export default function App() {
         <div className="rollbackList">
           {commandCentre.rollbackPlans.map((item) => <article className="rollbackCard" key={item.id}>
             <div className="cardHead"><h3>{item.environment} rollback</h3><span>{item.status}</span></div>
-            <p>{item.fromVersionId} → {item.toVersionId}</p>
-            <div className="protectionStrip">High risk · approval required · restore point required · execution locked</div>
+            <p>{item.fromVersionId} Ã¢â€ â€™ {item.toVersionId}</p>
+            <div className="protectionStrip">High risk Ã‚Â· approval required Ã‚Â· restore point required Ã‚Â· execution locked</div>
             <div className="gateActions">
               <button onClick={() => approveRollbackPlanRecord(item.id)} disabled={item.status !== "planned"}>Approve Plan</button>
               <button onClick={() => confirmRollbackExecuteLocked(item.id)}>Verify Execute Lock</button>
@@ -1573,7 +1588,7 @@ export default function App() {
       </div>
       <div className="developmentChangePanel">
         <div className="builderHead"><div><span className="eyebrow">AI Development Change Workflow</span>
-          <h3>Plan → Validate → Preview → Approve</h3>
+          <h3>Plan Ã¢â€ â€™ Validate Ã¢â€ â€™ Preview Ã¢â€ â€™ Approve</h3>
           <p>AI planning and preview are development-only. Production deployment remains hard-locked.</p></div>
           <span className="lockBadge">Production locked</span></div>
         <form className="developmentChangeForm" onSubmit={createDevelopmentChangeRecord}>
@@ -1585,17 +1600,17 @@ export default function App() {
         <div className="developmentChangeList">
           {commandCentre.developmentChanges.map((item) => <article className="developmentChangeCard" key={item.id}>
             <div className="cardHead"><h3>{item.summary}</h3><span>{item.status.replaceAll("_"," ")}</span></div>
-            <p><strong>Impact:</strong> {item.impactAreas.join(", ")} · <strong>Risk:</strong> {item.risk}</p>
-            <div className="gitPlanEvidence"><strong>AI plan</strong><span>{item.aiPlan.provider} · {item.aiPlan.mode} · execution allowed={String(item.aiPlan.executionAllowed)}</span></div>
+            <p><strong>Impact:</strong> {item.impactAreas.join(", ")} Ã‚Â· <strong>Risk:</strong> {item.risk}</p>
+            <div className="gitPlanEvidence"><strong>AI plan</strong><span>{item.aiPlan.provider} Ã‚Â· {item.aiPlan.mode} Ã‚Â· execution allowed={String(item.aiPlan.executionAllowed)}</span></div>
             {item.validation && <div className={item.validation.passed ? "readyBox" : "warningBox"}>
-              Validation: typecheck {item.validation.typecheck} · tests {item.validation.tests} · build {item.validation.build} · health {item.validation.health}
+              Validation: typecheck {item.validation.typecheck} Ã‚Â· tests {item.validation.tests} Ã‚Â· build {item.validation.build} Ã‚Â· health {item.validation.health}
             </div>}
             {item.status === "planned" && <form className="changeValidationForm" onSubmit={(event) => recordChangeValidation(item.id,event)}>
               {["typecheck","tests","build","health"].map((name) => <label key={name}>{name}<select name={name} defaultValue="passed"><option value="passed">Passed</option><option value="failed">Failed</option><option value="not_run">Not run</option></select></label>)}
               <label>Evidence ref<input name="evidenceReference" required placeholder="job/build/test evidence" /></label>
               <button type="submit">Record Validation</button>
             </form>}
-            {item.preview && <div className="actualPreviewBox"><span className="eyebrow">Preview revision</span><strong>{item.preview.providerDeploymentId}</strong><span>{item.preview.evidence.join(" · ")}</span></div>}
+            {item.preview && <div className="actualPreviewBox"><span className="eyebrow">Preview revision</span><strong>{item.preview.providerDeploymentId}</strong><span>{item.preview.evidence.join(" Ã‚Â· ")}</span></div>}
             <div className="gateActions">
               <button onClick={() => prepareChangePreview(item.id)} disabled={!item.validation?.passed || item.status !== "validation_recorded"}>Prepare Preview</button>
               <button onClick={() => approveDevelopmentChangeRecord(item.id)} disabled={item.status !== "preview_ready"}>Approve Change</button>
@@ -1613,8 +1628,8 @@ export default function App() {
           </span></div>
         <div className="costSummaryGrid">
           <div><span>Spend</span><strong>{commandCentre.costSummary.currentMonthSpend}</strong></div>
-          <div><span>Remaining</span><strong>{commandCentre.costSummary.remainingAmount ?? "—"}</strong></div>
-          <div><span>Warning at</span><strong>{commandCentre.costSummary.warningAmount ?? "—"}</strong></div>
+          <div><span>Remaining</span><strong>{commandCentre.costSummary.remainingAmount ?? "Ã¢â‚¬â€"}</strong></div>
+          <div><span>Warning at</span><strong>{commandCentre.costSummary.warningAmount ?? "Ã¢â‚¬â€"}</strong></div>
           <div><span>Automation</span><strong>{commandCentre.costSummary.automationBlocked ? "Blocked" : "Allowed"}</strong></div>
         </div>
         <form className="budgetForm" onSubmit={saveProjectBudgetRecord}>
@@ -1633,18 +1648,18 @@ export default function App() {
         </form>
         <div className="costLedgerList">
           {commandCentre.costLedger.slice(0,10).map((item) => <p className="historyItem" key={item.id}>
-            {item.provider} · {item.category} · {item.amount} {item.currency} · {new Date(item.occurredAt).toLocaleString()}
+            {item.provider} Ã‚Â· {item.category} Ã‚Â· {item.amount} {item.currency} Ã‚Â· {new Date(item.occurredAt).toLocaleString()}
           </p>)}
         </div>
       </div>
       <div className="historyGrid">
         <div><span className="eyebrow">Recent jobs</span>
           {commandCentre.jobs.length === 0 ? <p className="muted">No jobs yet.</p> :
-            commandCentre.jobs.map((job) => <p className="historyItem" key={job.id}>{job.state} · {job.risk} · {new Date(job.createdAt).toLocaleString()}</p>)}
+            commandCentre.jobs.map((job) => <p className="historyItem" key={job.id}>{job.state} Ã‚Â· {job.risk} Ã‚Â· {new Date(job.createdAt).toLocaleString()}</p>)}
         </div>
         <div><span className="eyebrow">Audit trail</span>
           {commandCentre.audit.length === 0 ? <p className="muted">No project audit events yet.</p> :
-            commandCentre.audit.map((item) => <p className="historyItem" key={item.id}>{item.eventType} · {new Date(item.createdAt).toLocaleString()}</p>)}
+            commandCentre.audit.map((item) => <p className="historyItem" key={item.id}>{item.eventType} Ã‚Â· {new Date(item.createdAt).toLocaleString()}</p>)}
         </div>
       </div>
     </section>}
