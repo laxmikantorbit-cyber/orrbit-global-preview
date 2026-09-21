@@ -17,6 +17,7 @@ import { cancelDevelopmentWorkspace, createDevelopmentWorkspace, prepareBranchPl
 import { createSecretReference, rejectSecretValueFields, type SecretReferenceRecord } from "./secret-reference.js";
 import { approveDnsProposal, cancelDnsProposal, createDnsChangeProposal, type DnsChangeProposal } from "./dns-proposal.js";
 import { createReleaseEvidence, verifyReleaseEvidence, type ReleaseEvidenceBundle } from "./release-evidence.js";
+import { approveRollbackPlan, cancelRollbackPlan, createRollbackPlan, createVersionLedgerEntry, type RollbackPlan, type VersionLedgerEntry } from "./rollback-history.js";
 import {
   MemoryProjectRegistry,
   PostgresProjectRegistry,
@@ -43,6 +44,8 @@ const developmentWorkspaces = new Map<string, DevelopmentWorkspace>();
 const secretReferences = new Map<string, SecretReferenceRecord>();
 const dnsChangeProposals = new Map<string, DnsChangeProposal>();
 const releaseEvidenceBundles = new Map<string, ReleaseEvidenceBundle>();
+const versionLedger = new Map<string, VersionLedgerEntry>();
+const rollbackPlans = new Map<string, RollbackPlan>();
 
 type OnboardingJob = {
   id: string;
@@ -451,6 +454,60 @@ async function listReleaseEvidence(projectId: string): Promise<ReleaseEvidenceBu
   return result.rows.map((row) => row.evidence_data);
 }
 
+async function saveVersionLedgerEntry(entry: VersionLedgerEntry) {
+  if (!pool) {
+    versionLedger.set(entry.id, entry);
+    return;
+  }
+  await pool.query(
+    `INSERT INTO version_ledger (id, project_id, environment_name, version_data, created_at)
+     VALUES ($1,$2,$3,$4::jsonb,$5)`,
+    [entry.id, entry.projectId, entry.environment, JSON.stringify(entry), entry.createdAt]
+  );
+}
+
+async function listVersionLedger(projectId: string): Promise<VersionLedgerEntry[]> {
+  if (!pool) return [...versionLedger.values()]
+    .filter((entry) => entry.projectId === projectId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const result = await pool.query<{ version_data: VersionLedgerEntry }>(
+    "SELECT version_data FROM version_ledger WHERE project_id=$1 ORDER BY created_at DESC LIMIT 100", [projectId]
+  );
+  return result.rows.map((row) => row.version_data);
+}
+
+async function saveRollbackPlan(plan: RollbackPlan) {
+  if (!pool) {
+    rollbackPlans.set(plan.id, plan);
+    return;
+  }
+  await pool.query(
+    `INSERT INTO rollback_plans (id, project_id, status, rollback_data, created_at, updated_at)
+     VALUES ($1,$2,$3,$4::jsonb,$5,$5)
+     ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,
+       rollback_data=EXCLUDED.rollback_data, updated_at=NOW()`,
+    [plan.id, plan.projectId, plan.status, JSON.stringify(plan), plan.createdAt]
+  );
+}
+
+async function getRollbackPlan(id: string): Promise<RollbackPlan | undefined> {
+  if (!pool) return rollbackPlans.get(id);
+  const result = await pool.query<{ rollback_data: RollbackPlan }>(
+    "SELECT rollback_data FROM rollback_plans WHERE id=$1", [id]
+  );
+  return result.rows[0]?.rollback_data;
+}
+
+async function listRollbackPlans(projectId: string): Promise<RollbackPlan[]> {
+  if (!pool) return [...rollbackPlans.values()]
+    .filter((plan) => plan.projectId === projectId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const result = await pool.query<{ rollback_data: RollbackPlan }>(
+    "SELECT rollback_data FROM rollback_plans WHERE project_id=$1 ORDER BY created_at DESC LIMIT 100", [projectId]
+  );
+  return result.rows.map((row) => row.rollback_data);
+}
+
 function acquisitionFolder(workspaceId: string, acquisitionId: string) {
   return resolve(importInboxRoot, workspaceId, acquisitionId);
 }
@@ -677,14 +734,16 @@ app.get<{ Params: { id: string } }>("/api/projects/:id/manifest", async (request
 app.get<{ Params: { id: string } }>("/api/projects/:id/command-centre", async (request, reply) => {
   const project = await registry.get(request.params.id);
   if (!project) return reply.code(404).send({ error: "project_not_found" });
-  const [environments, projectJobs, auditEvents, projectWorkspaces, projectSecretReferences, projectDnsProposals, projectReleaseEvidence] = await Promise.all([
+  const [environments, projectJobs, auditEvents, projectWorkspaces, projectSecretReferences, projectDnsProposals, projectReleaseEvidence, projectVersions, projectRollbackPlans] = await Promise.all([
     registry.listEnvironments(project.id),
     listJobs(project.id),
     listAuditEvents(project.id),
     listDevelopmentWorkspaces(project.id),
     listSecretReferences(project.id),
     listDnsProposals(project.id),
-    listReleaseEvidence(project.id)
+    listReleaseEvidence(project.id),
+    listVersionLedger(project.id),
+    listRollbackPlans(project.id)
   ]);
   return {
     project,
@@ -693,6 +752,8 @@ app.get<{ Params: { id: string } }>("/api/projects/:id/command-centre", async (r
     secretReferences: projectSecretReferences,
     dnsProposals: projectDnsProposals,
     releaseEvidence: projectReleaseEvidence,
+    versions: projectVersions,
+    rollbackPlans: projectRollbackPlans,
     jobs: projectJobs.slice(0, 10),
     audit: auditEvents.slice(0, 20),
     protection: {
@@ -1023,6 +1084,104 @@ app.post<{ Params: { id: string } }>("/api/release-evidence/:id/deploy", async (
     status: bundle.status,
     protections: bundle.protections
   });
+});
+
+app.get<{ Params: { id: string } }>("/api/projects/:id/version-history", async (request, reply) => {
+  const project = await registry.get(request.params.id);
+  if (!project) return reply.code(404).send({ error: "project_not_found" });
+  return { versions: await listVersionLedger(project.id), rollbackPlans: await listRollbackPlans(project.id) };
+});
+
+app.post<{
+  Params: { id: string };
+  Body: { releaseEvidenceId?: string };
+}>("/api/projects/:id/version-history", async (request, reply) => {
+  const project = await registry.get(request.params.id);
+  if (!project) return reply.code(404).send({ error: "project_not_found" });
+  const bundle = request.body?.releaseEvidenceId ? await getReleaseEvidence(request.body.releaseEvidenceId) : undefined;
+  if (!bundle || bundle.projectId !== project.id) return reply.code(404).send({ error: "release_evidence_not_found" });
+  if (bundle.status !== "verified") return reply.code(409).send({ error: "verified_release_evidence_required" });
+  const entry = createVersionLedgerEntry({
+    projectId: project.id,
+    environment: bundle.environment,
+    sourceRevision: bundle.sourceRevision,
+    releaseEvidenceId: bundle.id,
+    deploymentIdentifier: bundle.deploymentIdentifier,
+    healthVerified: bundle.healthResult === "passed"
+  });
+  await saveVersionLedgerEntry(entry);
+  await audit(project.id, "version_ledger_entry_created", {
+    versionId: entry.id,
+    environment: entry.environment,
+    sourceRevision: entry.sourceRevision,
+    releaseEvidenceId: entry.releaseEvidenceId
+  });
+  return reply.code(201).send(entry);
+});
+
+app.post<{
+  Params: { id: string };
+  Body: { environment?: string; fromVersionId?: string; toVersionId?: string };
+}>("/api/projects/:id/rollback-plans", async (request, reply) => {
+  const project = await registry.get(request.params.id);
+  if (!project) return reply.code(404).send({ error: "project_not_found" });
+  const versions = await listVersionLedger(project.id);
+  const from = versions.find((item) => item.id === request.body?.fromVersionId);
+  const to = versions.find((item) => item.id === request.body?.toVersionId);
+  if (!from || !to) return reply.code(404).send({ error: "rollback_version_not_found" });
+  if (from.environment !== request.body?.environment || to.environment !== request.body?.environment) {
+    return reply.code(400).send({ error: "rollback_versions_environment_mismatch" });
+  }
+  try {
+    const plan = createRollbackPlan({
+      projectId: project.id,
+      environment: request.body?.environment ?? "",
+      fromVersionId: from.id,
+      toVersionId: to.id
+    });
+    await saveRollbackPlan(plan);
+    await audit(project.id, "rollback_plan_created", {
+      rollbackPlanId: plan.id,
+      environment: plan.environment,
+      fromVersionId: plan.fromVersionId,
+      toVersionId: plan.toVersionId,
+      executionAllowed: plan.executionAllowed
+    });
+    return reply.code(201).send(plan);
+  } catch (error) {
+    return reply.code(400).send({ error: error instanceof Error ? error.message : "rollback_plan_failed" });
+  }
+});
+
+app.post<{ Params: { id: string } }>("/api/rollback-plans/:id/approve", async (request, reply) => {
+  const plan = await getRollbackPlan(request.params.id);
+  if (!plan) return reply.code(404).send({ error: "rollback_plan_not_found" });
+  try {
+    const updated = approveRollbackPlan(plan);
+    await saveRollbackPlan(updated);
+    await audit(updated.projectId, "rollback_plan_approved", {
+      rollbackPlanId: updated.id,
+      executionAllowed: updated.executionAllowed,
+      restorePointRequired: updated.restorePointRequired
+    });
+    return updated;
+  } catch (error) {
+    return reply.code(409).send({ error: error instanceof Error ? error.message : "rollback_approve_failed" });
+  }
+});
+
+app.post<{ Params: { id: string } }>("/api/rollback-plans/:id/cancel", async (request, reply) => {
+  const plan = await getRollbackPlan(request.params.id);
+  if (!plan) return reply.code(404).send({ error: "rollback_plan_not_found" });
+  const updated = cancelRollbackPlan(plan);
+  await saveRollbackPlan(updated);
+  return updated;
+});
+
+app.post<{ Params: { id: string } }>("/api/rollback-plans/:id/execute", async (request, reply) => {
+  const plan = await getRollbackPlan(request.params.id);
+  if (!plan) return reply.code(404).send({ error: "rollback_plan_not_found" });
+  return reply.code(409).send({ error: "rollback_execution_locked", rollbackPlanId: plan.id, executionAllowed: false, protections: plan.protections });
 });
 
 app.post<{ Body: { prompt: string } }>("/api/project-plans", async (request, reply) => {

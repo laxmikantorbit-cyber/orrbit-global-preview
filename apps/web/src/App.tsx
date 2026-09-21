@@ -79,6 +79,17 @@ type ReleaseEvidence = {
   createdAt: string; updatedAt: string;
 };
 
+type VersionLedgerEntry = {
+  id: string; projectId: string; environment: string; sourceRevision: string;
+  releaseEvidenceId: string; deploymentIdentifier: string | null; healthVerified: boolean; createdAt: string;
+};
+
+type RollbackPlan = {
+  id: string; projectId: string; environment: string; fromVersionId: string; toVersionId: string;
+  status: string; risk: "high"; requiresApproval: true; executionAllowed: false;
+  restorePointRequired: true; protections: Record<string, boolean>; createdAt: string; updatedAt: string;
+};
+
 type CommandCentre = {
   project: Project;
   environments: ProjectEnvironment[];
@@ -86,6 +97,8 @@ type CommandCentre = {
   secretReferences: SecretReference[];
   dnsProposals: DnsProposal[];
   releaseEvidence: ReleaseEvidence[];
+  versions: VersionLedgerEntry[];
+  rollbackPlans: RollbackPlan[];
   jobs: Array<{ id: string; state: string; risk: string; createdAt: string; evidence: string[] }>;
   audit: Array<{ id: string; eventType: string; createdAt: string }>;
   protection: { productionProtected: boolean; nonDevelopmentConfigLocked: boolean; realCloudProvisioningEnabled: boolean };
@@ -823,6 +836,40 @@ export default function App() {
     setMessage(response.status === 409 ? "Release execution is safely locked" : (result.error ?? "Unexpected release response"));
   }
 
+  function replaceRollbackPlan(updated: RollbackPlan) {
+    setCommandCentre((current) => current ? { ...current, rollbackPlans: current.rollbackPlans.map((item) => item.id === updated.id ? updated : item) } : current);
+  }
+
+  async function addVersionFromEvidence(releaseEvidenceId: string) {
+    if (!commandCentre) return;
+    const response = await fetch(`${apiBase}/api/projects/${commandCentre.project.id}/version-history`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ releaseEvidenceId }) });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "Version ledger update failed");
+    setCommandCentre((current) => current ? { ...current, versions: [result, ...current.versions] } : current);
+    setMessage("Version history entry created");
+  }
+
+  async function createRollbackPlanRecord(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!commandCentre) return;
+    const data = new FormData(event.currentTarget);
+    const response = await fetch(`${apiBase}/api/projects/${commandCentre.project.id}/rollback-plans`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ environment: String(data.get("environment") ?? "development"), fromVersionId: String(data.get("fromVersionId") ?? ""), toVersionId: String(data.get("toVersionId") ?? "") }) });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "Rollback plan failed");
+    setCommandCentre((current) => current ? { ...current, rollbackPlans: [result, ...current.rollbackPlans] } : current);
+    setMessage("Rollback plan created - execution locked");
+  }
+
+  async function approveRollbackPlanRecord(id: string) {
+    const response = await fetch(`${apiBase}/api/rollback-plans/${id}/approve`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    const result = await response.json(); if (!response.ok) return setMessage(result.error ?? "Rollback approval failed"); replaceRollbackPlan(result); setMessage("Rollback plan approved - execution still locked");
+  }
+
+  async function confirmRollbackExecuteLocked(id: string) {
+    const response = await fetch(`${apiBase}/api/rollback-plans/${id}/execute`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    const result = await response.json(); setMessage(response.status === 409 ? "Rollback execution is safely locked" : (result.error ?? "Unexpected rollback response"));
+  }
+
   if (!authStatus) {
     return <main className="authShell"><section className="authCard">
       <span className="eyebrow">oRRbit AI Control Plane</span>
@@ -1290,9 +1337,40 @@ export default function App() {
               <div className="protectionStrip">Evidence only · no deployment execution · production release locked</div>
               <div className="gateActions">
                 <button onClick={() => verifyReleaseEvidenceRecord(item.id)} disabled={item.status !== "draft"}>Verify Evidence</button>
+                <button onClick={() => addVersionFromEvidence(item.id)} disabled={item.status !== "verified"}>Add to Version History</button>
                 <button onClick={() => confirmReleaseDeployLocked(item.id)}>Verify Deploy Lock</button>
               </div>
             </article>)}
+        </div>
+      </div>
+      <div className="rollbackPanel">
+        <div className="builderHead"><div><span className="eyebrow">Rollback & Version History</span>
+          <h3>Verified versions and rollback plans</h3>
+          <p>Only verified release evidence can enter version history. Rollback execution stays locked.</p></div>
+          <span className="lockBadge">Rollback execution locked</span></div>
+        <div className="versionLedgerList">
+          {commandCentre.versions.length === 0 ? <p className="muted">No verified versions recorded yet.</p> :
+            commandCentre.versions.map((item) => <article className="versionLedgerCard" key={item.id}>
+              <div className="cardHead"><h3>{item.sourceRevision}</h3><span>{item.environment}</span></div>
+              <p>Health verified: {item.healthVerified ? "Yes" : "No"} · Evidence: {item.releaseEvidenceId}</p>
+            </article>)}
+        </div>
+        <form className="rollbackForm" onSubmit={createRollbackPlanRecord}>
+          <label>Environment<select name="environment" defaultValue="development"><option value="development">Development</option><option value="staging">Staging</option><option value="production">Production</option></select></label>
+          <label>From version<select name="fromVersionId" required defaultValue=""><option value="" disabled>Select version</option>{commandCentre.versions.map((item) => <option key={item.id} value={item.id}>{item.sourceRevision}</option>)}</select></label>
+          <label>To version<select name="toVersionId" required defaultValue=""><option value="" disabled>Select version</option>{commandCentre.versions.map((item) => <option key={item.id} value={item.id}>{item.sourceRevision}</option>)}</select></label>
+          <button type="submit" disabled={commandCentre.versions.length < 2}>Create Rollback Plan</button>
+        </form>
+        <div className="rollbackList">
+          {commandCentre.rollbackPlans.map((item) => <article className="rollbackCard" key={item.id}>
+            <div className="cardHead"><h3>{item.environment} rollback</h3><span>{item.status}</span></div>
+            <p>{item.fromVersionId} → {item.toVersionId}</p>
+            <div className="protectionStrip">High risk · approval required · restore point required · execution locked</div>
+            <div className="gateActions">
+              <button onClick={() => approveRollbackPlanRecord(item.id)} disabled={item.status !== "planned"}>Approve Plan</button>
+              <button onClick={() => confirmRollbackExecuteLocked(item.id)}>Verify Execute Lock</button>
+            </div>
+          </article>)}
         </div>
       </div>
       <div className="historyGrid">
