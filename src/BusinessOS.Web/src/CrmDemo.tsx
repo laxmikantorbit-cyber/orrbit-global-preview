@@ -17,6 +17,7 @@ import {
   updateCrmLeadTag,
   listCrmAccounts,
   listCrmFollowUps,
+  listCrmInvoices,
   listCrmLeads,
   listCrmOpportunities,
   listCrmRoles,
@@ -28,6 +29,7 @@ import {
   type CrmFollowUp,
   type CrmGlobalSearchHit,
   type CrmNotificationItem,
+  type CrmInvoice,
   type CrmLead,
   type CrmOpportunity,
   type CrmRole,
@@ -40,7 +42,7 @@ import {
 import { CrmLeadDrawer } from './CrmLeadDrawer'
 import { CrmWorkView } from './CrmWorkView'
 import { CrmSalesView } from './CrmSalesView'
-import { CrmSalesDocumentsView } from './CrmSalesDocumentsView'
+import { CrmSalesWorkspace } from './CrmSalesWorkspace'
 import { CrmTeamView } from './CrmTeamView'
 import { exportCrmSpreadsheet, pickCrmSpreadsheet, type CrmSpreadsheetFormat } from './crmSpreadsheet'
 
@@ -125,6 +127,7 @@ export function CrmDemo() {
   const [accounts, setAccounts] = useState<CrmAccount[]>([])
   const [opportunities, setOpportunities] = useState<CrmOpportunity[]>([])
   const [salesDocuments, setSalesDocuments] = useState<CrmSalesDocument[]>([])
+  const [invoices, setInvoices] = useState<CrmInvoice[]>([])
   const [teamMembers, setTeamMembers] = useState<CrmTeamMember[]>([])
   const [roles, setRoles] = useState<CrmRole[]>([])
   const [session, setSession] = useState<CrmSession | null>(null)
@@ -321,7 +324,7 @@ export function CrmDemo() {
       const sessionResult = await getCrmSession()
       setSession(sessionResult)
       const allowed = (permission: string) => sessionResult.member.permissions.includes(permission)
-      const [leadResult, dashResult, followResult, taskResult, workResult, accountResult, opportunityResult, salesResult, teamResult, roleResult, readyResult] = await Promise.all([
+      const [leadResult, dashResult, followResult, taskResult, workResult, accountResult, opportunityResult, salesResult, invoiceResult, teamResult, roleResult, readyResult] = await Promise.all([
         allowed('ViewLeads') ? listCrmLeads() : Promise.resolve({ leads: [] as CrmLead[] }),
         allowed('ViewDashboard') ? crmDashboard() : Promise.resolve(initialDashboard()),
         allowed('ManageFollowUps') ? listCrmFollowUps() : Promise.resolve({ followUps: [] as CrmFollowUp[] }),
@@ -330,6 +333,7 @@ export function CrmDemo() {
         allowed('ViewAccounts') ? listCrmAccounts() : Promise.resolve({ accounts: [] as CrmAccount[] }),
         allowed('ViewOpportunities') ? listCrmOpportunities() : Promise.resolve({ opportunities: [] as CrmOpportunity[] }),
         allowed('ViewSales') ? listCrmSalesDocuments() : Promise.resolve({ documents: [] as CrmSalesDocument[] }),
+        allowed('ViewSales') ? listCrmInvoices() : Promise.resolve({ invoices: [] as CrmInvoice[] }),
         allowed('ViewTeam') ? listCrmTeam() : Promise.resolve({ members: [sessionResult.member] }),
         allowed('ViewDashboard') ? listCrmRoles() : Promise.resolve({ roles: [] as CrmRole[] }),
         readiness(),
@@ -342,6 +346,7 @@ export function CrmDemo() {
       setAccounts(accountResult.accounts)
       setOpportunities(opportunityResult.opportunities)
       setSalesDocuments(salesResult.documents)
+      setInvoices(invoiceResult.invoices)
       setTeamMembers(teamResult.members)
       setRoles(roleResult.roles)
       setStorageLabel(readyResult.storageMode === 'Postgres' ? 'Saved online data' : 'Temporary test data')
@@ -640,7 +645,7 @@ export function CrmDemo() {
         ) : null}
 
         {view === 'sales' && can('ViewSales') ? (
-          <CrmSalesDocumentsView accounts={accounts} opportunities={opportunities} documents={salesDocuments} busy={loading} refresh={refresh} notify={setMessage} canManageSales={can('ManageSales')} />
+          <CrmSalesWorkspace accounts={accounts} opportunities={opportunities} documents={salesDocuments} invoices={invoices} busy={loading} refresh={refresh} notify={setMessage} canManageSales={can('ManageSales')} />
         ) : null}
         {view === 'accounts' || view === 'opportunities' ? (
           <CrmSalesView view={view} accounts={accounts} opportunities={opportunities} busy={loading} refresh={refresh} notify={setMessage} canManageAccounts={can('ManageAccounts')} canManageOpportunities={can('ManageOpportunities')} />

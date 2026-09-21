@@ -605,3 +605,128 @@ export async function changeCrmSalesDocumentStatus(documentId: string, status: C
   })
   return parseResponse<CrmSalesDocument>(response)
 }
+
+
+export type CrmInvoice = {
+  id: string
+  invoiceNumber: string
+  accountId: string
+  opportunityId?: string | null
+  sourceDocumentId?: string | null
+  subject: string
+  status: 'Draft' | 'Sent' | 'PartiallyPaid' | 'Paid' | 'Overdue' | 'Void'
+  currencyCode: string
+  issueDate: string
+  dueDate: string
+  discountPercent: number
+  amountPaid: number
+  balance: number
+  notes?: string | null
+  terms?: string | null
+  lines: CrmSalesDocumentLine[]
+  subtotal: number
+  discountAmount: number
+  taxAmount: number
+  total: number
+  createdAtUtc: string
+  updatedAtUtc: string
+}
+
+export type CrmInvoicePayment = {
+  id: string
+  invoiceId: string
+  paymentNumber: string
+  amount: number
+  method: string
+  reference?: string | null
+  notes?: string | null
+  receivedAtUtc: string
+  receivedByUserId?: string | null
+  createdAtUtc: string
+}
+
+export type CrmInvoiceDraft = {
+  accountId: string
+  opportunityId?: string | null
+  subject: string
+  currencyCode?: string
+  issueDate?: string
+  dueDate?: string
+  discountPercent: number
+  notes?: string
+  terms?: string
+  lines: Array<{
+    id?: string
+    itemId?: string | null
+    description: string
+    quantity: number
+    unitPrice: number
+    taxPercent: number
+  }>
+}
+
+export async function listCrmInvoices() {
+  const response = await crmFetch('/invoices')
+  return parseResponse<{ invoices: CrmInvoice[] }>(response)
+}
+
+export async function getCrmInvoice(invoiceId: string) {
+  const response = await crmFetch(`/invoices/${invoiceId}`)
+  return parseResponse<{ invoice: CrmInvoice; payments: CrmInvoicePayment[] }>(response)
+}
+
+export async function createCrmInvoice(input: CrmInvoiceDraft) {
+  const response = await crmFetch('/invoices', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmInvoice>(response)
+}
+
+export async function updateCrmInvoice(invoiceId: string, input: Required<Pick<CrmInvoiceDraft, 'accountId' | 'subject' | 'issueDate' | 'dueDate' | 'discountPercent' | 'lines'>> & Omit<CrmInvoiceDraft, 'accountId' | 'subject' | 'issueDate' | 'dueDate' | 'discountPercent' | 'lines'>) {
+  const response = await crmFetch(`/invoices/${invoiceId}/profile`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmInvoice>(response)
+}
+
+export async function changeCrmInvoiceStatus(invoiceId: string, status: CrmInvoice['status'], asOf?: string) {
+  const response = await crmFetch(`/invoices/${invoiceId}/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status, asOf }),
+  })
+  return parseResponse<CrmInvoice>(response)
+}
+
+export async function convertCrmSalesDocumentToInvoice(documentId: string, input: { issueDate?: string; dueDate?: string } = {}) {
+  const response = await crmFetch(`/sales-documents/${documentId}/invoice`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmInvoice>(response)
+}
+
+export async function listCrmInvoicePayments(invoiceId: string) {
+  const response = await crmFetch(`/invoices/${invoiceId}/payments`)
+  return parseResponse<{ payments: CrmInvoicePayment[] }>(response)
+}
+
+export async function recordCrmInvoicePayment(invoiceId: string, input: {
+  amount: number
+  method: string
+  reference?: string
+  notes?: string
+  receivedAtUtc?: string
+}) {
+  const response = await crmFetch(`/invoices/${invoiceId}/payments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<{ invoice: CrmInvoice; payment: CrmInvoicePayment }>(response)
+}

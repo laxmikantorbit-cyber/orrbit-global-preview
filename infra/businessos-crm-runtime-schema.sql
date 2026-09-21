@@ -135,6 +135,52 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_businessos_crm_sales_document_number
 CREATE INDEX IF NOT EXISTS ix_businessos_crm_sales_documents_tenant
     ON businessos_crm.sales_documents(tenant_id, kind, status, issue_date DESC);
 
+CREATE TABLE IF NOT EXISTS businessos_crm.invoices (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    account_id uuid NOT NULL,
+    opportunity_id uuid NULL,
+    source_document_id uuid NULL,
+    invoice_number text NOT NULL,
+    subject text NOT NULL,
+    status integer NOT NULL,
+    currency_code varchar(3) NOT NULL,
+    issue_date date NOT NULL,
+    due_date date NOT NULL,
+    discount_percent numeric(5,2) NOT NULL DEFAULT 0,
+    amount_paid numeric(18,2) NOT NULL DEFAULT 0,
+    notes text NULL,
+    terms text NULL,
+    lines jsonb NOT NULL DEFAULT '[]'::jsonb,
+    created_at_utc timestamptz NOT NULL,
+    updated_at_utc timestamptz NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_businessos_crm_invoice_number
+    ON businessos_crm.invoices(tenant_id, invoice_number);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_businessos_crm_invoice_source_document
+    ON businessos_crm.invoices(tenant_id, source_document_id)
+    WHERE source_document_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS ix_businessos_crm_invoices_tenant
+    ON businessos_crm.invoices(tenant_id, status, due_date DESC);
+
+CREATE TABLE IF NOT EXISTS businessos_crm.invoice_payments (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    invoice_id uuid NOT NULL,
+    payment_number text NOT NULL,
+    amount numeric(18,2) NOT NULL,
+    method text NOT NULL,
+    reference text NULL,
+    notes text NULL,
+    received_at_utc timestamptz NOT NULL,
+    received_by_user_id uuid NULL,
+    created_at_utc timestamptz NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_businessos_crm_invoice_payment_number
+    ON businessos_crm.invoice_payments(tenant_id, payment_number);
+CREATE INDEX IF NOT EXISTS ix_businessos_crm_invoice_payments_invoice
+    ON businessos_crm.invoice_payments(tenant_id, invoice_id, received_at_utc DESC);
+
 CREATE TABLE IF NOT EXISTS businessos_crm.team_members (
     id uuid PRIMARY KEY,
     tenant_id uuid NOT NULL,

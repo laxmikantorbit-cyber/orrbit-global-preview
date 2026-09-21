@@ -95,6 +95,7 @@ public sealed class CrmFreeTestingAccessMiddleware
             if (relative.Equals("accounts", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("accounts/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewAccounts;
             if (relative.Equals("opportunities", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("opportunities/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewOpportunities;
             if (relative.Equals("sales-documents", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("sales-documents/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewSales;
+            if (relative.Equals("invoices", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("invoices/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewSales;
             return CrmPermission.ViewDashboard;
         }
 
@@ -116,6 +117,7 @@ public sealed class CrmFreeTestingAccessMiddleware
             if (relative.Equals("accounts", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("accounts/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageAccounts;
             if (relative.Equals("opportunities", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("opportunities/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageOpportunities;
             if (relative.Equals("sales-documents", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("sales-documents/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageSales;
+            if (relative.Equals("invoices", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("invoices/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageSales;
             if (relative.Equals("team", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("team/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageTeam;
         }
 
