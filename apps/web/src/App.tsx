@@ -52,11 +52,31 @@ type SecretReference = {
   updatedAt: string;
 };
 
+type DnsProposal = {
+  id: string;
+  projectId: string;
+  domain: string;
+  action: string;
+  recordType: string;
+  recordName: string;
+  proposedValue: string | null;
+  ttl: number;
+  status: string;
+  risk: "high";
+  requiresApproval: true;
+  restorePointRequired: true;
+  executionAllowed: false;
+  protections: Record<string, boolean>;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type CommandCentre = {
   project: Project;
   environments: ProjectEnvironment[];
   workspaces: DevelopmentWorkspace[];
   secretReferences: SecretReference[];
+  dnsProposals: DnsProposal[];
   jobs: Array<{ id: string; state: string; risk: string; createdAt: string; evidence: string[] }>;
   audit: Array<{ id: string; eventType: string; createdAt: string }>;
   protection: { productionProtected: boolean; nonDevelopmentConfigLocked: boolean; realCloudProvisioningEnabled: boolean };
@@ -690,6 +710,66 @@ export default function App() {
     event.currentTarget.reset();
   }
 
+  function replaceDnsProposal(updated: DnsProposal) {
+    setCommandCentre((current) => current ? {
+      ...current,
+      dnsProposals: current.dnsProposals.map((item) => item.id === updated.id ? updated : item)
+    } : current);
+  }
+
+  async function createDnsProposalRecord(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!commandCentre) return;
+    const data = new FormData(event.currentTarget);
+    setMessage("Creating DNS change proposal...");
+    const action = String(data.get("action") ?? "create");
+    const response = await fetch(`${apiBase}/api/projects/${commandCentre.project.id}/dns-proposals`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        domain: String(data.get("domain") ?? ""),
+        action,
+        recordType: String(data.get("recordType") ?? "A"),
+        recordName: String(data.get("recordName") ?? ""),
+        proposedValue: action === "delete" ? null : String(data.get("proposedValue") ?? ""),
+        ttl: Number(data.get("ttl") ?? 300)
+      })
+    });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "DNS proposal failed");
+    setCommandCentre((current) => current ? { ...current, dnsProposals: [result, ...current.dnsProposals] } : current);
+    setMessage("DNS proposal created — execution remains locked");
+    event.currentTarget.reset();
+  }
+
+  async function approveDnsChange(proposalId: string) {
+    const response = await fetch(`${apiBase}/api/dns-proposals/${proposalId}/approve`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
+    });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "DNS approval failed");
+    replaceDnsProposal(result);
+    setMessage("DNS proposal approved — execution still locked");
+  }
+
+  async function cancelDnsChange(proposalId: string) {
+    const response = await fetch(`${apiBase}/api/dns-proposals/${proposalId}/cancel`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
+    });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "DNS cancel failed");
+    replaceDnsProposal(result);
+    setMessage("DNS proposal cancelled");
+  }
+
+  async function confirmDnsExecutionLocked(proposalId: string) {
+    const response = await fetch(`${apiBase}/api/dns-proposals/${proposalId}/execute`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
+    });
+    const result = await response.json();
+    setMessage(response.status === 409 ? "DNS execution is safely locked" : (result.error ?? "Unexpected DNS response"));
+  }
+
   if (!authStatus) {
     return <main className="authShell"><section className="authCard">
       <span className="eyebrow">oRRbit AI Control Plane</span>
@@ -1083,6 +1163,45 @@ export default function App() {
                 <div><dt>Secret value stored</dt><dd>{item.secretValueStored ? "Unexpected" : "No"}</dd></div>
               </dl>
               <div className="protectionStrip">Reference metadata only · no plaintext value · no AI secret exposure</div>
+            </article>)}
+        </div>
+      </div>
+      <div className="dnsProposalPanel">
+        <div className="builderHead"><div><span className="eyebrow">Domains & DNS Change Proposals</span>
+          <h3>Plan high-risk DNS changes safely</h3>
+          <p>Create, approve or cancel typed DNS proposals. Real DNS execution remains hard-locked in this phase.</p></div>
+          <span className="lockBadge">Execution locked</span></div>
+        <form className="dnsProposalForm" onSubmit={createDnsProposalRecord}>
+          <label>Domain<input name="domain" required placeholder="example.com" /></label>
+          <label>Action<select name="action" defaultValue="create">
+            <option value="create">Create</option><option value="update">Update</option><option value="delete">Delete</option>
+          </select></label>
+          <label>Type<select name="recordType" defaultValue="A">
+            <option>A</option><option>AAAA</option><option>CNAME</option><option>TXT</option><option>MX</option><option>CAA</option>
+          </select></label>
+          <label>Record name<input name="recordName" required placeholder="@ or www" /></label>
+          <label>Value<input name="proposedValue" placeholder="Required unless deleting" /></label>
+          <label>TTL<input name="ttl" type="number" min={60} max={86400} defaultValue={300} required /></label>
+          <button type="submit">Create DNS Proposal</button>
+        </form>
+        <div className="dnsProposalList">
+          {commandCentre.dnsProposals.length === 0 ? <p className="muted">No DNS proposals yet.</p> :
+            commandCentre.dnsProposals.map((item) => <article className="dnsProposalCard" key={item.id}>
+              <div className="cardHead"><h3>{item.recordType} {item.recordName}</h3><span>{item.status}</span></div>
+              <dl>
+                <div><dt>Domain</dt><dd>{item.domain}</dd></div>
+                <div><dt>Action</dt><dd>{item.action}</dd></div>
+                <div><dt>Value</dt><dd>{item.proposedValue ?? "Delete record"}</dd></div>
+                <div><dt>TTL</dt><dd>{item.ttl}s</dd></div>
+                <div><dt>Risk</dt><dd>{item.risk}</dd></div>
+                <div><dt>Restore point</dt><dd>{item.restorePointRequired ? "Required" : "Not required"}</dd></div>
+              </dl>
+              <div className="protectionStrip">Approval required · restore point required · DNS execution locked · live traffic protected</div>
+              <div className="gateActions">
+                <button onClick={() => approveDnsChange(item.id)} disabled={item.status !== "proposed"}>Approve Proposal</button>
+                <button className="secondary" onClick={() => cancelDnsChange(item.id)} disabled={item.status === "cancelled"}>Cancel</button>
+                <button onClick={() => confirmDnsExecutionLocked(item.id)}>Verify Execute Lock</button>
+              </div>
             </article>)}
         </div>
       </div>

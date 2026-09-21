@@ -7,7 +7,7 @@
 - Hosted applications must continue working if the control plane is unavailable.
 - AI never receives unrestricted production shell/cloud access.
 - All provider actions pass through typed tool/adaptor contracts.
-- Production, DNS, payment, auth, secret and destructive DB actions are high risk.
+- Production, DNS, payment, auth, secret and destructive DB actions are high risk; DNS changes remain proposal-only until an explicitly enabled execution phase.
 - Critical/destructive operations require explicit approval and restore-point checks.
 - Development, staging and production credentials/data are isolated.
 - Secrets are stored in provider secret stores and represented to AI by references only; Control Plane APIs reject plaintext secret-value fields.

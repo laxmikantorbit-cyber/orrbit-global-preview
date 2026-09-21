@@ -15,6 +15,7 @@ import { getPanelReadiness, isSyntheticFixtureHeader } from "./panel-readiness.j
 import { clearOwnerSessionCookie, createOwnerSessionCookie, OWNER_SESSION_COOKIE, OwnerAuthStore, parseCookie } from "./owner-auth.js";
 import { cancelDevelopmentWorkspace, createDevelopmentWorkspace, prepareBranchPlan, prepareReviewPlan, type DevelopmentWorkspace } from "./development-workspace.js";
 import { createSecretReference, rejectSecretValueFields, type SecretReferenceRecord } from "./secret-reference.js";
+import { approveDnsProposal, cancelDnsProposal, createDnsChangeProposal, type DnsChangeProposal } from "./dns-proposal.js";
 import {
   MemoryProjectRegistry,
   PostgresProjectRegistry,
@@ -39,6 +40,7 @@ const sourceAcquisitions = new Map<string, SourceAcquisitionRecord>();
 const sourceBuildJobs = new Map<string, SourceBuildJob>();
 const developmentWorkspaces = new Map<string, DevelopmentWorkspace>();
 const secretReferences = new Map<string, SecretReferenceRecord>();
+const dnsChangeProposals = new Map<string, DnsChangeProposal>();
 
 type OnboardingJob = {
   id: string;
@@ -380,6 +382,39 @@ async function listSecretReferences(projectId: string): Promise<SecretReferenceR
   return result.rows.map((row) => row.reference_data);
 }
 
+async function saveDnsProposal(proposal: DnsChangeProposal) {
+  if (!pool) {
+    dnsChangeProposals.set(proposal.id, proposal);
+    return;
+  }
+  await pool.query(
+    `INSERT INTO dns_change_proposals (id, project_id, status, proposal_data, created_at, updated_at)
+     VALUES ($1,$2,$3,$4::jsonb,$5,$5)
+     ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,
+       proposal_data=EXCLUDED.proposal_data, updated_at=NOW()`,
+    [proposal.id, proposal.projectId, proposal.status, JSON.stringify(proposal), proposal.createdAt]
+  );
+}
+
+async function getDnsProposal(id: string): Promise<DnsChangeProposal | undefined> {
+  if (!pool) return dnsChangeProposals.get(id);
+  const result = await pool.query<{ proposal_data: DnsChangeProposal }>(
+    "SELECT proposal_data FROM dns_change_proposals WHERE id=$1", [id]
+  );
+  return result.rows[0]?.proposal_data;
+}
+
+async function listDnsProposals(projectId: string): Promise<DnsChangeProposal[]> {
+  if (!pool) return [...dnsChangeProposals.values()]
+    .filter((proposal) => proposal.projectId === projectId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const result = await pool.query<{ proposal_data: DnsChangeProposal }>(
+    "SELECT proposal_data FROM dns_change_proposals WHERE project_id=$1 ORDER BY created_at DESC LIMIT 100",
+    [projectId]
+  );
+  return result.rows.map((row) => row.proposal_data);
+}
+
 function acquisitionFolder(workspaceId: string, acquisitionId: string) {
   return resolve(importInboxRoot, workspaceId, acquisitionId);
 }
@@ -606,18 +641,20 @@ app.get<{ Params: { id: string } }>("/api/projects/:id/manifest", async (request
 app.get<{ Params: { id: string } }>("/api/projects/:id/command-centre", async (request, reply) => {
   const project = await registry.get(request.params.id);
   if (!project) return reply.code(404).send({ error: "project_not_found" });
-  const [environments, projectJobs, auditEvents, projectWorkspaces, projectSecretReferences] = await Promise.all([
+  const [environments, projectJobs, auditEvents, projectWorkspaces, projectSecretReferences, projectDnsProposals] = await Promise.all([
     registry.listEnvironments(project.id),
     listJobs(project.id),
     listAuditEvents(project.id),
     listDevelopmentWorkspaces(project.id),
-    listSecretReferences(project.id)
+    listSecretReferences(project.id),
+    listDnsProposals(project.id)
   ]);
   return {
     project,
     environments,
     workspaces: projectWorkspaces,
     secretReferences: projectSecretReferences,
+    dnsProposals: projectDnsProposals,
     jobs: projectJobs.slice(0, 10),
     audit: auditEvents.slice(0, 20),
     protection: {
@@ -791,6 +828,92 @@ app.post<{
     const duplicate = message.includes("duplicate key") || message.includes("already_exists");
     return reply.code(duplicate ? 409 : 400).send({ error: duplicate ? "secret_reference_already_exists" : message });
   }
+});
+
+app.get<{ Params: { id: string } }>("/api/projects/:id/dns-proposals", async (request, reply) => {
+  const project = await registry.get(request.params.id);
+  if (!project) return reply.code(404).send({ error: "project_not_found" });
+  return { dnsProposals: await listDnsProposals(project.id) };
+});
+
+app.post<{
+  Params: { id: string };
+  Body: {
+    domain?: string;
+    action?: string;
+    recordType?: string;
+    recordName?: string;
+    proposedValue?: string | null;
+    ttl?: number;
+  };
+}>("/api/projects/:id/dns-proposals", async (request, reply) => {
+  const project = await registry.get(request.params.id);
+  if (!project) return reply.code(404).send({ error: "project_not_found" });
+  try {
+    const proposal = createDnsChangeProposal({ projectId: project.id, ...request.body });
+    await saveDnsProposal(proposal);
+    await audit(project.id, "dns_change_proposal_created", {
+      proposalId: proposal.id,
+      domain: proposal.domain,
+      action: proposal.action,
+      recordType: proposal.recordType,
+      recordName: proposal.recordName,
+      restorePointRequired: proposal.restorePointRequired,
+      executionAllowed: proposal.executionAllowed
+    });
+    return reply.code(201).send(proposal);
+  } catch (error) {
+    return reply.code(400).send({ error: error instanceof Error ? error.message : "dns_proposal_failed" });
+  }
+});
+
+app.get<{ Params: { id: string } }>("/api/dns-proposals/:id", async (request, reply) => {
+  const proposal = await getDnsProposal(request.params.id);
+  if (!proposal) return reply.code(404).send({ error: "dns_proposal_not_found" });
+  return proposal;
+});
+
+app.post<{ Params: { id: string } }>("/api/dns-proposals/:id/approve", async (request, reply) => {
+  const proposal = await getDnsProposal(request.params.id);
+  if (!proposal) return reply.code(404).send({ error: "dns_proposal_not_found" });
+  try {
+    const updated = approveDnsProposal(proposal);
+    await saveDnsProposal(updated);
+    await audit(updated.projectId, "dns_change_proposal_approved", {
+      proposalId: updated.id,
+      domain: updated.domain,
+      executionAllowed: updated.executionAllowed,
+      restorePointRequired: updated.restorePointRequired
+    });
+    return updated;
+  } catch (error) {
+    return reply.code(409).send({ error: error instanceof Error ? error.message : "dns_proposal_approve_failed" });
+  }
+});
+
+app.post<{ Params: { id: string } }>("/api/dns-proposals/:id/cancel", async (request, reply) => {
+  const proposal = await getDnsProposal(request.params.id);
+  if (!proposal) return reply.code(404).send({ error: "dns_proposal_not_found" });
+  const updated = cancelDnsProposal(proposal);
+  await saveDnsProposal(updated);
+  await audit(updated.projectId, "dns_change_proposal_cancelled", {
+    proposalId: updated.id,
+    domain: updated.domain,
+    executionAllowed: updated.executionAllowed
+  });
+  return updated;
+});
+
+app.post<{ Params: { id: string } }>("/api/dns-proposals/:id/execute", async (request, reply) => {
+  const proposal = await getDnsProposal(request.params.id);
+  if (!proposal) return reply.code(404).send({ error: "dns_proposal_not_found" });
+  return reply.code(409).send({
+    error: "dns_execution_locked",
+    proposalId: proposal.id,
+    status: proposal.status,
+    executionAllowed: false,
+    protections: proposal.protections
+  });
 });
 
 app.post<{ Body: { prompt: string } }>("/api/project-plans", async (request, reply) => {

@@ -20,7 +20,7 @@ const panelModules: PanelModuleReadiness[] = [
   { key: "approval-deploy", name: "Approval & controlled deployment", status: "partial", summary: "Approval primitives exist while real deployment execution remains intentionally locked." },
   { key: "health-release", name: "Health verification & release evidence", status: "pending", summary: "Project health checks and release evidence bundles are still required." },
   { key: "rollback-history", name: "Rollback & version history", status: "pending", summary: "Release version ledger and safe rollback workflow are still required." },
-  { key: "domains-dns", name: "Domains & DNS proposals", status: "pending", summary: "Typed domain/DNS proposal and approval workflow is still required." },
+  { key: "domains-dns", name: "Domains & DNS proposals", status: "ready", summary: "Typed DNS create/update/delete proposals, approval/cancel lifecycle, restore-point requirement and hard execution lock are implemented." },
   { key: "secret-references", name: "Secret references", status: "ready", summary: "Environment-specific provider references are persisted while secret values are explicitly rejected and never stored." },
   { key: "audit-jobs", name: "Audit log & job history", status: "ready", summary: "Project job history and auditable events are persisted and surfaced." },
   { key: "cost-budgets", name: "AI/cloud cost tracking & budgets", status: "pending", summary: "Usage ledger, budget policy and alerts are still required." }
