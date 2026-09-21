@@ -187,3 +187,14 @@ dd { margin: 0; font-weight: 650; text-align: right; }
 .importLocked .importLayout { pointer-events: none; opacity: .48; filter: grayscale(.25); }
 .importLocked .builderHead button { cursor: not-allowed; }
 @media (max-width: 680px) { .readinessHead { flex-direction: column; } .readinessScore { width: 100%; } .readinessStats { grid-template-columns: repeat(2, 1fr); } }
+
+.authShell { min-height: 100vh; display: grid; place-items: center; padding: 22px; background: #eef2f5; }
+.authCard { width: min(460px, 100%); padding: 24px; border: 1px solid #dce4ea; border-radius: 18px; background: #fff; box-shadow: 0 18px 50px rgba(27, 39, 51, .10); }
+.authCard h1 { margin: 6px 0 8px; }
+.authCard > p { margin: 0 0 18px; color: #65717c; line-height: 1.5; }
+.authForm { display: grid; gap: 12px; }
+.authForm label { display: grid; gap: 6px; font-size: 13px; font-weight: 700; }
+.authForm input { width: 100%; padding: 11px 12px; border: 1px solid #cbd6de; border-radius: 9px; font: inherit; }
+.authForm button { margin-top: 3px; border: 0; border-radius: 9px; padding: 11px 13px; background: #17202a; color: #fff; font-weight: 800; }
+.authError { margin-top: 12px; }
+.ownerIdentity { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #64717d; font-size: 12px; }

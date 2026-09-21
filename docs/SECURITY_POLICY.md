@@ -1,6 +1,9 @@
 # Security Policy
 
 ## Non-negotiable controls
+- Control APIs require an authenticated owner session; health and first-run auth bootstrap are the only anonymous API surfaces.
+- Passwords are scrypt-hashed; browser sessions use HttpOnly, SameSite=Strict cookies with only token hashes stored server-side.
+- First owner setup is local-only by default; remote first setup requires `CONTROL_OWNER_SETUP_TOKEN`.
 - Hosted applications must continue working if the control plane is unavailable.
 - AI never receives unrestricted production shell/cloud access.
 - All provider actions pass through typed tool/adaptor contracts.

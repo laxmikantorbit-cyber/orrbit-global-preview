@@ -123,6 +123,13 @@ type SourceBuild = {
   createdAt: string;
   updatedAt: string;
 };
+type AuthStatus = {
+  configured: boolean;
+  authenticated: boolean;
+  setupProtection?: "local" | "token_required" | "blocked_remote" | "disabled";
+  owner: null | { id: string; email: string };
+};
+
 type PanelReadiness = {
   panelComplete: boolean;
   realImportUnlocked: boolean;
@@ -154,6 +161,8 @@ type ImportExecution = {
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export default function App() {
+  const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
+  const [authError, setAuthError] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);
   const [panelReadiness, setPanelReadiness] = useState<PanelReadiness | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -182,6 +191,11 @@ export default function App() {
     region: ""
   });
   useEffect(() => {
+    loadAuthStatus();
+  }, []);
+
+  useEffect(() => {
+    if (!authStatus?.authenticated) return;
     fetch(`${apiBase}/api/projects`)
       .then((r) => r.json())
       .then((d) => setProjects(d.projects ?? []))
@@ -189,7 +203,56 @@ export default function App() {
     loadPanelReadiness();
     loadImportPlans();
     loadImportWorkspaces();
-  }, []);
+  }, [authStatus?.authenticated]);
+
+  async function loadAuthStatus() {
+    try {
+      const response = await fetch(`${apiBase}/api/auth/status`);
+      const result = await response.json();
+      if (response.ok) setAuthStatus(result);
+      else setAuthError(result.error ?? "Unable to check owner access");
+    } catch {
+      setAuthError("Control API is offline");
+    }
+  }
+
+  async function submitOwnerAccess(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const configured = Boolean(authStatus?.configured);
+    setAuthError("");
+    const setupToken = String(data.get("setupToken") ?? "").trim();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (!configured && setupToken) headers["x-orrbit-setup-token"] = setupToken;
+    const response = await fetch(`${apiBase}/api/auth/${configured ? "login" : "setup"}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email: String(data.get("email") ?? ""), password: String(data.get("password") ?? "") })
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      setAuthError(result.error ?? (configured ? "Sign in failed" : "Owner setup failed"));
+      return;
+    }
+    setAuthStatus(result);
+    event.currentTarget.reset();
+  }
+
+  async function logoutOwner() {
+    const response = await fetch(`${apiBase}/api/auth/logout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}"
+    });
+    if (!response.ok) return setMessage("Sign out failed");
+    setAuthStatus({ configured: true, authenticated: false, owner: null });
+    setProjects([]);
+    setPanelReadiness(null);
+    setCommandCentre(null);
+    setImportPlans([]);
+    setImportWorkspaces([]);
+    setMessage("Signed out");
+  }
 
   async function loadPanelReadiness() {
     const response = await fetch(`${apiBase}/api/panel-readiness`);
@@ -515,13 +578,48 @@ export default function App() {
     setMessage("Development configuration saved");
   }
 
+  if (!authStatus) {
+    return <main className="authShell"><section className="authCard">
+      <span className="eyebrow">oRRbit AI Control Plane</span>
+      <h1>Owner Access</h1>
+      <p>{authError || "Checking secure owner access..."}</p>
+      {authError && <button onClick={loadAuthStatus}>Retry</button>}
+    </section></main>;
+  }
+
+  if (!authStatus.authenticated) {
+    const firstSetup = !authStatus.configured;
+    return <main className="authShell"><section className="authCard">
+      <span className="eyebrow">oRRbit AI Control Plane</span>
+      <h1>{firstSetup ? "Create Owner Access" : "Owner Sign In"}</h1>
+      <p>{firstSetup
+        ? "One-time setup. Create the owner login that protects this Control Plane."
+        : "Sign in with the owner account to access projects, controls and audit history."}</p>
+      <form className="authForm" onSubmit={submitOwnerAccess}>
+        <label>Email<input name="email" type="email" autoComplete="username" required placeholder="owner@company.com" /></label>
+        <label>Password<input name="password" type="password" autoComplete={firstSetup ? "new-password" : "current-password"}
+          minLength={12} required placeholder="Minimum 12 characters" /></label>
+        {firstSetup && authStatus.setupProtection === "token_required" && <label>One-time setup token
+          <input name="setupToken" type="password" autoComplete="off" required placeholder="Token configured on the server" /></label>}
+        {firstSetup && authStatus.setupProtection === "blocked_remote" &&
+          <div className="warningBox">Remote first-time setup is disabled. Configure CONTROL_OWNER_SETUP_TOKEN on the server or complete first setup locally.</div>}
+        <button type="submit" disabled={firstSetup && authStatus.setupProtection === "blocked_remote"}>
+          {firstSetup ? "Create Secure Owner Access" : "Sign In"}</button>
+      </form>
+      {authError && <div className="warningBox authError">{authError}</div>}
+      <div className="protectionStrip">HttpOnly session · SameSite Strict · Server-side session hash · Login rate limit</div>
+    </section></main>;
+  }
+
   const realImportLocked = !panelReadiness?.realImportUnlocked;
 
   return <main className="shell">
     <header className="topbar">
       <div><span className="eyebrow">oRRbit</span><h1>AI Control Plane</h1></div>
       <div className="headerActions"><span className="status">{message}</span>
-        <button onClick={() => setAddOpen((v) => !v)}>+ Add Project</button></div>
+        <span className="ownerIdentity">{authStatus.owner?.email}</span>
+        <button onClick={() => setAddOpen((v) => !v)}>+ Add Project</button>
+        <button className="ghost" onClick={logoutOwner}>Sign out</button></div>
     </header>
 
     <section className="hero">

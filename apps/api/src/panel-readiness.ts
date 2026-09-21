@@ -8,7 +8,7 @@ export type PanelModuleReadiness = {
 };
 
 const panelModules: PanelModuleReadiness[] = [
-  { key: "owner-access", name: "Authentication & owner access", status: "pending", summary: "Owner authentication and session protection are not implemented yet." },
+  { key: "owner-access", name: "Authentication & owner access", status: "ready", summary: "First-run owner setup, scrypt password hashing, HttpOnly sessions, logout and login throttling are implemented." },
   { key: "project-registry", name: "Project registry & environments", status: "ready", summary: "Protected project registry and environment configuration are available." },
   { key: "manual-onboarding", name: "Manual project onboarding", status: "ready", summary: "Projects can be registered manually with validation and audit evidence." },
   { key: "ai-onboarding", name: "AI-assisted onboarding", status: "ready", summary: "Plan-before-apply onboarding is implemented in development-safe mode." },

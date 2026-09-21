@@ -12,6 +12,7 @@ import { providerCapabilities, DryRunGitHubProvider, DryRunCloudflarePagesProvid
 import { buildRuntimeProjectManifest, projectCreateSchema } from "@orrbit/project-manifest";
 import { createSourceBuildJob, isDockerSandboxReady, resetSourceBuildJob, runSourceBuild, type SourceBuildJob } from "./source-build-runner.js";
 import { getPanelReadiness, isSyntheticFixtureHeader } from "./panel-readiness.js";
+import { clearOwnerSessionCookie, createOwnerSessionCookie, OWNER_SESSION_COOKIE, OwnerAuthStore, parseCookie } from "./owner-auth.js";
 import {
   MemoryProjectRegistry,
   PostgresProjectRegistry,
@@ -25,6 +26,7 @@ await app.register(multipart, { limits: { files: 1, fileSize: 100 * 1024 * 1024 
 const importInboxRoot = resolve(process.env.CONTROL_RUNTIME_DIR?.trim() || resolve(process.cwd(), "runtime"), "import-inbox");
 const databaseUrl = process.env.CONTROL_DATABASE_URL?.trim();
 const pool = databaseUrl ? new Pool({ connectionString: databaseUrl }) : null;
+const ownerAuth = new OwnerAuthStore(pool);
 const registry = pool ? new PostgresProjectRegistry(pool) : new MemoryProjectRegistry();
 const plans = new Map<string, ProvisioningPlan>();
 const importPlans = new Map<string, ProjectImportPlan>();
@@ -57,6 +59,47 @@ type AuditEvent = {
 };
 
 const memoryAuditEvents: AuditEvent[] = [];
+const ownerLoginAttempts = new Map<string, { count: number; windowStartedAt: number }>();
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_FAILURES = 5;
+
+function ownerLoginRateLimited(key: string) {
+  const current = ownerLoginAttempts.get(key);
+  if (!current) return false;
+  if (Date.now() - current.windowStartedAt > LOGIN_WINDOW_MS) {
+    ownerLoginAttempts.delete(key);
+    return false;
+  }
+  return current.count >= LOGIN_MAX_FAILURES;
+}
+
+function recordOwnerLoginFailure(key: string) {
+  const current = ownerLoginAttempts.get(key);
+  if (!current || Date.now() - current.windowStartedAt > LOGIN_WINDOW_MS) {
+    ownerLoginAttempts.set(key, { count: 1, windowStartedAt: Date.now() });
+    return;
+  }
+  current.count += 1;
+}
+
+function secureOwnerCookie(request: { protocol: string }) {
+  return process.env.NODE_ENV === "production" || request.protocol === "https";
+}
+
+function ownerSetupProtection(ip: string) {
+  const loopback = ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
+  if (loopback) return "local" as const;
+  return process.env.CONTROL_OWNER_SETUP_TOKEN?.trim() ? "token_required" as const : "blocked_remote" as const;
+}
+
+function ownerSetupTokenMatches(value: string | string[] | undefined) {
+  const expected = process.env.CONTROL_OWNER_SETUP_TOKEN?.trim();
+  const received = Array.isArray(value) ? value[0] : value;
+  if (!expected || !received) return false;
+  const expectedHash = createHash("sha256").update(expected).digest("hex");
+  const receivedHash = createHash("sha256").update(received).digest("hex");
+  return expectedHash === receivedHash;
+}
 
 function realImportAccessAllowed(request: { headers: { [key: string]: string | string[] | undefined } }) {
   const readiness = getPanelReadiness();
@@ -368,6 +411,78 @@ async function listAuditEvents(projectId: string): Promise<AuditEvent[]> {
     createdAt: new Date(row.created_at).toISOString()
   })) as AuditEvent[];
 }
+
+const ownerAuthExemptPaths = new Set([
+  "/api/health",
+  "/api/auth/status",
+  "/api/auth/setup",
+  "/api/auth/login"
+]);
+
+app.addHook("preHandler", async (request, reply) => {
+  const path = request.url.split("?")[0];
+  if (!path.startsWith("/api/") || ownerAuthExemptPaths.has(path)) return;
+  const token = parseCookie(request.headers.cookie, OWNER_SESSION_COOKIE);
+  const owner = await ownerAuth.getSessionOwner(token);
+  if (!owner) {
+    return reply.code(401).send({ error: "owner_authentication_required" });
+  }
+});
+
+app.get("/api/auth/status", async (request) => {
+  const configured = await ownerAuth.isConfigured();
+  const token = parseCookie(request.headers.cookie, OWNER_SESSION_COOKIE);
+  const owner = configured ? await ownerAuth.getSessionOwner(token) : undefined;
+  return {
+    configured,
+    authenticated: Boolean(owner),
+    setupProtection: configured ? "disabled" : ownerSetupProtection(request.ip),
+    owner: owner ? { id: owner.id, email: owner.email } : null
+  };
+});
+
+app.post<{ Body: { email?: string; password?: string } }>("/api/auth/setup", async (request, reply) => {
+  if (await ownerAuth.isConfigured()) return reply.code(409).send({ error: "owner_already_configured" });
+  const setupProtection = ownerSetupProtection(request.ip);
+  if (setupProtection === "blocked_remote") return reply.code(403).send({ error: "remote_owner_setup_disabled" });
+  if (setupProtection === "token_required" && !ownerSetupTokenMatches(request.headers["x-orrbit-setup-token"])) {
+    return reply.code(403).send({ error: "owner_setup_token_required" });
+  }
+  try {
+    const owner = await ownerAuth.setup(request.body?.email ?? "", request.body?.password ?? "");
+    const session = await ownerAuth.createSession(owner);
+    reply.header("Set-Cookie", createOwnerSessionCookie(session.token, secureOwnerCookie(request)));
+    await audit(null, "owner_account_configured", { ownerId: owner.id });
+    return reply.code(201).send({ configured: true, authenticated: true, owner: { id: owner.id, email: owner.email } });
+  } catch (error) {
+    return reply.code(400).send({ error: error instanceof Error ? error.message : "owner_setup_failed" });
+  }
+});
+
+app.post<{ Body: { email?: string; password?: string } }>("/api/auth/login", async (request, reply) => {
+  const rateKey = request.ip || "unknown";
+  if (ownerLoginRateLimited(rateKey)) {
+    return reply.code(429).send({ error: "too_many_login_attempts", retryAfterSeconds: 900 });
+  }
+  if (!await ownerAuth.isConfigured()) return reply.code(409).send({ error: "owner_setup_required" });
+  const owner = await ownerAuth.authenticate(request.body?.email ?? "", request.body?.password ?? "");
+  if (!owner) {
+    recordOwnerLoginFailure(rateKey);
+    return reply.code(401).send({ error: "invalid_owner_credentials" });
+  }
+  ownerLoginAttempts.delete(rateKey);
+  const session = await ownerAuth.createSession(owner);
+  reply.header("Set-Cookie", createOwnerSessionCookie(session.token, secureOwnerCookie(request)));
+  await audit(null, "owner_login_succeeded", { ownerId: owner.id });
+  return { configured: true, authenticated: true, owner: { id: owner.id, email: owner.email } };
+});
+
+app.post("/api/auth/logout", async (request, reply) => {
+  const token = parseCookie(request.headers.cookie, OWNER_SESSION_COOKIE);
+  await ownerAuth.revokeSession(token);
+  reply.header("Set-Cookie", clearOwnerSessionCookie(secureOwnerCookie(request)));
+  return { authenticated: false };
+});
 
 app.get("/api/health", async () => {
   let database = pool ? "postgres" : "memory";
