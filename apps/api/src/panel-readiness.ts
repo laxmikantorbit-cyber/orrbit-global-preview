@@ -18,7 +18,7 @@ const panelModules: PanelModuleReadiness[] = [
   { key: "build-test", name: "Build & test validation", status: "partial", summary: "Isolated source build exists; project-wide validation orchestration is still required." },
   { key: "preview", name: "Preview deployments & revisions", status: "partial", summary: "Safe local preview exists; generic preview/revision workflow is still required." },
   { key: "approval-deploy", name: "Approval & controlled deployment", status: "partial", summary: "Approval primitives exist while real deployment execution remains intentionally locked." },
-  { key: "health-release", name: "Health verification & release evidence", status: "pending", summary: "Project health checks and release evidence bundles are still required." },
+  { key: "health-release", name: "Health verification & release evidence", status: "ready", summary: "Release evidence bundles require source revision, build, tests and health verification; deployment execution remains locked." },
   { key: "rollback-history", name: "Rollback & version history", status: "pending", summary: "Release version ledger and safe rollback workflow are still required." },
   { key: "domains-dns", name: "Domains & DNS proposals", status: "ready", summary: "Typed DNS create/update/delete proposals, approval/cancel lifecycle, restore-point requirement and hard execution lock are implemented." },
   { key: "secret-references", name: "Secret references", status: "ready", summary: "Environment-specific provider references are persisted while secret values are explicitly rejected and never stored." },

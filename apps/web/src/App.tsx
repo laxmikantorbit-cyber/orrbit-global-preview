@@ -71,12 +71,21 @@ type DnsProposal = {
   updatedAt: string;
 };
 
+type ReleaseEvidence = {
+  id: string; projectId: string; environment: string; sourceRevision: string;
+  buildResult: string; testResult: string; healthResult: string;
+  deploymentIdentifier: string | null; healthReference: string;
+  status: string; complete: boolean; blockers: string[]; protections: Record<string, boolean>;
+  createdAt: string; updatedAt: string;
+};
+
 type CommandCentre = {
   project: Project;
   environments: ProjectEnvironment[];
   workspaces: DevelopmentWorkspace[];
   secretReferences: SecretReference[];
   dnsProposals: DnsProposal[];
+  releaseEvidence: ReleaseEvidence[];
   jobs: Array<{ id: string; state: string; risk: string; createdAt: string; evidence: string[] }>;
   audit: Array<{ id: string; eventType: string; createdAt: string }>;
   protection: { productionProtected: boolean; nonDevelopmentConfigLocked: boolean; realCloudProvisioningEnabled: boolean };
@@ -770,6 +779,50 @@ export default function App() {
     setMessage(response.status === 409 ? "DNS execution is safely locked" : (result.error ?? "Unexpected DNS response"));
   }
 
+  function replaceReleaseEvidence(updated: ReleaseEvidence) {
+    setCommandCentre((current) => current ? {
+      ...current,
+      releaseEvidence: current.releaseEvidence.map((item) => item.id === updated.id ? updated : item)
+    } : current);
+  }
+
+  async function createReleaseEvidenceRecord(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!commandCentre) return;
+    const data = new FormData(event.currentTarget);
+    const response = await fetch(`${apiBase}/api/projects/${commandCentre.project.id}/release-evidence`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        environment: String(data.get("environment") ?? "development"),
+        sourceRevision: String(data.get("sourceRevision") ?? ""),
+        buildResult: String(data.get("buildResult") ?? "not_run"),
+        testResult: String(data.get("testResult") ?? "not_run"),
+        healthResult: String(data.get("healthResult") ?? "not_run"),
+        deploymentIdentifier: String(data.get("deploymentIdentifier") ?? "").trim() || undefined,
+        healthReference: String(data.get("healthReference") ?? "")
+      })
+    });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "Release evidence failed");
+    setCommandCentre((current) => current ? { ...current, releaseEvidence: [result, ...current.releaseEvidence] } : current);
+    setMessage(result.complete ? "Release evidence complete - ready for verification" : "Release evidence saved with blockers");
+    event.currentTarget.reset();
+  }
+
+  async function verifyReleaseEvidenceRecord(id: string) {
+    const response = await fetch(`${apiBase}/api/release-evidence/${id}/verify`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "Release evidence verification failed");
+    replaceReleaseEvidence(result);
+    setMessage(`Release evidence ${result.status}`);
+  }
+
+  async function confirmReleaseDeployLocked(id: string) {
+    const response = await fetch(`${apiBase}/api/release-evidence/${id}/deploy`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    const result = await response.json();
+    setMessage(response.status === 409 ? "Release execution is safely locked" : (result.error ?? "Unexpected release response"));
+  }
+
   if (!authStatus) {
     return <main className="authShell"><section className="authCard">
       <span className="eyebrow">oRRbit AI Control Plane</span>
@@ -1201,6 +1254,43 @@ export default function App() {
                 <button onClick={() => approveDnsChange(item.id)} disabled={item.status !== "proposed"}>Approve Proposal</button>
                 <button className="secondary" onClick={() => cancelDnsChange(item.id)} disabled={item.status === "cancelled"}>Cancel</button>
                 <button onClick={() => confirmDnsExecutionLocked(item.id)}>Verify Execute Lock</button>
+              </div>
+            </article>)}
+        </div>
+      </div>
+      <div className="releaseEvidencePanel">
+        <div className="builderHead"><div><span className="eyebrow">Health Verification & Release Evidence</span>
+          <h3>Prove readiness before release</h3>
+          <p>Source revision, build, tests and health evidence must all pass before verification.</p></div>
+          <span className="lockBadge">Deploy locked</span></div>
+        <form className="releaseEvidenceForm" onSubmit={createReleaseEvidenceRecord}>
+          <label>Environment<select name="environment" defaultValue="development">
+            <option value="development">Development</option><option value="staging">Staging</option><option value="production">Production</option>
+          </select></label>
+          <label>Source revision<input name="sourceRevision" required placeholder="commit/revision" /></label>
+          <label>Build<select name="buildResult" defaultValue="passed"><option value="passed">Passed</option><option value="failed">Failed</option><option value="not_run">Not run</option></select></label>
+          <label>Tests<select name="testResult" defaultValue="passed"><option value="passed">Passed</option><option value="failed">Failed</option><option value="not_run">Not run</option></select></label>
+          <label>Health<select name="healthResult" defaultValue="passed"><option value="passed">Passed</option><option value="failed">Failed</option><option value="not_run">Not run</option></select></label>
+          <label>Health reference<input name="healthReference" required placeholder="health check/evidence reference" /></label>
+          <label>Deployment ID (optional)<input name="deploymentIdentifier" placeholder="preview/deployment reference" /></label>
+          <button type="submit">Create Evidence Bundle</button>
+        </form>
+        <div className="releaseEvidenceList">
+          {commandCentre.releaseEvidence.length === 0 ? <p className="muted">No release evidence bundles yet.</p> :
+            commandCentre.releaseEvidence.map((item) => <article className="releaseEvidenceCard" key={item.id}>
+              <div className="cardHead"><h3>{item.sourceRevision}</h3><span>{item.status}</span></div>
+              <dl>
+                <div><dt>Environment</dt><dd>{item.environment}</dd></div>
+                <div><dt>Build</dt><dd>{item.buildResult}</dd></div>
+                <div><dt>Tests</dt><dd>{item.testResult}</dd></div>
+                <div><dt>Health</dt><dd>{item.healthResult}</dd></div>
+                <div><dt>Complete</dt><dd>{item.complete ? "Yes" : "No"}</dd></div>
+                <div><dt>Blockers</dt><dd>{item.blockers.length ? item.blockers.join(", ") : "None"}</dd></div>
+              </dl>
+              <div className="protectionStrip">Evidence only · no deployment execution · production release locked</div>
+              <div className="gateActions">
+                <button onClick={() => verifyReleaseEvidenceRecord(item.id)} disabled={item.status !== "draft"}>Verify Evidence</button>
+                <button onClick={() => confirmReleaseDeployLocked(item.id)}>Verify Deploy Lock</button>
               </div>
             </article>)}
         </div>

@@ -16,6 +16,7 @@ import { clearOwnerSessionCookie, createOwnerSessionCookie, OWNER_SESSION_COOKIE
 import { cancelDevelopmentWorkspace, createDevelopmentWorkspace, prepareBranchPlan, prepareReviewPlan, type DevelopmentWorkspace } from "./development-workspace.js";
 import { createSecretReference, rejectSecretValueFields, type SecretReferenceRecord } from "./secret-reference.js";
 import { approveDnsProposal, cancelDnsProposal, createDnsChangeProposal, type DnsChangeProposal } from "./dns-proposal.js";
+import { createReleaseEvidence, verifyReleaseEvidence, type ReleaseEvidenceBundle } from "./release-evidence.js";
 import {
   MemoryProjectRegistry,
   PostgresProjectRegistry,
@@ -41,6 +42,7 @@ const sourceBuildJobs = new Map<string, SourceBuildJob>();
 const developmentWorkspaces = new Map<string, DevelopmentWorkspace>();
 const secretReferences = new Map<string, SecretReferenceRecord>();
 const dnsChangeProposals = new Map<string, DnsChangeProposal>();
+const releaseEvidenceBundles = new Map<string, ReleaseEvidenceBundle>();
 
 type OnboardingJob = {
   id: string;
@@ -415,6 +417,40 @@ async function listDnsProposals(projectId: string): Promise<DnsChangeProposal[]>
   return result.rows.map((row) => row.proposal_data);
 }
 
+async function saveReleaseEvidence(bundle: ReleaseEvidenceBundle) {
+  if (!pool) {
+    releaseEvidenceBundles.set(bundle.id, bundle);
+    return;
+  }
+  await pool.query(
+    `INSERT INTO release_evidence_bundles
+      (id, project_id, environment_name, status, evidence_data, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5::jsonb,$6,$6)
+     ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,
+       evidence_data=EXCLUDED.evidence_data, updated_at=NOW()`,
+    [bundle.id, bundle.projectId, bundle.environment, bundle.status, JSON.stringify(bundle), bundle.createdAt]
+  );
+}
+
+async function getReleaseEvidence(id: string): Promise<ReleaseEvidenceBundle | undefined> {
+  if (!pool) return releaseEvidenceBundles.get(id);
+  const result = await pool.query<{ evidence_data: ReleaseEvidenceBundle }>(
+    "SELECT evidence_data FROM release_evidence_bundles WHERE id=$1", [id]
+  );
+  return result.rows[0]?.evidence_data;
+}
+
+async function listReleaseEvidence(projectId: string): Promise<ReleaseEvidenceBundle[]> {
+  if (!pool) return [...releaseEvidenceBundles.values()]
+    .filter((bundle) => bundle.projectId === projectId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const result = await pool.query<{ evidence_data: ReleaseEvidenceBundle }>(
+    "SELECT evidence_data FROM release_evidence_bundles WHERE project_id=$1 ORDER BY created_at DESC LIMIT 100",
+    [projectId]
+  );
+  return result.rows.map((row) => row.evidence_data);
+}
+
 function acquisitionFolder(workspaceId: string, acquisitionId: string) {
   return resolve(importInboxRoot, workspaceId, acquisitionId);
 }
@@ -641,13 +677,14 @@ app.get<{ Params: { id: string } }>("/api/projects/:id/manifest", async (request
 app.get<{ Params: { id: string } }>("/api/projects/:id/command-centre", async (request, reply) => {
   const project = await registry.get(request.params.id);
   if (!project) return reply.code(404).send({ error: "project_not_found" });
-  const [environments, projectJobs, auditEvents, projectWorkspaces, projectSecretReferences, projectDnsProposals] = await Promise.all([
+  const [environments, projectJobs, auditEvents, projectWorkspaces, projectSecretReferences, projectDnsProposals, projectReleaseEvidence] = await Promise.all([
     registry.listEnvironments(project.id),
     listJobs(project.id),
     listAuditEvents(project.id),
     listDevelopmentWorkspaces(project.id),
     listSecretReferences(project.id),
-    listDnsProposals(project.id)
+    listDnsProposals(project.id),
+    listReleaseEvidence(project.id)
   ]);
   return {
     project,
@@ -655,6 +692,7 @@ app.get<{ Params: { id: string } }>("/api/projects/:id/command-centre", async (r
     workspaces: projectWorkspaces,
     secretReferences: projectSecretReferences,
     dnsProposals: projectDnsProposals,
+    releaseEvidence: projectReleaseEvidence,
     jobs: projectJobs.slice(0, 10),
     audit: auditEvents.slice(0, 20),
     protection: {
@@ -913,6 +951,77 @@ app.post<{ Params: { id: string } }>("/api/dns-proposals/:id/execute", async (re
     status: proposal.status,
     executionAllowed: false,
     protections: proposal.protections
+  });
+});
+
+app.get<{ Params: { id: string } }>("/api/projects/:id/release-evidence", async (request, reply) => {
+  const project = await registry.get(request.params.id);
+  if (!project) return reply.code(404).send({ error: "project_not_found" });
+  return { releaseEvidence: await listReleaseEvidence(project.id) };
+});
+
+app.post<{
+  Params: { id: string };
+  Body: {
+    environment?: string;
+    sourceRevision?: string;
+    buildResult?: string;
+    testResult?: string;
+    healthResult?: string;
+    deploymentIdentifier?: string | null;
+    healthReference?: string;
+  };
+}>("/api/projects/:id/release-evidence", async (request, reply) => {
+  const project = await registry.get(request.params.id);
+  if (!project) return reply.code(404).send({ error: "project_not_found" });
+  try {
+    const bundle = createReleaseEvidence({ projectId: project.id, ...request.body });
+    await saveReleaseEvidence(bundle);
+    await audit(project.id, "release_evidence_created", {
+      releaseEvidenceId: bundle.id,
+      environment: bundle.environment,
+      complete: bundle.complete,
+      blockers: bundle.blockers,
+      sourceRevision: bundle.sourceRevision
+    });
+    return reply.code(201).send(bundle);
+  } catch (error) {
+    return reply.code(400).send({ error: error instanceof Error ? error.message : "release_evidence_failed" });
+  }
+});
+
+app.get<{ Params: { id: string } }>("/api/release-evidence/:id", async (request, reply) => {
+  const bundle = await getReleaseEvidence(request.params.id);
+  if (!bundle) return reply.code(404).send({ error: "release_evidence_not_found" });
+  return bundle;
+});
+
+app.post<{ Params: { id: string } }>("/api/release-evidence/:id/verify", async (request, reply) => {
+  const bundle = await getReleaseEvidence(request.params.id);
+  if (!bundle) return reply.code(404).send({ error: "release_evidence_not_found" });
+  try {
+    const updated = verifyReleaseEvidence(bundle);
+    await saveReleaseEvidence(updated);
+    await audit(updated.projectId, "release_evidence_verification_completed", {
+      releaseEvidenceId: updated.id,
+      environment: updated.environment,
+      status: updated.status,
+      blockers: updated.blockers
+    });
+    return updated;
+  } catch (error) {
+    return reply.code(409).send({ error: error instanceof Error ? error.message : "release_evidence_verify_failed" });
+  }
+});
+
+app.post<{ Params: { id: string } }>("/api/release-evidence/:id/deploy", async (request, reply) => {
+  const bundle = await getReleaseEvidence(request.params.id);
+  if (!bundle) return reply.code(404).send({ error: "release_evidence_not_found" });
+  return reply.code(409).send({
+    error: "release_execution_locked",
+    releaseEvidenceId: bundle.id,
+    status: bundle.status,
+    protections: bundle.protections
   });
 });
 

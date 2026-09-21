@@ -239,3 +239,12 @@ dd { margin: 0; font-weight: 650; text-align: right; }
 .dnsProposalCard dd { margin: 0; overflow-wrap: anywhere; }
 @media (max-width: 1080px) { .dnsProposalForm { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 680px) { .dnsProposalForm { grid-template-columns: 1fr; } .dnsProposalCard dl { grid-template-columns: 1fr; } }
+
+.releaseEvidencePanel{margin-top:16px;padding:14px;border:1px solid #d8e1e7;border-radius:12px;background:#f8fafb}
+.releaseEvidenceForm{display:grid;grid-template-columns:1fr 1.2fr .8fr .8fr .8fr 1.5fr 1.3fr auto;gap:8px;align-items:end;margin-top:12px}
+.releaseEvidenceForm label{display:grid;gap:5px;font-size:12px;font-weight:700}
+.releaseEvidenceForm input,.releaseEvidenceForm select{min-width:0;padding:9px 10px;border:1px solid #cbd6de;border-radius:8px;font:inherit;background:#fff}
+.releaseEvidenceForm button{padding:10px 12px;border:0;border-radius:8px;background:#17202a;color:#fff;font-weight:800}
+.releaseEvidenceList{display:grid;gap:10px;margin-top:12px}.releaseEvidenceCard{padding:12px;border:1px solid #dfe6eb;border-radius:10px;background:#fff}
+.releaseEvidenceCard dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.releaseEvidenceCard dl>div{display:grid;gap:3px}.releaseEvidenceCard dt{color:#76818d;font-size:11px}.releaseEvidenceCard dd{margin:0;overflow-wrap:anywhere}
+@media(max-width:1080px){.releaseEvidenceForm{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:680px){.releaseEvidenceForm,.releaseEvidenceCard dl{grid-template-columns:1fr}}
