@@ -19,6 +19,7 @@ import {
   listCrmFollowUps,
   listCrmInvoices,
   listCrmCreditNotes,
+  listCrmBusinessRecords,
   listCrmSalesItems,
   listCrmLeads,
   listCrmOpportunities,
@@ -33,6 +34,7 @@ import {
   type CrmNotificationItem,
   type CrmInvoice,
   type CrmCreditNote,
+  type CrmBusinessRecord,
   type CrmSalesItem,
   type CrmLead,
   type CrmOpportunity,
@@ -47,6 +49,7 @@ import { CrmLeadDrawer } from './CrmLeadDrawer'
 import { CrmWorkView } from './CrmWorkView'
 import { CrmSalesView } from './CrmSalesView'
 import { CrmSalesWorkspace } from './CrmSalesWorkspace'
+import { CrmBusinessRecordsView } from './CrmBusinessRecordsView'
 import { CrmTeamView } from './CrmTeamView'
 import { exportCrmSpreadsheet, pickCrmSpreadsheet, type CrmSpreadsheetFormat } from './crmSpreadsheet'
 
@@ -134,6 +137,7 @@ export function CrmDemo() {
   const [invoices, setInvoices] = useState<CrmInvoice[]>([])
   const [salesItems, setSalesItems] = useState<CrmSalesItem[]>([])
   const [creditNotes, setCreditNotes] = useState<CrmCreditNote[]>([])
+  const [businessRecords, setBusinessRecords] = useState<CrmBusinessRecord[]>([])
   const [teamMembers, setTeamMembers] = useState<CrmTeamMember[]>([])
   const [roles, setRoles] = useState<CrmRole[]>([])
   const [session, setSession] = useState<CrmSession | null>(null)
@@ -330,7 +334,7 @@ export function CrmDemo() {
       const sessionResult = await getCrmSession()
       setSession(sessionResult)
       const allowed = (permission: string) => sessionResult.member.permissions.includes(permission)
-      const [leadResult, dashResult, followResult, taskResult, workResult, accountResult, opportunityResult, salesResult, invoiceResult, salesItemResult, creditNoteResult, teamResult, roleResult, readyResult] = await Promise.all([
+      const [leadResult, dashResult, followResult, taskResult, workResult, accountResult, opportunityResult, salesResult, invoiceResult, salesItemResult, creditNoteResult, businessResult, teamResult, roleResult, readyResult] = await Promise.all([
         allowed('ViewLeads') ? listCrmLeads() : Promise.resolve({ leads: [] as CrmLead[] }),
         allowed('ViewDashboard') ? crmDashboard() : Promise.resolve(initialDashboard()),
         allowed('ManageFollowUps') ? listCrmFollowUps() : Promise.resolve({ followUps: [] as CrmFollowUp[] }),
@@ -342,6 +346,7 @@ export function CrmDemo() {
         allowed('ViewSales') ? listCrmInvoices() : Promise.resolve({ invoices: [] as CrmInvoice[] }),
         allowed('ViewSales') ? listCrmSalesItems() : Promise.resolve({ items: [] as CrmSalesItem[] }),
         allowed('ViewSales') ? listCrmCreditNotes() : Promise.resolve({ creditNotes: [] as CrmCreditNote[] }),
+        allowed('ViewDashboard') ? listCrmBusinessRecords() : Promise.resolve({ records: [] as CrmBusinessRecord[] }),
         allowed('ViewTeam') ? listCrmTeam() : Promise.resolve({ members: [sessionResult.member] }),
         allowed('ViewDashboard') ? listCrmRoles() : Promise.resolve({ roles: [] as CrmRole[] }),
         readiness(),
@@ -357,6 +362,7 @@ export function CrmDemo() {
       setInvoices(invoiceResult.invoices)
       setSalesItems(salesItemResult.items)
       setCreditNotes(creditNoteResult.creditNotes)
+      setBusinessRecords(businessResult.records)
       setTeamMembers(teamResult.members)
       setRoles(roleResult.roles)
       setStorageLabel(readyResult.storageMode === 'Postgres' ? 'Saved online data' : 'Temporary test data')
@@ -617,7 +623,10 @@ export function CrmDemo() {
             </section>
           </section>
         ) : null}
-        {referenceModuleContent[view] && view !== 'sales' ? (
+        {(['expenses', 'contracts', 'projects', 'support'].includes(view)) ? (
+          <CrmBusinessRecordsView view={view as 'expenses' | 'contracts' | 'projects' | 'support'} accounts={accounts} records={businessRecords} teamMembers={teamMembers} busy={loading} refresh={refresh} notify={setMessage} canManage={can('ViewDashboard')} />
+        ) : null}
+        {referenceModuleContent[view] && view !== 'sales' && !['expenses', 'contracts', 'projects', 'support'].includes(view) ? (
           <section className="crm2-reference-module">
             <div className="crm2-reference-module-head">
               <div><span className="crm2-kicker">BUSINESS MODULE</span><h2>{referenceModuleContent[view].title}</h2><p>{referenceModuleContent[view].subtitle}</p></div>

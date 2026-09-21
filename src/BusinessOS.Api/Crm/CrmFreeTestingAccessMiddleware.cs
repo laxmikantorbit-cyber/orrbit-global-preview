@@ -1,4 +1,4 @@
-﻿using BusinessOS.Crm;
+using BusinessOS.Crm;
 
 namespace BusinessOS.Api.Crm;
 
@@ -98,6 +98,7 @@ public sealed class CrmFreeTestingAccessMiddleware
             if (relative.Equals("invoices", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("invoices/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewSales;
             if (relative.Equals("sales-items", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("sales-items/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewSales;
             if (relative.Equals("credit-notes", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("credit-notes/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewSales;
+            if (relative.Equals("business-records", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("business-records/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewDashboard;
             return CrmPermission.ViewDashboard;
         }
 
@@ -122,6 +123,7 @@ public sealed class CrmFreeTestingAccessMiddleware
             if (relative.Equals("invoices", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("invoices/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageSales;
             if (relative.Equals("sales-items", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("sales-items/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageSales;
             if (relative.Equals("credit-notes", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("credit-notes/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageSales;
+            if (relative.Equals("business-records", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("business-records/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewDashboard;
             if (relative.Equals("team", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("team/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageTeam;
         }
 

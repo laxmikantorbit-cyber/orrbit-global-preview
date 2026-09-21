@@ -1,4 +1,4 @@
-﻿using Npgsql;
+using Npgsql;
 
 namespace BusinessOS.Api.Crm;
 
@@ -340,6 +340,28 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_businessos_crm_credit_note_number
 CREATE INDEX IF NOT EXISTS ix_businessos_crm_credit_notes_invoice
     ON businessos_crm.credit_notes(tenant_id, invoice_id, issue_date DESC);
 
+CREATE TABLE IF NOT EXISTS businessos_crm.business_records (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    module integer NOT NULL,
+    account_id uuid NULL,
+    title text NOT NULL,
+    status text NOT NULL,
+    amount numeric(18,2) NULL,
+    category text NULL,
+    priority text NULL,
+    start_date date NULL,
+    due_date date NULL,
+    owner_user_id uuid NULL,
+    description text NULL,
+    metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+    created_at_utc timestamptz NOT NULL,
+    updated_at_utc timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_businessos_crm_business_records_module
+    ON businessos_crm.business_records(tenant_id, module, status, updated_at_utc DESC);
+CREATE INDEX IF NOT EXISTS ix_businessos_crm_business_records_account
+    ON businessos_crm.business_records(tenant_id, account_id, module);
 CREATE TABLE IF NOT EXISTS businessos_crm.team_members (
     id uuid PRIMARY KEY,
     tenant_id uuid NOT NULL,

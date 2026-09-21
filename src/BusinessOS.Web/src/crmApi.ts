@@ -851,3 +851,71 @@ export async function voidCrmCreditNote(creditNoteId: string, asOf?: string) {
   })
   return parseResponse<{ creditNote: CrmCreditNote; invoice: CrmInvoice }>(response)
 }
+
+export type CrmBusinessModule = 'Expense' | 'Contract' | 'Project' | 'Ticket'
+
+export type CrmBusinessRecord = {
+  id: string
+  module: CrmBusinessModule
+  accountId?: string | null
+  title: string
+  status: string
+  amount?: number | null
+  category?: string | null
+  priority?: string | null
+  startDate?: string | null
+  dueDate?: string | null
+  ownerUserId?: string | null
+  description?: string | null
+  metadata: Record<string, string>
+  createdAtUtc: string
+  updatedAtUtc: string
+}
+
+export type CrmBusinessRecordDraft = {
+  module?: CrmBusinessModule
+  title: string
+  accountId?: string | null
+  amount?: number | null
+  category?: string | null
+  priority?: string | null
+  startDate?: string | null
+  dueDate?: string | null
+  ownerUserId?: string | null
+  description?: string | null
+  metadata?: Record<string, string>
+  status?: string | null
+}
+
+export async function listCrmBusinessRecords(module?: CrmBusinessModule) {
+  const query = module ? `?module=${encodeURIComponent(module)}` : ''
+  const response = await crmFetch(`/business-records${query}`)
+  return parseResponse<{ records: CrmBusinessRecord[] }>(response)
+}
+
+export async function createCrmBusinessRecord(input: CrmBusinessRecordDraft & { module: CrmBusinessModule }) {
+  const response = await crmFetch('/business-records', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmBusinessRecord>(response)
+}
+
+export async function updateCrmBusinessRecord(recordId: string, input: CrmBusinessRecordDraft) {
+  const response = await crmFetch(`/business-records/${recordId}/profile`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmBusinessRecord>(response)
+}
+
+export async function changeCrmBusinessRecordStatus(recordId: string, status: string) {
+  const response = await crmFetch(`/business-records/${recordId}/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  })
+  return parseResponse<CrmBusinessRecord>(response)
+}
