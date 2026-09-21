@@ -486,7 +486,7 @@ export async function bulkUpdateCrmLeads(input: {
   const response = await crmFetch(`/leads/bulk`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
   })
-  return parseResponse<{ updated: string[]; failed: Array<{ leadId: string; reason: string }> }>(response)
+  return parseResponse<{ updatedLeadIds: string[]; failed: Array<{ leadId: string; error: string }> }>(response)
 }
 
 export async function updateCrmLeadTag(leadId: string, tag: string, remove = false) {
@@ -512,3 +512,96 @@ export async function getCrmNotifications() {
   return parseResponse<{ items: CrmNotificationItem[] }>(response)
 }
 
+
+
+export type CrmSalesDocumentLine = {
+  id: string
+  itemId?: string | null
+  description: string
+  quantity: number
+  unitPrice: number
+  taxPercent: number
+  subtotal: number
+}
+
+export type CrmSalesDocument = {
+  id: string
+  kind: 'Proposal' | 'Estimate'
+  documentNumber: string
+  accountId: string
+  opportunityId?: string | null
+  subject: string
+  status: 'Draft' | 'Sent' | 'Accepted' | 'Rejected' | 'Expired'
+  currencyCode: string
+  issueDate: string
+  expiryDate?: string | null
+  discountPercent: number
+  notes?: string | null
+  terms?: string | null
+  lines: CrmSalesDocumentLine[]
+  subtotal: number
+  discountAmount: number
+  taxAmount: number
+  total: number
+  createdAtUtc: string
+  updatedAtUtc: string
+}
+
+export type CrmSalesDocumentDraft = {
+  kind?: 'Proposal' | 'Estimate'
+  accountId: string
+  opportunityId?: string | null
+  subject: string
+  currencyCode?: string
+  issueDate?: string
+  expiryDate?: string | null
+  discountPercent: number
+  notes?: string
+  terms?: string
+  lines: Array<{
+    id?: string
+    itemId?: string | null
+    description: string
+    quantity: number
+    unitPrice: number
+    taxPercent: number
+  }>
+}
+
+export async function listCrmSalesDocuments(kind?: 'Proposal' | 'Estimate') {
+  const query = kind ? `?kind=${encodeURIComponent(kind)}` : ''
+  const response = await crmFetch(`/sales-documents${query}`)
+  return parseResponse<{ documents: CrmSalesDocument[] }>(response)
+}
+
+export async function getCrmSalesDocument(documentId: string) {
+  const response = await crmFetch(`/sales-documents/${documentId}`)
+  return parseResponse<CrmSalesDocument>(response)
+}
+
+export async function createCrmSalesDocument(input: CrmSalesDocumentDraft & { kind: 'Proposal' | 'Estimate' }) {
+  const response = await crmFetch('/sales-documents', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmSalesDocument>(response)
+}
+
+export async function updateCrmSalesDocument(documentId: string, input: Omit<CrmSalesDocumentDraft, 'kind'>) {
+  const response = await crmFetch(`/sales-documents/${documentId}/profile`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmSalesDocument>(response)
+}
+
+export async function changeCrmSalesDocumentStatus(documentId: string, status: CrmSalesDocument['status']) {
+  const response = await crmFetch(`/sales-documents/${documentId}/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  })
+  return parseResponse<CrmSalesDocument>(response)
+}
