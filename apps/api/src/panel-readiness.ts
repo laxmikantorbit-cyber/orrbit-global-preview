@@ -23,7 +23,7 @@ const panelModules: PanelModuleReadiness[] = [
   { key: "domains-dns", name: "Domains & DNS proposals", status: "ready", summary: "Typed DNS create/update/delete proposals, approval/cancel lifecycle, restore-point requirement and hard execution lock are implemented." },
   { key: "secret-references", name: "Secret references", status: "ready", summary: "Environment-specific provider references are persisted while secret values are explicitly rejected and never stored." },
   { key: "audit-jobs", name: "Audit log & job history", status: "ready", summary: "Project job history and auditable events are persisted and surfaced." },
-  { key: "cost-budgets", name: "AI/cloud cost tracking & budgets", status: "pending", summary: "Usage ledger, budget policy and alerts are still required." }
+  { key: "cost-budgets", name: "AI/cloud cost tracking & budgets", status: "ready", summary: "Per-project budgets, usage ledger, warning thresholds and over-budget automation blocking are implemented." }
 ];
 
 export function getPanelReadiness() {

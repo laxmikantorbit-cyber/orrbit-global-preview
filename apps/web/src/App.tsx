@@ -90,6 +90,10 @@ type RollbackPlan = {
   restorePointRequired: true; protections: Record<string, boolean>; createdAt: string; updatedAt: string;
 };
 
+type ProjectBudget = { id: string; projectId: string; currency: "INR" | "USD"; monthlyLimit: number; warningPercent: number; enabled: boolean; createdAt: string; updatedAt: string };
+type CostLedgerEntry = { id: string; projectId: string; provider: string; category: string; amount: number; currency: "INR" | "USD"; note: string; occurredAt: string; createdAt: string };
+type CostSummary = { budget: ProjectBudget | null; currentMonthSpend: number; warningAmount: number | null; remainingAmount: number | null; status: string; entryCount: number; automationBlocked: boolean };
+
 type CommandCentre = {
   project: Project;
   environments: ProjectEnvironment[];
@@ -99,6 +103,9 @@ type CommandCentre = {
   releaseEvidence: ReleaseEvidence[];
   versions: VersionLedgerEntry[];
   rollbackPlans: RollbackPlan[];
+  budget: ProjectBudget | null;
+  costLedger: CostLedgerEntry[];
+  costSummary: CostSummary;
   jobs: Array<{ id: string; state: string; risk: string; createdAt: string; evidence: string[] }>;
   audit: Array<{ id: string; eventType: string; createdAt: string }>;
   protection: { productionProtected: boolean; nonDevelopmentConfigLocked: boolean; realCloudProvisioningEnabled: boolean };
@@ -870,6 +877,20 @@ export default function App() {
     const result = await response.json(); setMessage(response.status === 409 ? "Rollback execution is safely locked" : (result.error ?? "Unexpected rollback response"));
   }
 
+  async function saveProjectBudgetRecord(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!commandCentre) return; const data=new FormData(event.currentTarget);
+    const response=await fetch(`${apiBase}/api/projects/${commandCentre.project.id}/budget`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({currency:String(data.get("currency")??"INR"),monthlyLimit:Number(data.get("monthlyLimit")),warningPercent:Number(data.get("warningPercent"))})});
+    const result=await response.json(); if(!response.ok)return setMessage(result.error??"Budget update failed");
+    setCommandCentre((current)=>current?{...current,budget:result.budget,costSummary:result.summary}:current); setMessage("Project budget saved");
+  }
+
+  async function addCostEntryRecord(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!commandCentre) return; const data=new FormData(event.currentTarget);
+    const response=await fetch(`${apiBase}/api/projects/${commandCentre.project.id}/costs`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:String(data.get("provider")??""),category:String(data.get("category")??"other"),amount:Number(data.get("amount")),currency:String(data.get("currency")??"INR"),note:String(data.get("note")??"")})});
+    const result=await response.json(); if(!response.ok)return setMessage(result.error??"Cost entry failed");
+    setCommandCentre((current)=>current?{...current,costLedger:[result.entry,...current.costLedger],costSummary:result.summary}:current); setMessage(result.summary.automationBlocked?"Cost recorded - automation blocked: over budget":"Cost recorded"); event.currentTarget.reset();
+  }
+
   if (!authStatus) {
     return <main className="authShell"><section className="authCard">
       <span className="eyebrow">oRRbit AI Control Plane</span>
@@ -1371,6 +1392,39 @@ export default function App() {
               <button onClick={() => confirmRollbackExecuteLocked(item.id)}>Verify Execute Lock</button>
             </div>
           </article>)}
+        </div>
+      </div>
+      <div className="costBudgetPanel">
+        <div className="builderHead"><div><span className="eyebrow">Cost Tracking & Budgets</span>
+          <h3>Monthly spend guardrails</h3>
+          <p>Track AI/cloud costs per project and block automated spending when the monthly budget is exceeded.</p></div>
+          <span className={commandCentre.costSummary.automationBlocked ? "lockBadge" : "okBadge"}>
+            {commandCentre.costSummary.status.replaceAll("_", " ")}
+          </span></div>
+        <div className="costSummaryGrid">
+          <div><span>Spend</span><strong>{commandCentre.costSummary.currentMonthSpend}</strong></div>
+          <div><span>Remaining</span><strong>{commandCentre.costSummary.remainingAmount ?? "—"}</strong></div>
+          <div><span>Warning at</span><strong>{commandCentre.costSummary.warningAmount ?? "—"}</strong></div>
+          <div><span>Automation</span><strong>{commandCentre.costSummary.automationBlocked ? "Blocked" : "Allowed"}</strong></div>
+        </div>
+        <form className="budgetForm" onSubmit={saveProjectBudgetRecord}>
+          <label>Currency<select name="currency" defaultValue={commandCentre.budget?.currency ?? "INR"}><option value="INR">INR</option><option value="USD">USD</option></select></label>
+          <label>Monthly limit<input name="monthlyLimit" type="number" min="1" step="0.01" required defaultValue={commandCentre.budget?.monthlyLimit ?? ""} /></label>
+          <label>Warning %<input name="warningPercent" type="number" min="1" max="100" required defaultValue={commandCentre.budget?.warningPercent ?? 80} /></label>
+          <button type="submit">Save Budget</button>
+        </form>
+        <form className="costEntryForm" onSubmit={addCostEntryRecord}>
+          <label>Provider<input name="provider" required placeholder="OpenAI / Render / GCP" /></label>
+          <label>Category<select name="category" defaultValue="ai"><option value="ai">AI</option><option value="hosting">Hosting</option><option value="database">Database</option><option value="storage">Storage</option><option value="network">Network</option><option value="other">Other</option></select></label>
+          <label>Amount<input name="amount" type="number" min="0" step="0.01" required /></label>
+          <label>Currency<select name="currency" defaultValue={commandCentre.budget?.currency ?? "INR"}><option value="INR">INR</option><option value="USD">USD</option></select></label>
+          <label>Note<input name="note" maxLength={300} placeholder="Usage note" /></label>
+          <button type="submit">Add Cost</button>
+        </form>
+        <div className="costLedgerList">
+          {commandCentre.costLedger.slice(0,10).map((item) => <p className="historyItem" key={item.id}>
+            {item.provider} · {item.category} · {item.amount} {item.currency} · {new Date(item.occurredAt).toLocaleString()}
+          </p>)}
         </div>
       </div>
       <div className="historyGrid">

@@ -18,6 +18,7 @@ import { createSecretReference, rejectSecretValueFields, type SecretReferenceRec
 import { approveDnsProposal, cancelDnsProposal, createDnsChangeProposal, type DnsChangeProposal } from "./dns-proposal.js";
 import { createReleaseEvidence, verifyReleaseEvidence, type ReleaseEvidenceBundle } from "./release-evidence.js";
 import { approveRollbackPlan, cancelRollbackPlan, createRollbackPlan, createVersionLedgerEntry, type RollbackPlan, type VersionLedgerEntry } from "./rollback-history.js";
+import { createCostLedgerEntry, createProjectBudget, summarizeCostBudget, type CostLedgerEntry, type ProjectBudget } from "./cost-budget.js";
 import {
   MemoryProjectRegistry,
   PostgresProjectRegistry,
@@ -46,6 +47,8 @@ const dnsChangeProposals = new Map<string, DnsChangeProposal>();
 const releaseEvidenceBundles = new Map<string, ReleaseEvidenceBundle>();
 const versionLedger = new Map<string, VersionLedgerEntry>();
 const rollbackPlans = new Map<string, RollbackPlan>();
+const projectBudgets = new Map<string, ProjectBudget>();
+const costLedger = new Map<string, CostLedgerEntry>();
 
 type OnboardingJob = {
   id: string;
@@ -508,6 +511,54 @@ async function listRollbackPlans(projectId: string): Promise<RollbackPlan[]> {
   return result.rows.map((row) => row.rollback_data);
 }
 
+async function saveProjectBudget(budget: ProjectBudget) {
+  if (!pool) {
+    projectBudgets.set(budget.projectId, budget);
+    return;
+  }
+  await pool.query(
+    `INSERT INTO project_budgets
+      (id, project_id, currency, monthly_limit, warning_percent, budget_data, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$7)
+     ON CONFLICT (project_id) DO UPDATE SET currency=EXCLUDED.currency,
+       monthly_limit=EXCLUDED.monthly_limit, warning_percent=EXCLUDED.warning_percent,
+       budget_data=EXCLUDED.budget_data, updated_at=NOW()`,
+    [budget.id, budget.projectId, budget.currency, budget.monthlyLimit, budget.warningPercent, JSON.stringify(budget), budget.createdAt]
+  );
+}
+
+async function getProjectBudget(projectId: string): Promise<ProjectBudget | null> {
+  if (!pool) return projectBudgets.get(projectId) ?? null;
+  const result = await pool.query<{ budget_data: ProjectBudget }>(
+    "SELECT budget_data FROM project_budgets WHERE project_id=$1", [projectId]
+  );
+  return result.rows[0]?.budget_data ?? null;
+}
+
+async function saveCostLedgerEntry(entry: CostLedgerEntry) {
+  if (!pool) {
+    costLedger.set(entry.id, entry);
+    return;
+  }
+  await pool.query(
+    `INSERT INTO cost_ledger
+      (id, project_id, provider, category, amount, currency, occurred_at, entry_data, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9)`,
+    [entry.id, entry.projectId, entry.provider, entry.category, entry.amount, entry.currency,
+      entry.occurredAt, JSON.stringify(entry), entry.createdAt]
+  );
+}
+
+async function listCostLedger(projectId: string): Promise<CostLedgerEntry[]> {
+  if (!pool) return [...costLedger.values()]
+    .filter((entry) => entry.projectId === projectId)
+    .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
+  const result = await pool.query<{ entry_data: CostLedgerEntry }>(
+    "SELECT entry_data FROM cost_ledger WHERE project_id=$1 ORDER BY occurred_at DESC LIMIT 500", [projectId]
+  );
+  return result.rows.map((row) => row.entry_data);
+}
+
 function acquisitionFolder(workspaceId: string, acquisitionId: string) {
   return resolve(importInboxRoot, workspaceId, acquisitionId);
 }
@@ -734,7 +785,7 @@ app.get<{ Params: { id: string } }>("/api/projects/:id/manifest", async (request
 app.get<{ Params: { id: string } }>("/api/projects/:id/command-centre", async (request, reply) => {
   const project = await registry.get(request.params.id);
   if (!project) return reply.code(404).send({ error: "project_not_found" });
-  const [environments, projectJobs, auditEvents, projectWorkspaces, projectSecretReferences, projectDnsProposals, projectReleaseEvidence, projectVersions, projectRollbackPlans] = await Promise.all([
+  const [environments, projectJobs, auditEvents, projectWorkspaces, projectSecretReferences, projectDnsProposals, projectReleaseEvidence, projectVersions, projectRollbackPlans, projectBudget, projectCosts] = await Promise.all([
     registry.listEnvironments(project.id),
     listJobs(project.id),
     listAuditEvents(project.id),
@@ -743,7 +794,9 @@ app.get<{ Params: { id: string } }>("/api/projects/:id/command-centre", async (r
     listDnsProposals(project.id),
     listReleaseEvidence(project.id),
     listVersionLedger(project.id),
-    listRollbackPlans(project.id)
+    listRollbackPlans(project.id),
+    getProjectBudget(project.id),
+    listCostLedger(project.id)
   ]);
   return {
     project,
@@ -754,6 +807,9 @@ app.get<{ Params: { id: string } }>("/api/projects/:id/command-centre", async (r
     releaseEvidence: projectReleaseEvidence,
     versions: projectVersions,
     rollbackPlans: projectRollbackPlans,
+    budget: projectBudget,
+    costLedger: projectCosts,
+    costSummary: summarizeCostBudget(projectBudget, projectCosts),
     jobs: projectJobs.slice(0, 10),
     audit: auditEvents.slice(0, 20),
     protection: {
@@ -1182,6 +1238,65 @@ app.post<{ Params: { id: string } }>("/api/rollback-plans/:id/execute", async (r
   const plan = await getRollbackPlan(request.params.id);
   if (!plan) return reply.code(404).send({ error: "rollback_plan_not_found" });
   return reply.code(409).send({ error: "rollback_execution_locked", rollbackPlanId: plan.id, executionAllowed: false, protections: plan.protections });
+});
+
+app.get<{ Params: { id: string } }>("/api/projects/:id/costs", async (request, reply) => {
+  const project = await registry.get(request.params.id);
+  if (!project) return reply.code(404).send({ error: "project_not_found" });
+  const [budget, entries] = await Promise.all([getProjectBudget(project.id), listCostLedger(project.id)]);
+  return { budget, entries, summary: summarizeCostBudget(budget, entries) };
+});
+
+app.put<{
+  Params: { id: string };
+  Body: { currency?: string; monthlyLimit?: number; warningPercent?: number };
+}>("/api/projects/:id/budget", async (request, reply) => {
+  const project = await registry.get(request.params.id);
+  if (!project) return reply.code(404).send({ error: "project_not_found" });
+  try {
+    const budget = createProjectBudget({
+      projectId: project.id,
+      currency: request.body?.currency,
+      monthlyLimit: request.body?.monthlyLimit,
+      warningPercent: request.body?.warningPercent
+    });
+    await saveProjectBudget(budget);
+    await audit(project.id, "project_budget_updated", {
+      currency: budget.currency,
+      monthlyLimit: budget.monthlyLimit,
+      warningPercent: budget.warningPercent
+    });
+    const entries = await listCostLedger(project.id);
+    return { budget, summary: summarizeCostBudget(budget, entries) };
+  } catch (error) {
+    return reply.code(400).send({ error: error instanceof Error ? error.message : "budget_update_failed" });
+  }
+});
+
+app.post<{
+  Params: { id: string };
+  Body: { provider?: string; category?: string; amount?: number; currency?: string; note?: string; occurredAt?: string };
+}>("/api/projects/:id/costs", async (request, reply) => {
+  const project = await registry.get(request.params.id);
+  if (!project) return reply.code(404).send({ error: "project_not_found" });
+  try {
+    const entry = createCostLedgerEntry({ projectId: project.id, ...request.body });
+    await saveCostLedgerEntry(entry);
+    const [budget, entries] = await Promise.all([getProjectBudget(project.id), listCostLedger(project.id)]);
+    const summary = summarizeCostBudget(budget, entries);
+    await audit(project.id, "cost_ledger_entry_created", {
+      costEntryId: entry.id,
+      provider: entry.provider,
+      category: entry.category,
+      amount: entry.amount,
+      currency: entry.currency,
+      budgetStatus: summary.status,
+      automationBlocked: summary.automationBlocked
+    });
+    return reply.code(201).send({ entry, summary });
+  } catch (error) {
+    return reply.code(400).send({ error: error instanceof Error ? error.message : "cost_entry_failed" });
+  }
 });
 
 app.post<{ Body: { prompt: string } }>("/api/project-plans", async (request, reply) => {
