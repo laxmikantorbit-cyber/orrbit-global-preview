@@ -9,10 +9,14 @@ Private control platform for managing oRRbit websites and SaaS products.
 - Use GitHub as source of truth and provider adapters for infrastructure.
 - Keep production, DNS, secrets, payments and destructive database actions protected.
 
-## Initial pilots
+## Post-completion pilots
+These remain locked until the panel completion gate reaches 100% and real import is explicitly unlocked.
 1. Martial Arts ERP — first development-mode SaaS pilot.
 2. orrbit.in — website onboarding.
 3. orrbitrepair.com — website + API onboarding.
+
+## Permanent panel-first rule
+Complete the Control Plane panel to 100% before any real SaaS/website import, transfer or migration. Before that point, only explicitly marked synthetic fixtures may exercise import mechanics for QA. See `docs/PANEL_COMPLETION_RULE.md`.
 
 ## V1 rule
 AI may analyse, plan, build and test. Production-impacting operations require the platform policy engine and explicit approval.

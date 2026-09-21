@@ -164,3 +164,26 @@ dd { margin: 0; font-weight: 650; text-align: right; }
 .buildLogs summary { cursor: pointer; font-weight: 700; }
 .buildLogs pre { max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
 @media (max-width: 680px) { .buildCommands { grid-template-columns: 1fr; } }
+
+.readinessPanel { margin: 18px 0; padding: 18px; border: 1px solid #d7e0e7; border-radius: 16px; background: #fff; }
+.readinessHead { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; }
+.readinessHead h2 { margin: 4px 0 6px; }
+.readinessHead p { margin: 0; color: #5f6b78; max-width: 760px; }
+.readinessScore { min-width: 120px; text-align: center; padding: 12px; border-radius: 12px; background: #17202a; color: #fff; }
+.readinessScore strong { display: block; font-size: 28px; }
+.readinessScore span { font-size: 12px; opacity: .78; }
+.readinessStats { display: grid; grid-template-columns: repeat(4, minmax(100px, 1fr)); gap: 8px; margin: 14px 0; }
+.readinessStats > div { display: grid; gap: 3px; padding: 10px; border: 1px solid #e2e8ed; border-radius: 10px; background: #f9fbfc; }
+.readinessStats strong { font-size: 20px; }
+.readinessStats span { font-size: 12px; color: #6d7884; }
+.readinessGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); gap: 9px; margin-top: 14px; }
+.readinessItem { padding: 11px; border: 1px solid #e0e6eb; border-radius: 10px; background: #fbfcfd; }
+.readinessItem > div { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.readinessItem > div span { font-size: 11px; text-transform: uppercase; font-weight: 800; }
+.readinessItem p { margin: 7px 0 0; font-size: 12px; color: #66727e; line-height: 1.45; }
+.readiness-ready { border-left: 4px solid #2f8f63; }
+.readiness-partial { border-left: 4px solid #c58a1c; }
+.readiness-pending { border-left: 4px solid #8b96a3; }
+.importLocked .importLayout { pointer-events: none; opacity: .48; filter: grayscale(.25); }
+.importLocked .builderHead button { cursor: not-allowed; }
+@media (max-width: 680px) { .readinessHead { flex-direction: column; } .readinessScore { width: 100%; } .readinessStats { grid-template-columns: repeat(2, 1fr); } }

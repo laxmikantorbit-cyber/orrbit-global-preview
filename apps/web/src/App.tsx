@@ -123,6 +123,14 @@ type SourceBuild = {
   createdAt: string;
   updatedAt: string;
 };
+type PanelReadiness = {
+  panelComplete: boolean;
+  realImportUnlocked: boolean;
+  standingRule: string;
+  completion: { ready: number; partial: number; pending: number; total: number; buildProgressPercent: number };
+  modules: Array<{ key: string; name: string; status: "ready" | "partial" | "pending"; summary: string }>;
+};
+
 type ImportExecution = {
   id: string;
   workspaceId: string;
@@ -147,6 +155,7 @@ const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [panelReadiness, setPanelReadiness] = useState<PanelReadiness | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [mode, setMode] = useState<"manual" | "ai">("manual");
   const [message, setMessage] = useState("Ready");
@@ -177,9 +186,16 @@ export default function App() {
       .then((r) => r.json())
       .then((d) => setProjects(d.projects ?? []))
       .catch(() => setMessage("API offline"));
+    loadPanelReadiness();
     loadImportPlans();
     loadImportWorkspaces();
   }, []);
+
+  async function loadPanelReadiness() {
+    const response = await fetch(`${apiBase}/api/panel-readiness`);
+    const result = await response.json();
+    if (response.ok) setPanelReadiness(result);
+  }
 
   async function loadImportPlans() {
     const response = await fetch(`${apiBase}/api/import-plans`);
@@ -499,6 +515,8 @@ export default function App() {
     setMessage("Development configuration saved");
   }
 
+  const realImportLocked = !panelReadiness?.realImportUnlocked;
+
   return <main className="shell">
     <header className="topbar">
       <div><span className="eyebrow">oRRbit</span><h1>AI Control Plane</h1></div>
@@ -511,6 +529,31 @@ export default function App() {
         <p>Plan with AI, build in isolation, verify, approve, deploy and roll back.</p></div>
       <div className="metric"><strong>{projects.length}</strong><span>Registered projects</span></div>
     </section>
+
+    {panelReadiness && <section className="readinessPanel">
+      <div className="readinessHead">
+        <div><span className="eyebrow">Panel Completion Gate</span>
+          <h2>{panelReadiness.panelComplete ? "Panel complete" : "Panel completion in progress"}</h2>
+          <p>{panelReadiness.standingRule}</p></div>
+        <div className="readinessScore"><strong>{panelReadiness.completion.buildProgressPercent}%</strong><span>build progress</span></div>
+      </div>
+      <div className="readinessStats">
+        <div><strong>{panelReadiness.completion.ready}</strong><span>Ready</span></div>
+        <div><strong>{panelReadiness.completion.partial}</strong><span>Partial</span></div>
+        <div><strong>{panelReadiness.completion.pending}</strong><span>Pending</span></div>
+        <div><strong>{panelReadiness.completion.total}</strong><span>Total modules</span></div>
+      </div>
+      <div className={panelReadiness.realImportUnlocked ? "readyBox" : "warningBox"}>
+        <strong>{panelReadiness.realImportUnlocked ? "Real import unlocked" : "Real import/transfer locked"}</strong>
+        {!panelReadiness.realImportUnlocked && " — only explicitly marked synthetic QA fixtures are permitted until every required panel module is ready."}
+      </div>
+      <div className="readinessGrid">
+        {panelReadiness.modules.map((item) => <article className={"readinessItem readiness-" + item.status} key={item.key}>
+          <div><strong>{item.name}</strong><span>{item.status}</span></div><p>{item.summary}</p>
+        </article>)}
+      </div>
+    </section>}
+
     {addOpen && <section className="builder">
       <div className="builderHead"><div><span className="eyebrow">Project onboarding</span>
         <h2>Add manually or describe it to AI</h2></div>
@@ -528,13 +571,13 @@ export default function App() {
         </select></label>
         <label>Source<select name="sourceMode" defaultValue="new-project">
           <option value="new-project">New project</option><option value="existing-repository">Existing GitHub repository</option>
-          <option value="import">Import existing project</option>
+          <option value="import" disabled={realImportLocked}>Import existing project {realImportLocked ? "(locked until panel complete)" : ""}</option>
         </select></label>
         <label>Repository (optional)<input name="repository" placeholder="owner/repository" /></label>
         <button type="submit">Add to Development</button>
       </form> : <form className="form aiForm" onSubmit={createPlan}>
         <label>Describe the project<textarea name="prompt" required minLength={10}
-          placeholder="Import my Martial Arts ERP from ChatGPT Sites as a development-mode SaaS project. Keep production disabled." /></label>
+          placeholder="Create a protected development project and prepare a safe implementation plan. Keep production disabled." /></label>
         <button type="submit">Analyse & Create Plan</button>
       </form>}
       {plan && <div className="plan">
@@ -557,12 +600,12 @@ export default function App() {
       </div>}
     </section>}
 
-    <section className="importPanel">
+    <section className={realImportLocked ? "importPanel importLocked" : "importPanel"}>
       <div className="builderHead">
-        <div><span className="eyebrow">Import Planning</span>
-          <h2>Martial Arts ERP Pilot Import</h2>
-          <p>Planning-only flow: capture inventory, draft manifest, approve Development project. Production/DNS/live payment remain locked.</p></div>
-        <button onClick={createMartialArtsImportPlan}>Create Martial Arts Import Plan</button>
+        <div><span className="eyebrow">Existing Project Import Engine</span>
+          <h2>{realImportLocked ? "Locked until panel completion" : "Import & Transfer"}</h2>
+          <p>{realImportLocked ? "This engine is being developed and QA-tested only. No real SaaS or website import/transfer is permitted until the full panel reaches 100%." : "Controlled import workflow through the panel only."}</p></div>
+        <button onClick={createMartialArtsImportPlan} disabled={realImportLocked}>{realImportLocked ? "Real Import Locked" : "Create Import Plan"}</button>
       </div>
       <div className="importLayout">
         <div className="importList">

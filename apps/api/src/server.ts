@@ -11,6 +11,7 @@ import { classifyRisk, requiresApproval } from "@orrbit/policy-engine";
 import { providerCapabilities, DryRunGitHubProvider, DryRunCloudflarePagesProvider, DryRunCloudRunProvider, DryRunDatabaseProvider, DryRunOpenAiProvider, DryRunSecretProvider } from "@orrbit/provider-adapters";
 import { buildRuntimeProjectManifest, projectCreateSchema } from "@orrbit/project-manifest";
 import { createSourceBuildJob, isDockerSandboxReady, resetSourceBuildJob, runSourceBuild, type SourceBuildJob } from "./source-build-runner.js";
+import { getPanelReadiness, isSyntheticFixtureHeader } from "./panel-readiness.js";
 import {
   MemoryProjectRegistry,
   PostgresProjectRegistry,
@@ -56,6 +57,22 @@ type AuditEvent = {
 };
 
 const memoryAuditEvents: AuditEvent[] = [];
+
+function realImportAccessAllowed(request: { headers: { [key: string]: string | string[] | undefined } }) {
+  const readiness = getPanelReadiness();
+  return readiness.realImportUnlocked || isSyntheticFixtureHeader(request.headers["x-orrbit-test-fixture"]);
+}
+
+function realImportLockedPayload() {
+  const readiness = getPanelReadiness();
+  return {
+    error: "panel_completion_required_before_real_import",
+    panelComplete: readiness.panelComplete,
+    realImportUnlocked: readiness.realImportUnlocked,
+    standingRule: readiness.standingRule,
+    completion: readiness.completion
+  };
+}
 
 async function savePlan(plan: ProvisioningPlan) {
   if (!pool) return plans.set(plan.id, plan);
@@ -366,6 +383,8 @@ app.get("/api/health", async () => {
   };
 });
 
+app.get("/api/panel-readiness", async () => getPanelReadiness());
+
 app.get("/api/provider-capabilities", async () => ({
   mode: "dry-run",
   realCloudProvisioningEnabled: false,
@@ -423,6 +442,9 @@ app.get<{ Params: { id: string } }>("/api/projects/:id/command-centre", async (r
 app.post("/api/projects", async (request, reply) => {
   const parsed = projectCreateSchema.safeParse(request.body);
   if (!parsed.success) return reply.code(400).send({ error: "invalid_project", issues: parsed.error.issues });
+  if (parsed.data.sourceMode === "import" && !realImportAccessAllowed(request)) {
+    return reply.code(409).send(realImportLockedPayload());
+  }
   const project = await registry.create(parsed.data);
   await audit(project.id, "project_created_manual", { type: project.type, sourceMode: project.sourceMode });
   return reply.code(201).send(project);
@@ -474,6 +496,9 @@ app.post<{
 }>("/api/project-plans/:id/approve", async (request, reply) => {
   const plan = await getPlan(request.params.id);
   if (!plan) return reply.code(404).send({ error: "plan_not_found" });
+  if (plan.sourceMode === "import" && !realImportAccessAllowed(request)) {
+    return reply.code(409).send(realImportLockedPayload());
+  }
   if (plan.targetEnvironment !== "development") {
     return reply.code(409).send({ error: "non_development_apply_locked", targetEnvironment: plan.targetEnvironment });
   }
@@ -515,6 +540,7 @@ app.get("/api/pilots/martial-arts-erp", async () => ({
 }));
 
 app.post<{ Body: { sourceRef?: string } }>("/api/pilots/martial-arts-erp/import-plan", async (request, reply) => {
+  if (!realImportAccessAllowed(request)) return reply.code(409).send(realImportLockedPayload());
   const plan = createMartialArtsErpPilotPlan({ sourceRef: request.body?.sourceRef });
   await saveImportPlan(plan);
   await audit(null, "martial_arts_pilot_import_plan_created", {
@@ -529,6 +555,7 @@ app.post<{ Body: { sourceRef?: string } }>("/api/pilots/martial-arts-erp/import-
 app.get("/api/import-plans", async () => ({ importPlans: await listImportPlans() }));
 
 app.post<{ Body: CreateImportPlanInput }>("/api/import-plans", async (request, reply) => {
+  if (!realImportAccessAllowed(request)) return reply.code(409).send(realImportLockedPayload());
   const error = validateImportSource(request.body);
   if (error) return reply.code(error === "only_development_import_enabled_in_v1" ? 409 : 400).send({ error });
   const plan = createProjectImportPlan({
@@ -553,6 +580,7 @@ app.get<{ Params: { id: string } }>("/api/import-plans/:id", async (request, rep
 });
 
 app.post<{ Params: { id: string } }>("/api/import-plans/:id/approve", async (request, reply) => {
+  if (!realImportAccessAllowed(request)) return reply.code(409).send(realImportLockedPayload());
   const plan = await getImportPlan(request.params.id);
   if (!plan) return reply.code(404).send({ error: "import_plan_not_found" });
   if (plan.targetEnvironment !== "development") {
@@ -596,6 +624,7 @@ app.get<{ Params: { id: string } }>("/api/import-workspaces/:id/deploy-gate", as
 
 
 app.patch<{ Params: { id: string }; Body: { sourceRef?: string } }>("/api/import-workspaces/:id/source-reference", async (request, reply) => {
+  if (!realImportAccessAllowed(request)) return reply.code(409).send(realImportLockedPayload());
   const workspace = await getImportWorkspace(request.params.id);
   if (!workspace) return reply.code(404).send({ error: "import_workspace_not_found" });
   try {
@@ -612,6 +641,7 @@ app.patch<{
   Params: { id: string };
   Body: { kind?: WorkspaceCaptureKind; key?: string; status?: WorkspaceCaptureStatus };
 }>("/api/import-workspaces/:id/capture", async (request, reply) => {
+  if (!realImportAccessAllowed(request)) return reply.code(409).send(realImportLockedPayload());
   const workspace = await getImportWorkspace(request.params.id);
   if (!workspace) return reply.code(404).send({ error: "import_workspace_not_found" });
   if (!request.body?.kind || !request.body?.key || !request.body?.status) {
@@ -635,6 +665,7 @@ app.patch<{
 });
 
 app.post<{ Params: { id: string } }>("/api/import-workspaces/:id/source-acquisitions", async (request, reply) => {
+  if (!realImportAccessAllowed(request)) return reply.code(409).send(realImportLockedPayload());
   const workspace = await getImportWorkspace(request.params.id);
   if (!workspace) return reply.code(404).send({ error: "import_workspace_not_found" });
   try {
@@ -715,6 +746,7 @@ app.get("/api/source-builds/sandbox-status", async () => ({
 }));
 
 app.post<{ Params: { id: string } }>("/api/source-acquisitions/:id/builds", async (request, reply) => {
+  if (!realImportAccessAllowed(request)) return reply.code(409).send(realImportLockedPayload());
   const record = await getSourceAcquisition(request.params.id);
   if (!record) return reply.code(404).send({ error: "source_acquisition_not_found" });
   const previous = await listSourceBuildJobs(record.id);
@@ -779,6 +811,7 @@ app.post<{ Params: { id: string } }>("/api/source-builds/:id/deploy", async (req
 });
 
 app.post<{ Params: { id: string } }>("/api/import-workspaces/:id/executions", async (request, reply) => {
+  if (!realImportAccessAllowed(request)) return reply.code(409).send(realImportLockedPayload());
   const workspace = await getImportWorkspace(request.params.id);
   if (!workspace) return reply.code(404).send({ error: "import_workspace_not_found" });
   try {
@@ -828,6 +861,7 @@ app.post<{ Params: { id: string } }>("/api/import-executions/:id/deploy", async 
 });
 
 app.post<{ Params: { id: string } }>("/api/import-plans/:id/workspace", async (request, reply) => {
+  if (!realImportAccessAllowed(request)) return reply.code(409).send(realImportLockedPayload());
   const plan = await getImportPlan(request.params.id);
   if (!plan) return reply.code(404).send({ error: "import_plan_not_found" });
   if (plan.targetEnvironment !== "development") return reply.code(409).send({ error: "non_development_workspace_locked" });
