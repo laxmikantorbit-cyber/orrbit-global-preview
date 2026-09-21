@@ -22,9 +22,26 @@ type ProjectEnvironment = {
   region?: string;
 };
 
+type DevelopmentWorkspace = {
+  id: string;
+  projectId: string;
+  repositoryFullName: string;
+  baseBranch: string;
+  branchName: string;
+  requestSummary: string;
+  status: string;
+  branchPlan: null | { provider: string; action: string; mode: string; risk: string; requiresApproval: boolean; executionAllowed: boolean; notes: string[] };
+  reviewPlan: null | { provider: string; action: string; mode: string; risk: string; requiresApproval: boolean; executionAllowed: boolean; notes: string[] };
+  actualBranchCreated: boolean;
+  protections: Record<string, boolean>;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type CommandCentre = {
   project: Project;
   environments: ProjectEnvironment[];
+  workspaces: DevelopmentWorkspace[];
   jobs: Array<{ id: string; state: string; risk: string; createdAt: string; evidence: string[] }>;
   audit: Array<{ id: string; eventType: string; createdAt: string }>;
   protection: { productionProtected: boolean; nonDevelopmentConfigLocked: boolean; realCloudProvisioningEnabled: boolean };
@@ -578,6 +595,65 @@ export default function App() {
     setMessage("Development configuration saved");
   }
 
+  function replaceWorkspace(updated: DevelopmentWorkspace) {
+    setCommandCentre((current) => current ? {
+      ...current,
+      workspaces: current.workspaces.map((workspace) => workspace.id === updated.id ? updated : workspace)
+    } : current);
+  }
+
+  async function createGitWorkspace(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!commandCentre) return;
+    const data = new FormData(event.currentTarget);
+    setMessage("Creating protected feature workspace...");
+    const response = await fetch(`${apiBase}/api/projects/${commandCentre.project.id}/development-workspaces`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        requestSummary: String(data.get("requestSummary") ?? ""),
+        baseBranch: String(data.get("baseBranch") ?? "").trim() || undefined
+      })
+    });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "Workspace creation failed");
+    setCommandCentre((current) => current ? { ...current, workspaces: [result, ...current.workspaces] } : current);
+    setMessage("Protected feature workspace planned");
+    event.currentTarget.reset();
+  }
+
+  async function prepareGitBranch(workspaceId: string) {
+    setMessage("Preparing safe branch plan...");
+    const response = await fetch(`${apiBase}/api/development-workspaces/${workspaceId}/prepare-branch`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
+    });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "Branch plan failed");
+    replaceWorkspace(result);
+    setMessage("Branch plan ready — no real branch created");
+  }
+
+  async function prepareGitReview(workspaceId: string) {
+    setMessage("Preparing review plan...");
+    const response = await fetch(`${apiBase}/api/development-workspaces/${workspaceId}/prepare-review`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
+    });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "Review plan failed");
+    replaceWorkspace(result);
+    setMessage("Review plan ready — provider execution remains gated");
+  }
+
+  async function cancelGitWorkspace(workspaceId: string) {
+    const response = await fetch(`${apiBase}/api/development-workspaces/${workspaceId}/cancel`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
+    });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "Workspace cancel failed");
+    replaceWorkspace(result);
+    setMessage("Development workspace cancelled");
+  }
+
   if (!authStatus) {
     return <main className="authShell"><section className="authCard">
       <span className="eyebrow">oRRbit AI Control Plane</span>
@@ -902,6 +978,47 @@ export default function App() {
           onChange={(e) => setEnvDraft({ ...envDraft, region: e.target.value })} placeholder="e.g. asia-south1" /></label>
         <button type="submit">Save Development Config</button>
       </form>
+      <div className="gitWorkspacePanel">
+        <div className="builderHead"><div><span className="eyebrow">Git Branch & Workspace Management</span>
+          <h3>Protected feature workspaces</h3>
+          <p>Plan branch and review workflows without direct writes to main or production branches.</p></div>
+          <span className="lockBadge">Provider execution gated</span></div>
+        {!commandCentre.project.repository ? <div className="warningBox">
+          Link a repository to this project before creating a Git development workspace.
+        </div> : <>
+          <form className="gitWorkspaceForm" onSubmit={createGitWorkspace}>
+            <label>Change request<input name="requestSummary" required minLength={5} maxLength={240}
+              placeholder="e.g. Add customer export report" /></label>
+            <label>Base branch<input name="baseBranch" placeholder={commandCentre.project.repository.defaultBranch || "main"} /></label>
+            <button type="submit">Plan Feature Workspace</button>
+          </form>
+          <div className="gitWorkspaceList">
+            {commandCentre.workspaces.length === 0 ? <p className="muted">No feature workspace planned yet.</p> :
+              commandCentre.workspaces.map((workspace) => <article className="gitWorkspaceCard" key={workspace.id}>
+                <div className="cardHead"><h3>{workspace.requestSummary}</h3><span>{workspace.status.replaceAll("_", " ")}</span></div>
+                <dl>
+                  <div><dt>Repository</dt><dd>{workspace.repositoryFullName}</dd></div>
+                  <div><dt>Base</dt><dd>{workspace.baseBranch}</dd></div>
+                  <div><dt>Feature branch</dt><dd><code>{workspace.branchName}</code></dd></div>
+                  <div><dt>Real branch created</dt><dd>{workspace.actualBranchCreated ? "Yes" : "No"}</dd></div>
+                </dl>
+                <div className="protectionStrip">Development only · direct main write disabled · provider execution gated</div>
+                {workspace.branchPlan && <div className="gitPlanEvidence"><strong>Branch plan</strong>
+                  <span>{workspace.branchPlan.provider} · {workspace.branchPlan.mode} · execution allowed={String(workspace.branchPlan.executionAllowed)}</span></div>}
+                {workspace.reviewPlan && <div className="gitPlanEvidence"><strong>Review plan</strong>
+                  <span>{workspace.reviewPlan.provider} · {workspace.reviewPlan.mode} · execution allowed={String(workspace.reviewPlan.executionAllowed)}</span></div>}
+                <div className="gateActions">
+                  <button onClick={() => prepareGitBranch(workspace.id)}
+                    disabled={workspace.status !== "planned"}>Prepare Branch Plan</button>
+                  <button onClick={() => prepareGitReview(workspace.id)}
+                    disabled={workspace.status !== "branch_plan_ready"}>Prepare Review Plan</button>
+                  <button className="secondary" onClick={() => cancelGitWorkspace(workspace.id)}
+                    disabled={workspace.status === "cancelled"}>Cancel</button>
+                </div>
+              </article>)}
+          </div>
+        </>}
+      </div>
       <div className="historyGrid">
         <div><span className="eyebrow">Recent jobs</span>
           {commandCentre.jobs.length === 0 ? <p className="muted">No jobs yet.</p> :

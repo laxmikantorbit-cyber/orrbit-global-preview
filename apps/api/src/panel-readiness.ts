@@ -14,7 +14,7 @@ const panelModules: PanelModuleReadiness[] = [
   { key: "ai-onboarding", name: "AI-assisted onboarding", status: "ready", summary: "Plan-before-apply onboarding is implemented in development-safe mode." },
   { key: "existing-import", name: "Existing project import", status: "partial", summary: "Planning, capture, acquisition and sandbox build foundations exist; real imports remain locked." },
   { key: "ai-dev-request", name: "AI development request planning", status: "partial", summary: "Planning primitives exist, but full change-request impact workflow is not complete." },
-  { key: "git-workspaces", name: "Git branches & workspaces", status: "pending", summary: "Managed feature branch/workspace lifecycle is still required." },
+  { key: "git-workspaces", name: "Git branches & workspaces", status: "ready", summary: "Protected feature workspace lifecycle, safe branch naming, persisted provider plans and review planning are implemented." },
   { key: "build-test", name: "Build & test validation", status: "partial", summary: "Isolated source build exists; project-wide validation orchestration is still required." },
   { key: "preview", name: "Preview deployments & revisions", status: "partial", summary: "Safe local preview exists; generic preview/revision workflow is still required." },
   { key: "approval-deploy", name: "Approval & controlled deployment", status: "partial", summary: "Approval primitives exist while real deployment execution remains intentionally locked." },

@@ -13,6 +13,7 @@ import { buildRuntimeProjectManifest, projectCreateSchema } from "@orrbit/projec
 import { createSourceBuildJob, isDockerSandboxReady, resetSourceBuildJob, runSourceBuild, type SourceBuildJob } from "./source-build-runner.js";
 import { getPanelReadiness, isSyntheticFixtureHeader } from "./panel-readiness.js";
 import { clearOwnerSessionCookie, createOwnerSessionCookie, OWNER_SESSION_COOKIE, OwnerAuthStore, parseCookie } from "./owner-auth.js";
+import { cancelDevelopmentWorkspace, createDevelopmentWorkspace, prepareBranchPlan, prepareReviewPlan, type DevelopmentWorkspace } from "./development-workspace.js";
 import {
   MemoryProjectRegistry,
   PostgresProjectRegistry,
@@ -35,6 +36,7 @@ const importExecutions = new Map<string, ImportExecutionJob>();
 const sourceAcquisitions = new Map<string, SourceAcquisitionRecord>();
 
 const sourceBuildJobs = new Map<string, SourceBuildJob>();
+const developmentWorkspaces = new Map<string, DevelopmentWorkspace>();
 
 type OnboardingJob = {
   id: string;
@@ -310,6 +312,40 @@ async function listSourceBuildJobs(acquisitionId: string): Promise<SourceBuildJo
   return result.rows.map((row) => row.build_data);
 }
 
+async function saveDevelopmentWorkspace(workspace: DevelopmentWorkspace) {
+  if (!pool) {
+    developmentWorkspaces.set(workspace.id, workspace);
+    return;
+  }
+  await pool.query(
+    `INSERT INTO development_workspaces
+      (id, project_id, status, workspace_data, created_at, updated_at)
+     VALUES ($1,$2,$3,$4::jsonb,$5,$5)
+     ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,
+       workspace_data=EXCLUDED.workspace_data, updated_at=NOW()`,
+    [workspace.id, workspace.projectId, workspace.status, JSON.stringify(workspace), workspace.createdAt]
+  );
+}
+
+async function getDevelopmentWorkspace(id: string): Promise<DevelopmentWorkspace | undefined> {
+  if (!pool) return developmentWorkspaces.get(id);
+  const result = await pool.query<{ workspace_data: DevelopmentWorkspace }>(
+    "SELECT workspace_data FROM development_workspaces WHERE id=$1", [id]
+  );
+  return result.rows[0]?.workspace_data;
+}
+
+async function listDevelopmentWorkspaces(projectId: string): Promise<DevelopmentWorkspace[]> {
+  if (!pool) return [...developmentWorkspaces.values()]
+    .filter((workspace) => workspace.projectId === projectId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const result = await pool.query<{ workspace_data: DevelopmentWorkspace }>(
+    "SELECT workspace_data FROM development_workspaces WHERE project_id=$1 ORDER BY created_at DESC LIMIT 100",
+    [projectId]
+  );
+  return result.rows.map((row) => row.workspace_data);
+}
+
 function acquisitionFolder(workspaceId: string, acquisitionId: string) {
   return resolve(importInboxRoot, workspaceId, acquisitionId);
 }
@@ -536,14 +572,16 @@ app.get<{ Params: { id: string } }>("/api/projects/:id/manifest", async (request
 app.get<{ Params: { id: string } }>("/api/projects/:id/command-centre", async (request, reply) => {
   const project = await registry.get(request.params.id);
   if (!project) return reply.code(404).send({ error: "project_not_found" });
-  const [environments, projectJobs, auditEvents] = await Promise.all([
+  const [environments, projectJobs, auditEvents, projectWorkspaces] = await Promise.all([
     registry.listEnvironments(project.id),
     listJobs(project.id),
-    listAuditEvents(project.id)
+    listAuditEvents(project.id),
+    listDevelopmentWorkspaces(project.id)
   ]);
   return {
     project,
     environments,
+    workspaces: projectWorkspaces,
     jobs: projectJobs.slice(0, 10),
     audit: auditEvents.slice(0, 20),
     protection: {
@@ -587,6 +625,94 @@ app.patch<{
   const updated = await registry.updateEnvironment(project.id, request.params.environment, request.body ?? {});
   if (!updated) return reply.code(404).send({ error: "environment_not_found" });
   await audit(project.id, "development_environment_config_updated", { environment: updated });
+  return updated;
+});
+
+app.get<{ Params: { id: string } }>("/api/projects/:id/development-workspaces", async (request, reply) => {
+  const project = await registry.get(request.params.id);
+  if (!project) return reply.code(404).send({ error: "project_not_found" });
+  return { workspaces: await listDevelopmentWorkspaces(project.id) };
+});
+
+app.post<{
+  Params: { id: string };
+  Body: { requestSummary?: string; baseBranch?: string };
+}>("/api/projects/:id/development-workspaces", async (request, reply) => {
+  const project = await registry.get(request.params.id);
+  if (!project) return reply.code(404).send({ error: "project_not_found" });
+  try {
+    const workspace = createDevelopmentWorkspace({
+      projectId: project.id,
+      repositoryFullName: project.repository?.fullName,
+      defaultBranch: project.repository?.defaultBranch,
+      requestSummary: request.body?.requestSummary,
+      baseBranch: request.body?.baseBranch
+    });
+    await saveDevelopmentWorkspace(workspace);
+    await audit(project.id, "development_workspace_created", {
+      workspaceId: workspace.id,
+      repository: workspace.repositoryFullName,
+      baseBranch: workspace.baseBranch,
+      branchName: workspace.branchName
+    });
+    return reply.code(201).send(workspace);
+  } catch (error) {
+    return reply.code(400).send({ error: error instanceof Error ? error.message : "workspace_create_failed" });
+  }
+});
+
+app.get<{ Params: { id: string } }>("/api/development-workspaces/:id", async (request, reply) => {
+  const workspace = await getDevelopmentWorkspace(request.params.id);
+  if (!workspace) return reply.code(404).send({ error: "development_workspace_not_found" });
+  return workspace;
+});
+
+app.post<{ Params: { id: string } }>("/api/development-workspaces/:id/prepare-branch", async (request, reply) => {
+  const workspace = await getDevelopmentWorkspace(request.params.id);
+  if (!workspace) return reply.code(404).send({ error: "development_workspace_not_found" });
+  try {
+    const updated = await prepareBranchPlan(workspace, new DryRunGitHubProvider());
+    await saveDevelopmentWorkspace(updated);
+    await audit(updated.projectId, "development_workspace_branch_plan_ready", {
+      workspaceId: updated.id,
+      branchName: updated.branchName,
+      providerMode: updated.branchPlan?.mode,
+      executionAllowed: updated.branchPlan?.executionAllowed
+    });
+    return updated;
+  } catch (error) {
+    return reply.code(409).send({ error: error instanceof Error ? error.message : "branch_plan_failed" });
+  }
+});
+
+app.post<{ Params: { id: string } }>("/api/development-workspaces/:id/prepare-review", async (request, reply) => {
+  const workspace = await getDevelopmentWorkspace(request.params.id);
+  if (!workspace) return reply.code(404).send({ error: "development_workspace_not_found" });
+  try {
+    const updated = await prepareReviewPlan(workspace, new DryRunGitHubProvider());
+    await saveDevelopmentWorkspace(updated);
+    await audit(updated.projectId, "development_workspace_review_plan_ready", {
+      workspaceId: updated.id,
+      branchName: updated.branchName,
+      providerMode: updated.reviewPlan?.mode,
+      executionAllowed: updated.reviewPlan?.executionAllowed
+    });
+    return updated;
+  } catch (error) {
+    return reply.code(409).send({ error: error instanceof Error ? error.message : "review_plan_failed" });
+  }
+});
+
+app.post<{ Params: { id: string } }>("/api/development-workspaces/:id/cancel", async (request, reply) => {
+  const workspace = await getDevelopmentWorkspace(request.params.id);
+  if (!workspace) return reply.code(404).send({ error: "development_workspace_not_found" });
+  const updated = cancelDevelopmentWorkspace(workspace);
+  await saveDevelopmentWorkspace(updated);
+  await audit(updated.projectId, "development_workspace_cancelled", {
+    workspaceId: updated.id,
+    branchName: updated.branchName,
+    actualBranchCreated: updated.actualBranchCreated
+  });
   return updated;
 });
 
