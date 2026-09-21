@@ -38,10 +38,25 @@ type DevelopmentWorkspace = {
   updatedAt: string;
 };
 
+type SecretReference = {
+  id: string;
+  projectId: string;
+  environment: string;
+  secretName: string;
+  provider: string;
+  providerReference: string;
+  providerPlan: { provider: string; action: string; mode: string; risk: string; requiresApproval: boolean; executionAllowed: boolean; notes: string[] };
+  status: string;
+  secretValueStored: false;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type CommandCentre = {
   project: Project;
   environments: ProjectEnvironment[];
   workspaces: DevelopmentWorkspace[];
+  secretReferences: SecretReference[];
   jobs: Array<{ id: string; state: string; risk: string; createdAt: string; evidence: string[] }>;
   audit: Array<{ id: string; eventType: string; createdAt: string }>;
   protection: { productionProtected: boolean; nonDevelopmentConfigLocked: boolean; realCloudProvisioningEnabled: boolean };
@@ -654,6 +669,27 @@ export default function App() {
     setMessage("Development workspace cancelled");
   }
 
+  async function createSecretReferenceRecord(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!commandCentre) return;
+    const data = new FormData(event.currentTarget);
+    setMessage("Registering secret reference...");
+    const response = await fetch(`${apiBase}/api/projects/${commandCentre.project.id}/secret-references`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        environment: String(data.get("environment") ?? "development"),
+        secretName: String(data.get("secretName") ?? ""),
+        providerReference: String(data.get("providerReference") ?? "").trim() || undefined
+      })
+    });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "Secret reference failed");
+    setCommandCentre((current) => current ? { ...current, secretReferences: [result, ...current.secretReferences] } : current);
+    setMessage("Secret reference registered — no secret value stored");
+    event.currentTarget.reset();
+  }
+
   if (!authStatus) {
     return <main className="authShell"><section className="authCard">
       <span className="eyebrow">oRRbit AI Control Plane</span>
@@ -1018,6 +1054,37 @@ export default function App() {
               </article>)}
           </div>
         </>}
+      </div>
+      <div className="secretReferencePanel">
+        <div className="builderHead"><div><span className="eyebrow">Secret References</span>
+          <h3>Reference secrets without storing values</h3>
+          <p>Only secret names and provider references are stored. Secret values never enter the Control Plane.</p></div>
+          <span className="okBadge">Values blocked</span></div>
+        <form className="secretReferenceForm" onSubmit={createSecretReferenceRecord}>
+          <label>Environment<select name="environment" defaultValue="development">
+            <option value="development">Development</option>
+            <option value="staging">Staging</option>
+            <option value="production">Production</option>
+          </select></label>
+          <label>Secret name<input name="secretName" required minLength={2} maxLength={128}
+            placeholder="e.g. DATABASE_URL" /></label>
+          <label>Provider reference (optional)<input name="providerReference"
+            placeholder="Leave blank to create a safe reference ID" /></label>
+          <button type="submit">Add Secret Reference</button>
+        </form>
+        <div className="secretReferenceList">
+          {commandCentre.secretReferences.length === 0 ? <p className="muted">No secret references configured.</p> :
+            commandCentre.secretReferences.map((item) => <article className="secretReferenceCard" key={item.id}>
+              <div className="cardHead"><h3>{item.secretName}</h3><span>{item.environment}</span></div>
+              <dl>
+                <div><dt>Provider</dt><dd>{item.provider}</dd></div>
+                <div><dt>Reference</dt><dd><code>{item.providerReference}</code></dd></div>
+                <div><dt>Provider mode</dt><dd>{item.providerPlan.mode}</dd></div>
+                <div><dt>Secret value stored</dt><dd>{item.secretValueStored ? "Unexpected" : "No"}</dd></div>
+              </dl>
+              <div className="protectionStrip">Reference metadata only · no plaintext value · no AI secret exposure</div>
+            </article>)}
+        </div>
       </div>
       <div className="historyGrid">
         <div><span className="eyebrow">Recent jobs</span>

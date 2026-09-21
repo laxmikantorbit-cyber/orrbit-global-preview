@@ -212,3 +212,16 @@ dd { margin: 0; font-weight: 650; text-align: right; }
 .gitWorkspaceCard dd { margin: 0; overflow-wrap: anywhere; }
 .gitPlanEvidence { display: grid; gap: 3px; margin-top: 9px; padding: 8px; border-radius: 8px; background: #f2f5f7; font-size: 12px; }
 @media (max-width: 760px) { .gitWorkspaceForm { grid-template-columns: 1fr; } .gitWorkspaceCard dl { grid-template-columns: 1fr; } }
+
+.secretReferencePanel { margin-top: 16px; padding: 14px; border: 1px solid #d8e1e7; border-radius: 12px; background: #f8fafb; }
+.secretReferenceForm { display: grid; grid-template-columns: 1fr 1.2fr 2fr auto; gap: 9px; align-items: end; margin-top: 12px; }
+.secretReferenceForm label { display: grid; gap: 5px; font-size: 12px; font-weight: 700; }
+.secretReferenceForm input, .secretReferenceForm select { padding: 9px 10px; border: 1px solid #cbd6de; border-radius: 8px; font: inherit; background: #fff; }
+.secretReferenceForm button { padding: 10px 12px; border: 0; border-radius: 8px; background: #17202a; color: #fff; font-weight: 800; }
+.secretReferenceList { display: grid; gap: 10px; margin-top: 12px; }
+.secretReferenceCard { padding: 12px; border: 1px solid #dfe6eb; border-radius: 10px; background: #fff; }
+.secretReferenceCard dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.secretReferenceCard dl > div { display: grid; gap: 3px; }
+.secretReferenceCard dt { color: #76818d; font-size: 11px; }
+.secretReferenceCard dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 860px) { .secretReferenceForm { grid-template-columns: 1fr; } .secretReferenceCard dl { grid-template-columns: 1fr; } }

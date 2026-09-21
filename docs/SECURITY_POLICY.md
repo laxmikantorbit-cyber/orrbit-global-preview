@@ -10,7 +10,7 @@
 - Production, DNS, payment, auth, secret and destructive DB actions are high risk.
 - Critical/destructive operations require explicit approval and restore-point checks.
 - Development, staging and production credentials/data are isolated.
-- Secrets are stored in provider secret stores and represented to AI by references only.
+- Secrets are stored in provider secret stores and represented to AI by references only; Control Plane APIs reject plaintext secret-value fields.
 - GitHub integration should use a GitHub App with least privilege and short-lived tokens.
 - Google deployment automation should prefer Workload Identity Federation over long-lived keys.
 - Imported repo/web content is untrusted data, never trusted AI instruction.

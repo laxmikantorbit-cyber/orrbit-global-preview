@@ -14,6 +14,7 @@ import { createSourceBuildJob, isDockerSandboxReady, resetSourceBuildJob, runSou
 import { getPanelReadiness, isSyntheticFixtureHeader } from "./panel-readiness.js";
 import { clearOwnerSessionCookie, createOwnerSessionCookie, OWNER_SESSION_COOKIE, OwnerAuthStore, parseCookie } from "./owner-auth.js";
 import { cancelDevelopmentWorkspace, createDevelopmentWorkspace, prepareBranchPlan, prepareReviewPlan, type DevelopmentWorkspace } from "./development-workspace.js";
+import { createSecretReference, rejectSecretValueFields, type SecretReferenceRecord } from "./secret-reference.js";
 import {
   MemoryProjectRegistry,
   PostgresProjectRegistry,
@@ -37,6 +38,7 @@ const sourceAcquisitions = new Map<string, SourceAcquisitionRecord>();
 
 const sourceBuildJobs = new Map<string, SourceBuildJob>();
 const developmentWorkspaces = new Map<string, DevelopmentWorkspace>();
+const secretReferences = new Map<string, SecretReferenceRecord>();
 
 type OnboardingJob = {
   id: string;
@@ -346,6 +348,38 @@ async function listDevelopmentWorkspaces(projectId: string): Promise<Development
   return result.rows.map((row) => row.workspace_data);
 }
 
+async function saveSecretReference(record: SecretReferenceRecord) {
+  if (!pool) {
+    const duplicate = [...secretReferences.values()].find((item) =>
+      item.projectId === record.projectId &&
+      item.environment === record.environment &&
+      item.secretName === record.secretName &&
+      item.id !== record.id);
+    if (duplicate) throw new Error("secret_reference_already_exists");
+    secretReferences.set(record.id, record);
+    return;
+  }
+  await pool.query(
+    `INSERT INTO secret_references
+      (id, project_id, environment_name, secret_name, provider, provider_reference,
+       reference_data, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$8)`,
+    [record.id, record.projectId, record.environment, record.secretName, record.provider,
+      record.providerReference, JSON.stringify(record), record.createdAt]
+  );
+}
+
+async function listSecretReferences(projectId: string): Promise<SecretReferenceRecord[]> {
+  if (!pool) return [...secretReferences.values()]
+    .filter((record) => record.projectId === projectId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const result = await pool.query<{ reference_data: SecretReferenceRecord }>(
+    "SELECT reference_data FROM secret_references WHERE project_id=$1 ORDER BY created_at DESC LIMIT 100",
+    [projectId]
+  );
+  return result.rows.map((row) => row.reference_data);
+}
+
 function acquisitionFolder(workspaceId: string, acquisitionId: string) {
   return resolve(importInboxRoot, workspaceId, acquisitionId);
 }
@@ -572,16 +606,18 @@ app.get<{ Params: { id: string } }>("/api/projects/:id/manifest", async (request
 app.get<{ Params: { id: string } }>("/api/projects/:id/command-centre", async (request, reply) => {
   const project = await registry.get(request.params.id);
   if (!project) return reply.code(404).send({ error: "project_not_found" });
-  const [environments, projectJobs, auditEvents, projectWorkspaces] = await Promise.all([
+  const [environments, projectJobs, auditEvents, projectWorkspaces, projectSecretReferences] = await Promise.all([
     registry.listEnvironments(project.id),
     listJobs(project.id),
     listAuditEvents(project.id),
-    listDevelopmentWorkspaces(project.id)
+    listDevelopmentWorkspaces(project.id),
+    listSecretReferences(project.id)
   ]);
   return {
     project,
     environments,
     workspaces: projectWorkspaces,
+    secretReferences: projectSecretReferences,
     jobs: projectJobs.slice(0, 10),
     audit: auditEvents.slice(0, 20),
     protection: {
@@ -714,6 +750,47 @@ app.post<{ Params: { id: string } }>("/api/development-workspaces/:id/cancel", a
     actualBranchCreated: updated.actualBranchCreated
   });
   return updated;
+});
+
+app.get<{ Params: { id: string } }>("/api/projects/:id/secret-references", async (request, reply) => {
+  const project = await registry.get(request.params.id);
+  if (!project) return reply.code(404).send({ error: "project_not_found" });
+  return { secretReferences: await listSecretReferences(project.id) };
+});
+
+app.post<{
+  Params: { id: string };
+  Body: Record<string, unknown> & {
+    environment?: string;
+    secretName?: string;
+    providerReference?: string;
+  };
+}>("/api/projects/:id/secret-references", async (request, reply) => {
+  const project = await registry.get(request.params.id);
+  if (!project) return reply.code(404).send({ error: "project_not_found" });
+  try {
+    rejectSecretValueFields(request.body ?? {});
+    const record = await createSecretReference({
+      projectId: project.id,
+      environment: request.body?.environment,
+      secretName: request.body?.secretName,
+      providerReference: request.body?.providerReference
+    }, new DryRunSecretProvider());
+    await saveSecretReference(record);
+    await audit(project.id, "secret_reference_created", {
+      secretReferenceId: record.id,
+      environment: record.environment,
+      secretName: record.secretName,
+      provider: record.provider,
+      providerReference: record.providerReference,
+      secretValueStored: false
+    });
+    return reply.code(201).send(record);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "secret_reference_failed";
+    const duplicate = message.includes("duplicate key") || message.includes("already_exists");
+    return reply.code(duplicate ? 409 : 400).send({ error: duplicate ? "secret_reference_already_exists" : message });
+  }
 });
 
 app.post<{ Body: { prompt: string } }>("/api/project-plans", async (request, reply) => {

@@ -25,7 +25,7 @@ AI may analyse, plan, build and test. Production-impacting operations require th
 Set `CONTROL_DATABASE_URL` to use PostgreSQL for projects, plans, import workspaces, source acquisitions, source builds, preview executions, jobs and audit events.
 Without it, local development falls back to in-memory stores. Apply the control-plane migrations in this order:
 `0001_control_plane.sql` → `0002_import_engine.sql` → `0002_project_source_and_plans.sql` →
-`0003_import_workspaces.sql` → `0004_import_execution_jobs.sql` → `0005_source_acquisitions.sql` → `0006_source_build_jobs.sql` → `0007_owner_auth.sql` → `0008_development_workspaces.sql`.
+`0003_import_workspaces.sql` → `0004_import_execution_jobs.sql` → `0005_source_acquisitions.sql` → `0006_source_build_jobs.sql` → `0007_owner_auth.sql` → `0008_development_workspaces.sql` → `0009_secret_references.sql`.
 Source ZIPs are accepted only through the panel and extracted under the isolated control-plane `runtime/import-inbox`; production application files are never used as the extraction target. Actual source builds require Docker: dependency lifecycle scripts are disabled, the build stage runs after the sandbox network is disconnected, and there is no host-execution fallback. Safe static build output can be previewed from an isolated localhost-only container.
 
 See docs/V1_SPEC.md, docs/SECURITY_POLICY.md and docs/PROJECT_MANIFEST_SPEC.md.
