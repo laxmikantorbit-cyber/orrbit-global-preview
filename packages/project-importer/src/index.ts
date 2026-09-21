@@ -28,6 +28,7 @@ export interface ProjectImportPlan {
   risk: RiskLevel;
   status: ImportPlanStatus;
   routeInventory: ImportRouteInventoryItem[];
+  moduleInventory: string[];
   manifestDraft: ImportManifestDraft;
   actions: string[];
   blockedActions: string[];
@@ -42,6 +43,7 @@ export interface CreateImportPlanInput {
   projectType: ProjectType;
   targetEnvironment?: EnvironmentName;
   knownRoutes?: string[];
+  knownModules?: string[];
 }
 
 function inferRoutes(input: CreateImportPlanInput): ImportRouteInventoryItem[] {
@@ -54,6 +56,14 @@ function inferRoutes(input: CreateImportPlanInput): ImportRouteInventoryItem[] {
     status: "needs_capture",
     notes: "Inventory placeholder; actual capture happens in the import workspace stage."
   }));
+}
+
+function inferModules(input: CreateImportPlanInput): string[] {
+  const seen = new Set<string>();
+  return (input.knownModules ?? [])
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0 && name.length <= 120 && !seen.has(name) && seen.add(name))
+    .slice(0, 100);
 }
 
 function classifyImportRisk(input: CreateImportPlanInput): RiskLevel {
@@ -75,6 +85,7 @@ export function createProjectImportPlan(input: CreateImportPlanInput): ProjectIm
     risk: classifyImportRisk({ ...input, targetEnvironment }),
     status: "plan_ready",
     routeInventory: inferRoutes(input),
+    moduleInventory: inferModules(input),
     manifestDraft: {
       projectName: input.projectName.trim(),
       projectType: input.projectType,
@@ -100,9 +111,16 @@ export function createProjectImportPlan(input: CreateImportPlanInput): ProjectIm
 }
 
 export function validateImportSource(input: CreateImportPlanInput): string | null {
+  const sourceTypes: ImportSourceType[] = ["chatgpt-sites", "live-url", "github-repository", "zip", "local-source"];
+  const projectTypes: ProjectType[] = ["static-website", "dynamic-website", "saas", "erp-crm", "api", "pwa"];
+  if (!sourceTypes.includes(input.sourceType)) return "invalid_import_source_type";
+  if (!projectTypes.includes(input.projectType)) return "invalid_import_project_type";
   if (!input.sourceRef?.trim()) return "sourceRef_required";
   if (!input.projectName?.trim()) return "projectName_required";
+  if (input.projectName.trim().length > 160) return "projectName_too_long";
   if (input.targetEnvironment && input.targetEnvironment !== "development") return "only_development_import_enabled_in_v1";
+  if ((input.knownRoutes?.length ?? 0) > 100) return "too_many_known_routes";
+  if ((input.knownModules?.length ?? 0) > 100) return "too_many_known_modules";
   return null;
 }
 
@@ -153,7 +171,8 @@ export function createMartialArtsErpPilotPlan(input?: { sourceRef?: string }): P
     projectName: "Martial Arts ERP",
     projectType: "saas",
     targetEnvironment: "development",
-    knownRoutes: martialArtsRoutes
+    knownRoutes: martialArtsRoutes,
+    knownModules: martialArtsPilotModules
   });
   return {
     ...plan,
@@ -222,7 +241,7 @@ function importSourceIsPending(plan: ProjectImportPlan): boolean {
 
 function buildWorkspaceChecklist(sourcePending: boolean): CaptureChecklistItem[] {
   return [
-    { key: "source-reference", label: "Confirm ChatGPT Sites source reference", status: sourcePending ? "blocked" : "captured", blocker: sourcePending ? "Source reference is required before capture." : undefined },
+    { key: "source-reference", label: "Confirm source reference", status: sourcePending ? "blocked" : "captured", blocker: sourcePending ? "Source reference is required before capture." : undefined },
     { key: "route-capture", label: "Capture route/page inventory", status: sourcePending ? "blocked" : "pending", blocker: sourcePending ? "Blocked until source reference is confirmed." : undefined },
     { key: "module-capture", label: "Capture SaaS module inventory", status: sourcePending ? "blocked" : "pending", blocker: sourcePending ? "Blocked until source reference is confirmed." : undefined },
     { key: "manifest-review", label: "Review generated project manifest", status: "pending" },
@@ -233,7 +252,7 @@ export function createImportWorkspaceFromPlan(plan: ProjectImportPlan, input?: {
   const now = new Date().toISOString();
   const sourcePending = importSourceIsPending(plan);
   const blockers = [
-    ...(sourcePending ? ["ChatGPT Sites source reference must be confirmed before capture."] : []),
+    ...(sourcePending ? ["Source reference must be confirmed before capture."] : []),
     "Route/page capture is not complete.",
     "Module inventory capture is not complete.",
     "Preview/deploy is disabled until capture checklist is verified."
@@ -248,7 +267,7 @@ export function createImportWorkspaceFromPlan(plan: ProjectImportPlan, input?: {
     sourceReferenceStatus: sourcePending ? "pending" : "provided",
     status: sourcePending ? "source_pending" : "capture_ready",
     routeCapture: plan.routeInventory.map((route) => ({ ...route, status: sourcePending ? "manual_review" : route.status })),
-    moduleCapture: plan.requestedProjectName === "Martial Arts ERP" ? martialArtsPilotModules.map((name) => ({ name, status: sourcePending ? "blocked" : "pending" })) : [],
+    moduleCapture: plan.moduleInventory.map((name) => ({ name, status: sourcePending ? "blocked" : "pending" })),
     captureChecklist: buildWorkspaceChecklist(sourcePending),
     deployGate: { canDeploy: false, targetEnvironment: plan.targetEnvironment, blockers },
     createdAt: now,
@@ -466,7 +485,8 @@ export interface SourceAcquisitionRecord {
   id: string;
   workspaceId: string;
   projectId: string;
-  sourceType: "chatgpt-sites-export";
+  sourceType: "source-archive" | "chatgpt-sites-export";
+  originSourceType?: ImportSourceType;
   archiveName: string;
   archiveSizeBytes: number;
   sha256: string;
@@ -551,7 +571,8 @@ export function createSourceAcquisitionRecord(input: {
     id: randomUUID(),
     workspaceId: input.workspace.id,
     projectId: input.workspace.projectId,
-    sourceType: "chatgpt-sites-export",
+    sourceType: "source-archive",
+    originSourceType: input.workspace.sourceType,
     archiveName: input.archiveName,
     archiveSizeBytes: input.archiveSizeBytes,
     sha256: input.sha256,

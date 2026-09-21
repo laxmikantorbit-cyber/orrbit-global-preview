@@ -145,6 +145,7 @@ type ImportPlan = {
   risk: string;
   status: string;
   routeInventory: Array<{ path: string; kind: string; status: string; notes: string }>;
+  moduleInventory: string[];
   manifestDraft: { projectName: string; projectType: string; targetEnvironment: string; productionProtected: boolean };
   actions: string[];
   blockedActions: string[];
@@ -171,11 +172,21 @@ type ImportWorkspace = {
 };
 
 type DeployGate = { canDeploy: boolean; blockers: string[] };
+type ImportWorkflowAssessment = {
+  workspaceId: string;
+  projectId: string | null;
+  complete: boolean;
+  realExecutionAuthorized: boolean;
+  steps: Array<{ key: string; label: string; ready: boolean; evidence: string[] }>;
+  blockers: string[];
+  protectionsVerified: boolean;
+};
 type SourceAcquisition = {
   id: string;
   workspaceId: string;
   projectId: string;
-  sourceType: "chatgpt-sites-export";
+  sourceType: "source-archive" | "chatgpt-sites-export";
+  originSourceType?: string;
   archiveName: string;
   archiveSizeBytes: number;
   sha256: string;
@@ -272,8 +283,11 @@ export default function App() {
   const [activeExecution, setActiveExecution] = useState<ImportExecution | null>(null);
   const [activeAcquisition, setActiveAcquisition] = useState<SourceAcquisition | null>(null);
   const [activeBuild, setActiveBuild] = useState<SourceBuild | null>(null);
+  const [importAssessment, setImportAssessment] = useState<ImportWorkflowAssessment | null>(null);
+  const [importMode, setImportMode] = useState<"synthetic" | "real">("synthetic");
   const [sandboxReady, setSandboxReady] = useState<boolean | null>(null);
   const [sourcePackage, setSourcePackage] = useState<File | null>(null);
+  const [syntheticArchiveConfirmed, setSyntheticArchiveConfirmed] = useState(false);
   const [sourceRefDraft, setSourceRefDraft] = useState("");
   const [envDraft, setEnvDraft] = useState({
     status: "unconfigured",
@@ -420,10 +434,62 @@ export default function App() {
     setPlan(null);
   }
 
+  function importRequestHeaders(json = true) {
+    const headers: Record<string, string> = {};
+    if (json) headers["Content-Type"] = "application/json";
+    if (importMode === "synthetic") headers["x-orrbit-test-fixture"] = "synthetic";
+    return headers;
+  }
+
+  async function createGenericImportPlan(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const knownRoutes = String(data.get("knownRoutes") ?? "").split(/[\r\n,]+/).map((x) => x.trim()).filter(Boolean);
+    const knownModules = String(data.get("knownModules") ?? "").split(/[\r\n,]+/).map((x) => x.trim()).filter(Boolean);
+    const sourceRef = String(data.get("sourceRef") ?? "").trim();
+    if (importMode === "synthetic" && !sourceRef.startsWith("synthetic://")) {
+      setMessage("Synthetic QA source reference must start with synthetic://");
+      return;
+    }
+    setMessage(importMode === "synthetic" ? "Creating synthetic import QA plan..." : "Creating controlled import plan...");
+    const response = await fetch(`${apiBase}/api/import-plans`, {
+      method: "POST",
+      headers: importRequestHeaders(),
+      body: JSON.stringify({
+        sourceType: String(data.get("sourceType") ?? "zip"),
+        sourceRef,
+        projectName: String(data.get("projectName") ?? ""),
+        projectType: String(data.get("projectType") ?? "saas"),
+        targetEnvironment: "development",
+        knownRoutes,
+        knownModules
+      })
+    });
+    const result = await response.json();
+    if (!response.ok) return setMessage(result.error ?? "Import plan failed");
+    setActiveImportPlan(result);
+    setImportPlans((current) => [result, ...current]);
+    setActiveWorkspace(null);
+    setDeployGate(null);
+    setActiveExecution(null);
+    setActiveAcquisition(null);
+    setActiveBuild(null);
+    setImportAssessment(null);
+    setMessage(importMode === "synthetic" ? "Synthetic import QA plan ready" : "Import plan ready for review");
+    event.currentTarget.reset();
+  }
+
+  async function loadImportAssessment(workspaceId: string) {
+    const response = await fetch(`${apiBase}/api/import-workspaces/${workspaceId}/workflow-assessment`);
+    const result = await response.json();
+    if (response.ok) setImportAssessment(result);
+  }
+
   async function createMartialArtsImportPlan() {
     setMessage("Creating Martial Arts ERP pilot import plan...");
     const response = await fetch(`${apiBase}/api/pilots/martial-arts-erp/import-plan`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
+      method: "POST", headers: importRequestHeaders(),
+      body: JSON.stringify({ sourceRef: importMode === "synthetic" ? "synthetic://martial-arts-erp" : undefined })
     });
     const result = await response.json();
     if (!response.ok) return setMessage(result.error ?? "Import plan failed");
@@ -435,13 +501,15 @@ export default function App() {
     setActiveAcquisition(null);
     setActiveBuild(null);
     setSourcePackage(null);
+    setSyntheticArchiveConfirmed(false);
+    setImportAssessment(null);
     setSourceRefDraft("");
-    setMessage("Martial Arts ERP pilot plan ready; source reference pending");
+    setMessage(importMode === "synthetic" ? "Synthetic Martial Arts import fixture plan ready" : "Martial Arts import plan ready");
   }
 
   async function approveImportPlan(planId: string) {
     setMessage("Approving import plan for Development...");
-    const response = await fetch(`${apiBase}/api/import-plans/${planId}/approve`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    const response = await fetch(`${apiBase}/api/import-plans/${planId}/approve`, { method: "POST", headers: importRequestHeaders(), body: "{}" });
     const result = await response.json();
     if (!response.ok) return setMessage(result.error ?? "Import approval failed");
     setProjects((current) => [...current, result.project]);
@@ -455,6 +523,7 @@ export default function App() {
       setSourceRefDraft(result.workspace.sourceReferenceStatus === "pending" ? "" : result.workspace.sourceRef);
       setImportWorkspaces((current) => [result.workspace, ...current]);
       await loadDeployGate(result.workspace.id);
+      await loadImportAssessment(result.workspace.id);
     }
     await loadImportPlans();
     setMessage("Import approved; workspace created and deploy gate locked");
@@ -467,6 +536,8 @@ export default function App() {
     setActiveAcquisition(null);
     setActiveBuild(null);
     setSourcePackage(null);
+    setSyntheticArchiveConfirmed(false);
+    setImportAssessment(null);
     const response = await fetch(`${apiBase}/api/import-workspaces/${workspaceId}`);
     const result = await response.json();
     if (!response.ok) return setMessage(result.error ?? "Workspace failed");
@@ -475,6 +546,7 @@ export default function App() {
     await loadDeployGate(result.id);
     await loadLatestExecution(result.id);
     await loadLatestAcquisition(result.id);
+    await loadImportAssessment(result.id);
     setMessage("Import workspace ready");
   }
 
@@ -482,7 +554,7 @@ export default function App() {
     if (!activeWorkspace) return;
     setMessage("Confirming source reference...");
     const response = await fetch(`${apiBase}/api/import-workspaces/${activeWorkspace.id}/source-reference`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
+      method: "PATCH", headers: importRequestHeaders(),
       body: JSON.stringify({ sourceRef: sourceRefDraft.trim() })
     });
     const result = await response.json();
@@ -490,6 +562,7 @@ export default function App() {
     setActiveWorkspace(result);
     setImportWorkspaces((current) => current.map((item) => item.id === result.id ? result : item));
     await loadDeployGate(result.id);
+    await loadImportAssessment(result.id);
     setMessage("Source reference confirmed; capture unlocked");
   }
 
@@ -497,7 +570,7 @@ export default function App() {
     if (!activeWorkspace) return;
     setMessage("Updating capture status...");
     const response = await fetch(`${apiBase}/api/import-workspaces/${activeWorkspace.id}/capture`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
+      method: "PATCH", headers: importRequestHeaders(),
       body: JSON.stringify({ kind, key, status })
     });
     const result = await response.json();
@@ -505,6 +578,7 @@ export default function App() {
     setActiveWorkspace(result);
     setImportWorkspaces((current) => current.map((item) => item.id === result.id ? result : item));
     await loadDeployGate(result.id);
+    await loadImportAssessment(result.id);
     setMessage("Capture status updated");
   }
 
@@ -548,11 +622,12 @@ export default function App() {
     setMessage("Running isolated actual-source build...");
     await loadSandboxStatus();
     const response = await fetch(`${apiBase}/api/source-acquisitions/${activeAcquisition.id}/builds`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
+      method: "POST", headers: importRequestHeaders(), body: "{}"
     });
     const result = await response.json();
     setActiveBuild(result);
     if (!response.ok) return setMessage(result.error ?? "Source build failed");
+    if (activeWorkspace) await loadImportAssessment(activeWorkspace.id);
     if (result.status === "preview_ready") setMessage("Actual source build complete; isolated local preview ready");
     else if (result.blockers?.includes("sandbox_unavailable")) setMessage("Build safely blocked: Docker sandbox is not running");
     else setMessage(`Source build finished with status: ${result.status}`);
@@ -572,11 +647,13 @@ export default function App() {
 
   async function uploadSourcePackage() {
     if (!activeWorkspace || !sourcePackage) return;
+    if (importMode === "synthetic" && !syntheticArchiveConfirmed) return setMessage("Confirm that the ZIP is a synthetic QA fixture before upload");
     setMessage("Validating and acquiring source ZIP...");
     const form = new FormData();
     form.append("sourceZip", sourcePackage);
     const response = await fetch(`${apiBase}/api/import-workspaces/${activeWorkspace.id}/source-acquisitions`, {
       method: "POST",
+      headers: importRequestHeaders(false),
       body: form
     });
     const result = await response.json();
@@ -587,7 +664,9 @@ export default function App() {
       return setMessage(issues ? `Source package rejected: ${issues}` : (result.error ?? "Source acquisition failed"));
     }
     setSourcePackage(null);
-    setMessage("Actual source package acquired into isolated control-plane inbox");
+    setSyntheticArchiveConfirmed(false);
+    await loadImportAssessment(activeWorkspace.id);
+    setMessage("Source archive acquired into isolated control-plane inbox");
   }
 
   async function discardSourcePackage() {
@@ -601,6 +680,8 @@ export default function App() {
     setActiveAcquisition(null);
     setActiveBuild(null);
     setSourcePackage(null);
+    setSyntheticArchiveConfirmed(false);
+    if (activeWorkspace) await loadImportAssessment(activeWorkspace.id);
     setMessage("Source package discarded; production remains untouched");
   }
 
@@ -608,11 +689,12 @@ export default function App() {
     if (!activeWorkspace) return;
     setMessage("Running isolated Development import preview...");
     const response = await fetch(`${apiBase}/api/import-workspaces/${activeWorkspace.id}/executions`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
+      method: "POST", headers: importRequestHeaders(), body: "{}"
     });
     const result = await response.json();
     if (!response.ok) return setMessage(result.error ?? "Development preview execution blocked");
     setActiveExecution(result);
+    await loadImportAssessment(activeWorkspace.id);
     setMessage("Development preview ready; real deployment remains locked");
   }
 
@@ -625,6 +707,7 @@ export default function App() {
     const result = await response.json();
     if (!response.ok) return setMessage(result.error ?? "Preview reset failed");
     setActiveExecution(result);
+    if (activeWorkspace) await loadImportAssessment(activeWorkspace.id);
     setMessage("Development preview reset safely");
   }
 
@@ -956,6 +1039,7 @@ export default function App() {
     </section></main>;
   }
 
+  const panelComplete = Boolean(panelReadiness?.panelComplete);
   const realImportLocked = !panelReadiness?.realImportUnlocked;
 
   return <main className="shell">
@@ -988,7 +1072,9 @@ export default function App() {
       </div>
       <div className={panelReadiness.realImportUnlocked ? "readyBox" : "warningBox"}>
         <strong>{panelReadiness.realImportUnlocked ? "Real import unlocked" : "Real import/transfer locked"}</strong>
-        {!panelReadiness.realImportUnlocked && " — only explicitly marked synthetic QA fixtures are permitted until every required panel module is ready."}
+        {!panelReadiness.realImportUnlocked && (panelReadiness.panelComplete
+          ? " — panel is 100% complete, but real import still requires the explicit owner-controlled completion flag."
+          : " — only explicitly marked synthetic QA fixtures are permitted until every required panel module is ready.")}
       </div>
       <div className="readinessGrid">
         {panelReadiness.modules.map((item) => <article className={"readinessItem readiness-" + item.status} key={item.key}>
@@ -1043,13 +1129,47 @@ export default function App() {
       </div>}
     </section>}
 
-    <section className={realImportLocked ? "importPanel importLocked" : "importPanel"}>
+    <section className="importPanel">
       <div className="builderHead">
         <div><span className="eyebrow">Existing Project Import Engine</span>
-          <h2>{realImportLocked ? "Locked until panel completion" : "Import & Transfer"}</h2>
-          <p>{realImportLocked ? "This engine is being developed and QA-tested only. No real SaaS or website import/transfer is permitted until the full panel reaches 100%." : "Controlled import workflow through the panel only."}</p></div>
-        <button onClick={createMartialArtsImportPlan} disabled={realImportLocked}>{realImportLocked ? "Real Import Locked" : "Create Import Plan"}</button>
+          <h2>{panelReadiness?.realImportUnlocked ? "Import & Transfer" : panelComplete ? "Panel Complete — Real Import Awaiting Owner Enable" : "Synthetic QA Mode — Real Import Locked"}</h2>
+          <p>{panelReadiness?.realImportUnlocked
+            ? "Controlled import workflow through the panel only."
+            : panelComplete
+              ? "All panel import mechanics are available, but real migration remains locked until the explicit owner-controlled completion flag is enabled."
+              : "Use only explicitly marked synthetic fixtures to verify import mechanics while the panel is still being completed."}</p></div>
+        <button onClick={createMartialArtsImportPlan} disabled={importMode === "real" && realImportLocked}>
+          {importMode === "synthetic" ? "Load Martial Arts Synthetic Fixture" : "Create Martial Arts Import Plan"}
+        </button>
       </div>
+      <div className="importModeBar">
+        <div className="tabs">
+          <button className={importMode === "synthetic" ? "active" : ""} onClick={() => setImportMode("synthetic")}>Synthetic QA</button>
+          <button className={importMode === "real" ? "active" : ""} disabled={realImportLocked} onClick={() => setImportMode("real")}>Real Import</button>
+        </div>
+        <div className={importMode === "synthetic" ? "readyBox compactBox" : "warningBox compactBox"}>
+          {importMode === "synthetic"
+            ? "Synthetic QA mode: all mutating requests are explicitly marked as test fixtures."
+            : "Real import mode: available only after 100% panel completion and explicit owner unlock."}
+        </div>
+      </div>
+      <form className="genericImportForm" onSubmit={createGenericImportPlan}>
+        <label>Project name<input name="projectName" required minLength={2} maxLength={160} placeholder="e.g. Customer Portal" /></label>
+        <label>Project type<select name="projectType" defaultValue="saas">
+          <option value="static-website">Static Website</option><option value="dynamic-website">Dynamic Website</option>
+          <option value="saas">SaaS</option><option value="erp-crm">ERP / CRM</option><option value="api">API</option><option value="pwa">PWA</option>
+        </select></label>
+        <label>Source type<select name="sourceType" defaultValue="zip">
+          <option value="chatgpt-sites">ChatGPT Sites</option><option value="github-repository">GitHub repository</option>
+          <option value="live-url">Live URL</option><option value="zip">ZIP archive</option><option value="local-source">Local source</option>
+        </select></label>
+        <label>Source reference<input name="sourceRef" required placeholder={importMode === "synthetic" ? "synthetic://qa-project" : "Repository / URL / source reference"} /></label>
+        <label>Known routes<textarea name="knownRoutes" placeholder={"/\n/login\n/dashboard\n/settings"} /></label>
+        <label>Known modules<textarea name="knownModules" placeholder={"Authentication\nDashboard\nReports\nSettings"} /></label>
+        <button type="submit" disabled={importMode === "real" && realImportLocked}>
+          {importMode === "synthetic" ? "Create Synthetic Import Plan" : "Create Controlled Import Plan"}
+        </button>
+      </form>
       <div className="importLayout">
         <div className="importList">
           <span className="eyebrow">Import plans</span>
@@ -1057,7 +1177,7 @@ export default function App() {
             className={activeImportPlan?.id === item.id ? "importItem active" : "importItem"}
             key={item.id} onClick={() => setActiveImportPlan(item)}>
             <strong>{item.requestedProjectName}</strong>
-            <span>{item.sourceType} · {item.status} · {item.routeInventory.length} routes</span>
+            <span>{item.sourceType} · {item.status} · {item.routeInventory.length} routes · {(item.moduleInventory ?? []).length} modules</span>
           </button>)}
           <div className="workspaceMiniList"><span className="eyebrow">Workspaces</span>
             {importWorkspaces.length === 0 ? <p className="muted">No workspace yet.</p> : importWorkspaces.map((workspace) => <button
@@ -1079,6 +1199,9 @@ export default function App() {
           </dl>
           <div className="routeBox"><span className="eyebrow">Route inventory</span>
             {activeImportPlan.routeInventory.map((route) => <p key={route.path}>{route.path} <span>{route.kind} · {route.status}</span></p>)}</div>
+          <div className="routeBox"><span className="eyebrow">Module inventory</span>
+            {(activeImportPlan.moduleInventory ?? []).length === 0 ? <p className="muted">No modules declared for this import plan.</p> :
+              (activeImportPlan.moduleInventory ?? []).map((module) => <p key={module}>{module}<span>needs capture</span></p>)}</div>
           <div className="blockedBox"><span className="eyebrow">Blocked in V1</span>
             {activeImportPlan.blockedActions.map((action) => <p key={action}>{action}</p>)}</div>
           <button onClick={() => approveImportPlan(activeImportPlan.id)} disabled={activeImportPlan.status === "approved"}>
@@ -1093,7 +1216,7 @@ export default function App() {
               Source reference pending. Deploy, DNS, live payment and production actions are disabled until capture is verified.
               <div className="sourceConfirmRow">
                 <input value={sourceRefDraft} onChange={(e) => setSourceRefDraft(e.target.value)}
-                  placeholder="Paste ChatGPT Sites source reference" />
+                  placeholder={importMode === "synthetic" ? "synthetic://source-reference" : "Paste source reference"} />
                 <button onClick={confirmSourceReference} disabled={!sourceRefDraft.trim()}>Confirm Source</button>
               </div>
             </div>}
@@ -1101,16 +1224,38 @@ export default function App() {
               <span className="eyebrow">Confirmed source</span>
               <strong>{activeWorkspace.sourceRef}</strong>
             </div>}
+            {importAssessment && <div className="importAssessmentPanel">
+              <div className="planTop"><div><span className="eyebrow">Import Workflow Assessment</span>
+                <h3>{importAssessment.complete ? "Panel mechanics verified" : "Workflow verification in progress"}</h3></div>
+                <span className={importAssessment.complete ? "okBadge" : "lockBadge"}>
+                  {importAssessment.steps.filter((step) => step.ready).length}/{importAssessment.steps.length} ready
+                </span></div>
+              <div className="assessmentSteps">
+                {importAssessment.steps.map((step) => <div className={step.ready ? "assessmentStep ready" : "assessmentStep blocked"} key={step.key}>
+                  <strong>{step.label}</strong><span>{step.ready ? "Ready" : "Pending"}</span>
+                  {step.evidence.length > 0 && <small>{step.evidence.filter(Boolean).join(" · ")}</small>}
+                </div>)}
+              </div>
+              {importAssessment.complete && !importAssessment.realExecutionAuthorized && <div className="warningBox">
+                Import panel mechanics are fully verified. Real import/transfer is still locked until the owner-controlled completion flag is explicitly enabled.
+              </div>}
+              {importAssessment.complete && importAssessment.realExecutionAuthorized && <div className="readyBox">
+                Import workflow verified and real execution authorization is enabled.
+              </div>}
+            </div>}
             <div className="sourceAcquisitionPanel">
-              <div className="planTop"><div><span className="eyebrow">Actual Source Acquisition</span>
-                <h3>ChatGPT Sites export ZIP</h3></div>
+              <div className="planTop"><div><span className="eyebrow">Source Archive Acquisition</span>
+                <h3>Source archive ZIP</h3></div>
                 <span className={activeAcquisition?.status === "acquired" ? "okBadge" : "lockBadge"}>
                   {activeAcquisition?.status ?? "awaiting package"}</span></div>
               {!activeAcquisition && <div className="sourceUploadRow">
-                <input type="file" accept=".zip,application/zip" onChange={(e) => setSourcePackage(e.target.files?.[0] ?? null)} />
-                <button onClick={uploadSourcePackage} disabled={activeWorkspace.sourceReferenceStatus !== "provided" || !sourcePackage}>Upload & Validate Source ZIP</button>
+                <input type="file" accept=".zip,application/zip" onChange={(e) => { setSourcePackage(e.target.files?.[0] ?? null); setSyntheticArchiveConfirmed(false); }} />
+                <button onClick={uploadSourcePackage} disabled={activeWorkspace.sourceReferenceStatus !== "provided" || !sourcePackage || (importMode === "synthetic" && !syntheticArchiveConfirmed)}>Upload & Validate Source ZIP</button>
               </div>}
-              {sourcePackage && !activeAcquisition && <p className="muted">Selected: {sourcePackage.name} · {(sourcePackage.size / 1024 / 1024).toFixed(2)} MB</p>}
+              {sourcePackage && !activeAcquisition && <>
+                <p className="muted">Selected: {sourcePackage.name} · {(sourcePackage.size / 1024 / 1024).toFixed(2)} MB</p>
+                {importMode === "synthetic" && <label className="syntheticConfirm"><input type="checkbox" checked={syntheticArchiveConfirmed} onChange={(e) => setSyntheticArchiveConfirmed(e.target.checked)} /> I confirm this ZIP contains synthetic QA fixture data only.</label>}
+              </>}
               {activeAcquisition && <div className="sourceInventory">
                 <div><span>Archive</span><strong>{activeAcquisition.archiveName}</strong></div>
                 <div><span>Files</span><strong>{activeAcquisition.inventory.fileCount}</strong></div>
@@ -1120,7 +1265,7 @@ export default function App() {
               </div>}
               {activeAcquisition && <div className="hashBox"><span className="eyebrow">SHA-256 evidence</span><strong>{activeAcquisition.sha256}</strong></div>}
               {activeAcquisition?.issues.length ? <div className="warningBox">{activeAcquisition.issues.join(" · ")}</div> : null}
-              {activeAcquisition?.status === "acquired" && <div className="readyBox sourceReady">Actual source acquired and extracted only into the isolated control-plane inbox. No source code has been executed.</div>}
+              {activeAcquisition?.status === "acquired" && <div className="readyBox sourceReady">Source archive acquired and extracted only into the isolated control-plane inbox. No source code has been executed.</div>}
               {activeAcquisition && <button className="secondary sourceDiscard" onClick={discardSourcePackage}>Discard Isolated Source Package</button>}
             </div>
             {activeAcquisition?.status === "acquired" && <div className="sourceBuildPanel">

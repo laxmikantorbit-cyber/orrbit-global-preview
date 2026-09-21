@@ -268,3 +268,20 @@ dd { margin: 0; font-weight: 650; text-align: right; }
 .developmentChangeList{display:grid;gap:10px;margin-top:12px}.developmentChangeCard{padding:12px;border:1px solid #dfe6eb;border-radius:10px;background:#fff}
 .changeValidationForm{display:grid;grid-template-columns:repeat(4,minmax(0,.8fr)) 1.5fr auto;gap:8px;align-items:end;margin-top:10px}.changeValidationForm label{display:grid;gap:5px;font-size:11px;font-weight:700}.changeValidationForm input,.changeValidationForm select{padding:8px 9px;border:1px solid #cbd6de;border-radius:8px;background:#fff}.changeValidationForm button{padding:9px 11px;border:0;border-radius:8px;background:#17202a;color:#fff;font-weight:800}
 @media(max-width:900px){.developmentChangeForm,.changeValidationForm{grid-template-columns:1fr 1fr}}@media(max-width:620px){.developmentChangeForm,.changeValidationForm{grid-template-columns:1fr}}
+
+.importModeBar{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;margin:12px 0}
+.compactBox{margin:0;padding:9px 11px}
+.genericImportForm{display:grid;grid-template-columns:1.1fr .9fr .9fr 1.2fr 1.4fr 1.4fr auto;gap:8px;align-items:end;margin:12px 0 16px;padding:12px;border:1px solid #dfe6eb;border-radius:10px;background:#fff}
+.genericImportForm label{display:grid;gap:5px;font-size:12px;font-weight:700}
+.genericImportForm input,.genericImportForm select,.genericImportForm textarea{min-width:0;padding:9px 10px;border:1px solid #cbd6de;border-radius:8px;background:#fff;font:inherit}
+.genericImportForm textarea{min-height:76px;resize:vertical}
+.genericImportForm button{padding:10px 12px;border:0;border-radius:8px;background:#17202a;color:#fff;font-weight:800}
+.importAssessmentPanel{margin:12px 0;padding:12px;border:1px solid #d8e1e7;border-radius:10px;background:#f8fafb}
+.assessmentSteps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
+.assessmentStep{display:grid;grid-template-columns:1fr auto;gap:4px 10px;padding:9px 10px;border:1px solid #dfe6eb;border-radius:9px;background:#fff}
+.assessmentStep small{grid-column:1/-1;color:#66717c;overflow-wrap:anywhere}
+.assessmentStep.ready{border-color:#b8dec8}.assessmentStep.blocked{border-color:#ecd7ac}
+.syntheticConfirm{display:flex!important;grid-template-columns:auto 1fr!important;align-items:center;gap:8px!important;font-size:12px!important;font-weight:700!important;margin:6px 0}
+.syntheticConfirm input{width:auto!important}
+@media(max-width:1100px){.genericImportForm{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.importModeBar,.genericImportForm,.assessmentSteps{grid-template-columns:1fr}}

@@ -12,7 +12,7 @@ const panelModules: PanelModuleReadiness[] = [
   { key: "project-registry", name: "Project registry & environments", status: "ready", summary: "Protected project registry and environment configuration are available." },
   { key: "manual-onboarding", name: "Manual project onboarding", status: "ready", summary: "Projects can be registered manually with validation and audit evidence." },
   { key: "ai-onboarding", name: "AI-assisted onboarding", status: "ready", summary: "Plan-before-apply onboarding is implemented in development-safe mode." },
-  { key: "existing-import", name: "Existing project import", status: "partial", summary: "Planning, capture, acquisition and sandbox build foundations exist; real imports remain locked." },
+  { key: "existing-import", name: "Existing project import", status: "ready", summary: "Generic source planning, route/module capture, isolated archive acquisition, Docker-only build/preview, parity assessment and synthetic QA gating are implemented; real imports still require explicit owner unlock." },
   { key: "ai-dev-request", name: "AI development request planning", status: "ready", summary: "AI change requests now include impact/risk planning, persisted lifecycle state and budget-aware automation guardrails." },
   { key: "git-workspaces", name: "Git branches & workspaces", status: "ready", summary: "Protected feature workspace lifecycle, safe branch naming, persisted provider plans and review planning are implemented." },
   { key: "build-test", name: "Build & test validation", status: "ready", summary: "Project change workflows require recorded typecheck, tests, build and health evidence before preview." },

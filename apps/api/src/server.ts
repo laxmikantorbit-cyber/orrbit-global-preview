@@ -20,6 +20,7 @@ import { createReleaseEvidence, verifyReleaseEvidence, type ReleaseEvidenceBundl
 import { approveRollbackPlan, cancelRollbackPlan, createRollbackPlan, createVersionLedgerEntry, type RollbackPlan, type VersionLedgerEntry } from "./rollback-history.js";
 import { createCostLedgerEntry, createProjectBudget, summarizeCostBudget, type CostLedgerEntry, type ProjectBudget } from "./cost-budget.js";
 import { approveDevelopmentChange, cancelDevelopmentChange, createDevelopmentChange, prepareDevelopmentPreview, recordDevelopmentValidation, type DevelopmentChangeRequest } from "./development-change.js";
+import { assessImportWorkflow } from "./import-workflow-assessment.js";
 import {
   MemoryProjectRegistry,
   PostgresProjectRegistry,
@@ -170,20 +171,32 @@ async function saveImportPlan(plan: ProjectImportPlan) {
   );
 }
 
+function normalizeImportPlan(plan: ProjectImportPlan & { pilot?: { modules?: string[] } }): ProjectImportPlan {
+  return {
+    ...plan,
+    moduleInventory: Array.isArray(plan.moduleInventory)
+      ? plan.moduleInventory
+      : Array.isArray(plan.pilot?.modules) ? plan.pilot.modules : []
+  };
+}
+
 async function getImportPlan(id: string): Promise<ProjectImportPlan | undefined> {
-  if (!pool) return importPlans.get(id);
+  if (!pool) {
+    const plan = importPlans.get(id);
+    return plan ? normalizeImportPlan(plan) : undefined;
+  }
   const result = await pool.query<{ plan_data: ProjectImportPlan }>(
     "SELECT plan_data FROM import_plans WHERE id=$1", [id]
   );
-  return result.rows[0]?.plan_data;
+  return result.rows[0]?.plan_data ? normalizeImportPlan(result.rows[0].plan_data) : undefined;
 }
 
 async function listImportPlans(): Promise<ProjectImportPlan[]> {
-  if (!pool) return [...importPlans.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  if (!pool) return [...importPlans.values()].map(normalizeImportPlan).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const result = await pool.query<{ plan_data: ProjectImportPlan }>(
     "SELECT plan_data FROM import_plans ORDER BY created_at DESC LIMIT 100"
   );
-  return result.rows.map((row) => row.plan_data);
+  return result.rows.map((row) => normalizeImportPlan(row.plan_data));
 }
 
 
@@ -1535,7 +1548,8 @@ app.post<{ Body: CreateImportPlanInput }>("/api/import-plans", async (request, r
     projectName: request.body.projectName,
     projectType: request.body.projectType,
     targetEnvironment: request.body.targetEnvironment ?? "development",
-    knownRoutes: request.body.knownRoutes
+    knownRoutes: request.body.knownRoutes,
+    knownModules: request.body.knownModules
   });
   await saveImportPlan(plan);
   await audit(null, "import_plan_created", {
@@ -1591,6 +1605,22 @@ app.get<{ Params: { id: string } }>("/api/import-workspaces/:id/deploy-gate", as
   const workspace = await getImportWorkspace(request.params.id);
   if (!workspace) return reply.code(404).send({ error: "import_workspace_not_found" });
   return evaluateImportWorkspaceDeployGate(workspace);
+});
+
+app.get<{ Params: { id: string } }>("/api/import-workspaces/:id/workflow-assessment", async (request, reply) => {
+  const workspace = await getImportWorkspace(request.params.id);
+  if (!workspace) return reply.code(404).send({ error: "import_workspace_not_found" });
+  const acquisitions = await listSourceAcquisitions(workspace.id);
+  const acquisition = acquisitions.find((item) => item.status !== "discarded") ?? null;
+  const builds = acquisition ? await listSourceBuildJobs(acquisition.id) : [];
+  const executions = await listImportExecutions(workspace.id);
+  return assessImportWorkflow({
+    workspace,
+    acquisition,
+    build: builds[0] ?? null,
+    execution: executions[0] ?? null,
+    realExecutionAuthorized: getPanelReadiness().realImportUnlocked
+  });
 });
 
 
