@@ -225,7 +225,18 @@ VALUES(
 
         await using var command = _db.DataSource.CreateCommand(sql);
         AddInvoiceParameters(command, invoice);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        try
+        {
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
+        {
+            throw new InvalidOperationException(
+                invoice.SourceDocumentId.HasValue
+                    ? "Source sales document is already invoiced."
+                    : "Invoice number already exists.",
+                ex);
+        }
     }
 
     public async Task SaveAsync(SalesInvoice invoice, CancellationToken cancellationToken = default)
