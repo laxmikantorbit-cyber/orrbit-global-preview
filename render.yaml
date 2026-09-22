@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: orrbit-control-panel
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    buildCommand: npm install && npm run build -w @orrbit/control-web && npm run typecheck -w @orrbit/control-api
+    startCommand: npx tsx apps/api/src/server.ts
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: CONTROL_WEB_DIST_DIR
+        value: apps/web/dist
+      - key: CONTROL_PANEL_COMPLETE
+        value: "false"
