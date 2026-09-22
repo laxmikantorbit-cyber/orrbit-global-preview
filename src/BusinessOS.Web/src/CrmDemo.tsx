@@ -650,7 +650,7 @@ export function CrmDemo() {
         {(['expenses', 'contracts', 'projects', 'support'].includes(view)) ? (
           <CrmBusinessRecordsView view={view as 'expenses' | 'contracts' | 'projects' | 'support'} accounts={accounts} records={businessRecords} teamMembers={teamMembers} busy={loading} refresh={refresh} notify={setMessage} canManage={can('ManageTasks')} />
         ) : null}
-        {view === 'estimateRequests' ? <CrmEstimateRequestsView requests={estimateRequests} teamMembers={teamMembers} busy={loading} refresh={refresh} notify={setMessage} canManage={can('EditLead')} /> : null}
+        {view === 'estimateRequests' ? <CrmEstimateRequestsView requests={estimateRequests} accounts={accounts} teamMembers={teamMembers} busy={loading} refresh={refresh} notify={setMessage} canManage={can('EditLead')} canCreateEstimate={can('ManageSales')} /> : null}
         {view === 'knowledgeBase' ? <CrmKnowledgeBaseView categories={knowledgeCategories} articles={knowledgeArticles} teamMembers={teamMembers} currentRole={session?.member.role} busy={loading} refresh={refresh} notify={setMessage} canManage={can('ManageTasks')} /> : null}
         {view === 'utilities' ? <CrmUtilitiesView assets={mediaAssets} busy={loading} refresh={refresh} notify={setMessage} canManage={can('ManageTasks')} /> : null}
         {referenceModuleContent[view] && view !== 'sales' && !['expenses', 'contracts', 'projects', 'support', 'estimateRequests', 'knowledgeBase', 'utilities'].includes(view) ? (

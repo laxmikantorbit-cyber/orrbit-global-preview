@@ -1,5 +1,6 @@
 using BusinessOS.Api.Commerce;
 using BusinessOS.Crm;
+using BusinessOS.Sales;
 
 namespace BusinessOS.Api.Crm;
 
@@ -170,6 +171,58 @@ public static class FreeTestingPublicCrmEstimateRequestEndpoints
             }
         });
 
+        group.MapPost("/estimate-requests/{id:guid}/convert-to-estimate", async (
+            Guid id, ConvertCrmEstimateRequestToEstimateRequest request,
+            IConfiguration configuration, IHostEnvironment environment, HttpContext context,
+            ICrmEstimateRequestStore requests, ICrmAccountStore accounts,
+            ICrmSalesDocumentStore documents, ICrmManagementStore management,
+            CancellationToken cancellationToken) =>
+        {
+            if (!Enabled(configuration, environment)) return Disabled();
+            var item = await requests.GetAsync(DemoTenantId, id, cancellationToken);
+            if (item is null) return Results.NotFound(new ErrorResponse("Estimate request not found."));
+            var member = CrmFreeTestingAccessMiddleware.Current(context);
+            if (!CanAccess(member, item)) return Forbidden("Estimate request is outside your CRM scope.");
+            if (!CrmRolePolicy.Allows(member.Role, CrmPermission.ManageSales))
+                return Forbidden("Sales management permission is required to create an estimate.");
+            if (item.Status == CrmEstimateRequestStatus.Converted)
+                return Results.Conflict(new ErrorResponse("Estimate request is already converted."));
+            if (item.Status == CrmEstimateRequestStatus.Closed)
+                return Results.BadRequest(new ErrorResponse("Closed estimate requests cannot be converted."));
+            if (await accounts.GetAsync(DemoTenantId, request.AccountId, cancellationToken) is null)
+                return Results.NotFound(new ErrorResponse("Customer not found."));
+
+            try
+            {
+                var number = await documents.NextNumberAsync(
+                    DemoTenantId, SalesDocumentKind.Estimate, cancellationToken);
+                var subject = string.IsNullOrWhiteSpace(request.Subject)
+                    ? $"Estimate - {item.Requirement}"
+                    : request.Subject.Trim();
+                var notes = string.IsNullOrWhiteSpace(request.Notes)
+                    ? $"Converted from estimate request {item.Id}"
+                    : $"Converted from estimate request {item.Id}. {request.Notes.Trim()}";
+                var document = new SalesDocument(
+                    Guid.NewGuid(), DemoTenantId, SalesDocumentKind.Estimate, number,
+                    request.AccountId, subject,
+                    [new SalesDocumentLine(Guid.NewGuid(), null, item.Requirement, 1m, request.Amount, request.TaxPercent)],
+                    "INR", DateOnly.FromDateTime(DateTime.UtcNow), request.ExpiryDate, 0m,
+                    null, notes, null);
+                await documents.AddAsync(document, cancellationToken);
+                item.MarkConvertedToEstimate(document.Id);
+                await requests.SaveAsync(item, cancellationToken);
+                await AuditAsync(management, member.Id, "EstimateRequestConvertedToEstimate", item.Id,
+                    $"estimate={document.Id}; number={document.DocumentNumber}; total={document.Totals.Total:0.00}",
+                    cancellationToken);
+                return Results.Ok(new CrmEstimateRequestEstimateConversionResponse(
+                    ToResponse(item), document.Id, document.DocumentNumber, document.Totals.Total));
+            }
+            catch (Exception ex) when (ex is ArgumentException or ArgumentOutOfRangeException or InvalidOperationException)
+            {
+                return Results.BadRequest(new ErrorResponse(ex.Message));
+            }
+        });
+
         return app;
     }
 
@@ -225,3 +278,17 @@ public sealed record CrmEstimateRequestResponse(
 
 public sealed record CrmEstimateRequestConversionResponse(
     CrmEstimateRequestResponse Request, Guid LeadId);
+
+public sealed record ConvertCrmEstimateRequestToEstimateRequest(
+    Guid AccountId,
+    decimal Amount,
+    decimal TaxPercent,
+    DateOnly? ExpiryDate,
+    string? Subject,
+    string? Notes);
+
+public sealed record CrmEstimateRequestEstimateConversionResponse(
+    CrmEstimateRequestResponse Request,
+    Guid EstimateId,
+    string EstimateNumber,
+    decimal Total);

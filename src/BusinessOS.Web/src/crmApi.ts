@@ -997,6 +997,27 @@ export async function convertCrmEstimateRequestToLead(id: string) {
   return parseResponse<{ request: CrmEstimateRequest; leadId: string }>(response)
 }
 
+export async function convertCrmEstimateRequestToEstimate(id: string, input: {
+  accountId: string
+  amount: number
+  taxPercent: number
+  expiryDate?: string | null
+  subject?: string
+  notes?: string
+}) {
+  const response = await crmFetch(`/estimate-requests/${id}/convert-to-estimate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<{
+    request: CrmEstimateRequest
+    estimateId: string
+    estimateNumber: string
+    total: number
+  }>(response)
+}
+
 export type CrmKnowledgeCategory = {
   id: string
   name: string

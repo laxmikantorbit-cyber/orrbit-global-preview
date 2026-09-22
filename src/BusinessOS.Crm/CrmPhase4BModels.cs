@@ -60,14 +60,19 @@ public sealed class CrmEstimateRequest
     public void MarkConverted(Guid leadId, Guid? estimateId = null)
     {
         if (leadId == Guid.Empty) throw new ArgumentException("Converted lead id is required.", nameof(leadId));
-        if (Status == CrmEstimateRequestStatus.Converted)
-            throw new InvalidOperationException("Estimate request is already converted.");
-        if (Status == CrmEstimateRequestStatus.Closed)
-            throw new InvalidOperationException("Closed estimate requests cannot be converted.");
+        EnsureConvertible();
         ConvertedLeadId = leadId;
         ConvertedEstimateId = estimateId;
-        Status = CrmEstimateRequestStatus.Converted;
-        UpdatedAtUtc = DateTimeOffset.UtcNow;
+        CompleteConversion();
+    }
+
+    public void MarkConvertedToEstimate(Guid estimateId)
+    {
+        if (estimateId == Guid.Empty) throw new ArgumentException("Converted estimate id is required.", nameof(estimateId));
+        EnsureConvertible();
+        ConvertedLeadId = null;
+        ConvertedEstimateId = estimateId;
+        CompleteConversion();
     }
 
     public void Close()
@@ -92,6 +97,20 @@ public sealed class CrmEstimateRequest
         request.ConvertedEstimateId = convertedEstimateId;
         request.UpdatedAtUtc = updatedAtUtc;
         return request;
+    }
+
+    private void EnsureConvertible()
+    {
+        if (Status == CrmEstimateRequestStatus.Converted)
+            throw new InvalidOperationException("Estimate request is already converted.");
+        if (Status == CrmEstimateRequestStatus.Closed)
+            throw new InvalidOperationException("Closed estimate requests cannot be converted.");
+    }
+
+    private void CompleteConversion()
+    {
+        Status = CrmEstimateRequestStatus.Converted;
+        UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 
     private void Apply(string source, string requirement, string? contactName, string? mobileNumber,

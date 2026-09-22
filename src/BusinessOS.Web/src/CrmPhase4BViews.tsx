@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import {
   archiveCrmKnowledgeArticle,
   closeCrmEstimateRequest,
+  convertCrmEstimateRequestToEstimate,
   convertCrmEstimateRequestToLead,
   createCrmEstimateRequest,
   createCrmKnowledgeArticle,
@@ -12,6 +13,7 @@ import {
   setCrmMediaAssetActive,
   updateCrmEstimateRequest,
   updateCrmKnowledgeArticle,
+  type CrmAccount,
   type CrmEstimateRequest,
   type CrmKnowledgeArticle,
   type CrmKnowledgeCategory,
@@ -35,11 +37,13 @@ function fmtDate(value: string) {
 }
 
 export function CrmEstimateRequestsView({
-  requests, teamMembers, busy, refresh, notify, canManage,
+  requests, accounts, teamMembers, busy, refresh, notify, canManage, canCreateEstimate,
 }: SharedProps & {
   requests: CrmEstimateRequest[]
+  accounts: CrmAccount[]
   teamMembers: CrmTeamMember[]
   canManage: boolean
+  canCreateEstimate: boolean
 }) {
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('All')
@@ -52,6 +56,11 @@ export function CrmEstimateRequestsView({
   const [email, setEmail] = useState('')
   const [expectedValue, setExpectedValue] = useState('')
   const [assignedUserId, setAssignedUserId] = useState('')
+  const [estimateTarget, setEstimateTarget] = useState<CrmEstimateRequest | null>(null)
+  const [estimateAccountId, setEstimateAccountId] = useState('')
+  const [estimateAmount, setEstimateAmount] = useState('')
+  const [estimateTaxPercent, setEstimateTaxPercent] = useState('0')
+  const [estimateExpiryDate, setEstimateExpiryDate] = useState('')
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -67,9 +76,9 @@ export function CrmEstimateRequestsView({
     setContactName(''); setMobileNumber(''); setEmail(''); setExpectedValue(''); setAssignedUserId('')
   }
 
-  function openCreate() { resetForm(); setCreating(true) }
+  function openCreate() { setEstimateTarget(null); resetForm(); setCreating(true) }
   function openEdit(item: CrmEstimateRequest) {
-    setCreating(false); setEditing(item); setSource(item.source); setRequirement(item.requirement)
+    setEstimateTarget(null); setCreating(false); setEditing(item); setSource(item.source); setRequirement(item.requirement)
     setContactName(item.contactName || ''); setMobileNumber(item.mobileNumber || ''); setEmail(item.email || '')
     setExpectedValue(item.expectedValue == null ? '' : String(item.expectedValue)); setAssignedUserId(item.assignedUserId || '')
   }
@@ -100,9 +109,38 @@ export function CrmEstimateRequestsView({
     } catch (error) { notify(error instanceof Error ? error.message : String(error)) }
   }
 
+  function openEstimateConversion(item: CrmEstimateRequest) {
+    resetForm()
+    setEstimateTarget(item)
+    setEstimateAccountId('')
+    setEstimateAmount(item.expectedValue == null ? '' : String(item.expectedValue))
+    setEstimateTaxPercent('0')
+    setEstimateExpiryDate('')
+  }
+
+  async function convertToEstimate() {
+    if (!estimateTarget) return
+    if (!estimateAccountId) { notify('Select a customer for the estimate'); return }
+    const amount = Number(estimateAmount)
+    const taxPercent = Number(estimateTaxPercent)
+    if (!Number.isFinite(amount) || amount < 0) { notify('Enter a valid estimate amount'); return }
+    if (!Number.isFinite(taxPercent) || taxPercent < 0 || taxPercent > 100) { notify('Tax must be between 0 and 100'); return }
+    try {
+      const result = await convertCrmEstimateRequestToEstimate(estimateTarget.id, {
+        accountId: estimateAccountId,
+        amount,
+        taxPercent,
+        expiryDate: estimateExpiryDate || null,
+      })
+      notify(`Estimate ${result.estimateNumber} created · ${money(result.total)}`)
+      setEstimateTarget(null)
+      await refresh()
+    } catch (error) { notify(error instanceof Error ? error.message : String(error)) }
+  }
+
   return <section className="crm2-ref-list-page">
     <div className="crm2-reference-module-head">
-      <div><span className="crm2-kicker">BUSINESS MODULE</span><h2>Estimate Request</h2><p>Collect website/WhatsApp requests, review them and convert qualified requests into CRM leads.</p></div>
+      <div><span className="crm2-kicker">BUSINESS MODULE</span><h2>Estimate Request</h2><p>Collect website/WhatsApp requests, review them and convert qualified requests into CRM leads or draft estimates.</p></div>
       {canManage ? <button className="crm2-filter-button" onClick={openCreate}>+ New Request</button> : null}
     </div>
     <section className="crm2-ref-filter-card"><strong>Filter by</strong><div className="crm2-ref-filter-grid">
@@ -123,6 +161,17 @@ export function CrmEstimateRequestsView({
       <label>Requirement<textarea rows={4} value={requirement} onChange={(e) => setRequirement(e.target.value)} /></label>
       <div className="crm2-drawer-actions"><button onClick={resetForm}>Cancel</button><button className="crm2-primary" onClick={() => void save()} disabled={busy}>Save</button></div>
     </section> : null}
+    {canCreateEstimate && estimateTarget ? <section className="crm2-ref-filter-card">
+      <strong>Convert request to Estimate</strong>
+      <p>{estimateTarget.requirement}</p>
+      <div className="crm2-form-grid">
+        <label>Customer<select value={estimateAccountId} onChange={(e) => setEstimateAccountId(e.target.value)}><option value="">Select customer</option>{accounts.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+        <label>Amount<input type="number" min="0" value={estimateAmount} onChange={(e) => setEstimateAmount(e.target.value)} /></label>
+        <label>Tax %<input type="number" min="0" max="100" value={estimateTaxPercent} onChange={(e) => setEstimateTaxPercent(e.target.value)} /></label>
+        <label>Expiry date<input type="date" value={estimateExpiryDate} onChange={(e) => setEstimateExpiryDate(e.target.value)} /></label>
+      </div>
+      <div className="crm2-drawer-actions"><button onClick={() => setEstimateTarget(null)}>Cancel</button><button className="crm2-primary" onClick={() => void convertToEstimate()} disabled={busy}>Create Draft Estimate</button></div>
+    </section> : null}
     <section className="crm2-ref-table-card">
       <div className="crm2-reference-head"><span>Contact</span><span>Requirement</span><span>Value</span><span>Assigned</span><span>Status</span></div>
       {filtered.length === 0 ? <p className="crm2-reference-empty">No estimate requests found</p> : filtered.map(item => {
@@ -132,7 +181,7 @@ export function CrmEstimateRequestsView({
           <span>{item.requirement}</span><span>{money(item.expectedValue)}</span><span>{owner?.displayName || 'Unassigned'}</span>
           <span><b>{item.status}</b>{canManage && item.status !== 'Converted' && item.status !== 'Closed' ? <small>
             {item.status === 'New' ? <button onClick={() => void act(item, 'review')}>Review</button> : null}
-            <button onClick={() => openEdit(item)}>Edit</button><button onClick={() => void act(item, 'convert')}>Convert</button><button onClick={() => void act(item, 'close')}>Close</button>
+            <button onClick={() => openEdit(item)}>Edit</button><button onClick={() => void act(item, 'convert')}>Convert to Lead</button>{canCreateEstimate ? <button onClick={() => openEstimateConversion(item)}>Create Estimate</button> : null}<button onClick={() => void act(item, 'close')}>Close</button>
           </small> : null}</span>
         </div>
       })}

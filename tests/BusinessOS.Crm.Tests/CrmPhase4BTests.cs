@@ -28,6 +28,20 @@ public sealed class CrmPhase4BTests
     }
 
     [Fact]
+    public void Estimate_Request_Can_Convert_Directly_To_Estimate()
+    {
+        var request = new CrmEstimateRequest(Guid.NewGuid(), TenantId, "Website", "Need detailed quote");
+        var estimateId = Guid.NewGuid();
+
+        request.MarkConvertedToEstimate(estimateId);
+
+        Assert.Equal(CrmEstimateRequestStatus.Converted, request.Status);
+        Assert.Null(request.ConvertedLeadId);
+        Assert.Equal(estimateId, request.ConvertedEstimateId);
+        Assert.Throws<InvalidOperationException>(() => request.MarkConvertedToEstimate(Guid.NewGuid()));
+    }
+
+    [Fact]
     public void Closed_Estimate_Request_Cannot_Be_Converted()
     {
         var request = new CrmEstimateRequest(Guid.NewGuid(), TenantId, "WhatsApp", "Need quote");
