@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, rm, writeFile } from "node:fs/promises";
-import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { basename, dirname, extname, isAbsolute, relative, resolve } from "node:path";
 import multipart from "@fastify/multipart";
 import AdmZip from "adm-zip";
 import Fastify from "fastify";
@@ -32,6 +32,19 @@ import {
 const app = Fastify({ logger: true });
 await app.register(multipart, { limits: { files: 1, fileSize: 100 * 1024 * 1024 } });
 const importInboxRoot = resolve(process.env.CONTROL_RUNTIME_DIR?.trim() || resolve(process.cwd(), "runtime"), "import-inbox");
+const webDistRoot = resolve(process.env.CONTROL_WEB_DIST_DIR?.trim() || resolve(process.cwd(), "apps", "web", "dist"));
+const webContentTypes: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".ico": "image/x-icon",
+  ".webp": "image/webp"
+};
 const databaseUrl = process.env.CONTROL_DATABASE_URL?.trim();
 const pool = databaseUrl ? new Pool({ connectionString: databaseUrl }) : null;
 const ownerAuth = new OwnerAuthStore(pool);
@@ -1877,6 +1890,37 @@ app.post<{ Body: { environment: "development" | "staging" | "production"; action
   "/api/policy/evaluate",
   async (request) => ({ risk: classifyRisk(request.body), requiresApproval: requiresApproval(request.body) })
 );
+
+app.setNotFoundHandler(async (request, reply) => {
+  const requestUrl = request.raw.url ?? "/";
+  const pathName = new URL(requestUrl, "http://localhost").pathname;
+  if (pathName.startsWith("/api/")) {
+    return reply.code(404).send({ error: "not_found" });
+  }
+
+  const requestedFile = pathName === "/" ? "index.html" : decodeURIComponent(pathName.slice(1));
+  const candidate = resolve(webDistRoot, requestedFile);
+  const candidateRelativePath = relative(webDistRoot, candidate);
+  const safeCandidate = candidateRelativePath && !candidateRelativePath.startsWith("..") && !isAbsolute(candidateRelativePath)
+    ? candidate
+    : resolve(webDistRoot, "index.html");
+
+  let filePath = safeCandidate;
+  try {
+    const details = await stat(filePath);
+    if (!details.isFile()) filePath = resolve(webDistRoot, "index.html");
+  } catch {
+    filePath = resolve(webDistRoot, "index.html");
+  }
+
+  try {
+    const content = await readFile(filePath);
+    reply.header("Cache-Control", filePath.endsWith("index.html") ? "no-store" : "public, max-age=31536000, immutable");
+    return reply.type(webContentTypes[extname(filePath)] ?? "application/octet-stream").send(content);
+  } catch {
+    return reply.code(404).send({ error: "web_panel_not_built" });
+  }
+});
 
 const port = Number(process.env.PORT ?? 8080);
 await app.listen({ port, host: "0.0.0.0" });
