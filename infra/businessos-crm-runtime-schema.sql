@@ -244,6 +244,75 @@ CREATE INDEX IF NOT EXISTS ix_businessos_crm_business_records_module
     ON businessos_crm.business_records(tenant_id, module, status, updated_at_utc DESC);
 CREATE INDEX IF NOT EXISTS ix_businessos_crm_business_records_account
     ON businessos_crm.business_records(tenant_id, account_id, module);
+
+CREATE TABLE IF NOT EXISTS businessos_crm.estimate_requests (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    source text NOT NULL,
+    requirement text NOT NULL,
+    contact_name text NULL,
+    mobile_number text NULL,
+    email text NULL,
+    expected_value numeric(18,2) NULL,
+    assigned_user_id uuid NULL,
+    status integer NOT NULL,
+    converted_lead_id uuid NULL,
+    converted_estimate_id uuid NULL,
+    created_at_utc timestamptz NOT NULL,
+    updated_at_utc timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_businessos_crm_estimate_requests_status
+    ON businessos_crm.estimate_requests(tenant_id, status, updated_at_utc DESC);
+CREATE INDEX IF NOT EXISTS ix_businessos_crm_estimate_requests_contact
+    ON businessos_crm.estimate_requests(tenant_id, lower(email), mobile_number);
+
+CREATE TABLE IF NOT EXISTS businessos_crm.knowledge_categories (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    name text NOT NULL,
+    sort_order integer NOT NULL DEFAULT 0,
+    active boolean NOT NULL DEFAULT true
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_businessos_crm_knowledge_category_name
+    ON businessos_crm.knowledge_categories(tenant_id, lower(name));
+
+CREATE TABLE IF NOT EXISTS businessos_crm.knowledge_articles (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    title text NOT NULL,
+    content text NOT NULL,
+    category_id uuid NOT NULL,
+    owner_user_id uuid NOT NULL,
+    visibility integer NOT NULL,
+    status integer NOT NULL,
+    created_at_utc timestamptz NOT NULL,
+    updated_at_utc timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_businessos_crm_knowledge_articles_status
+    ON businessos_crm.knowledge_articles(tenant_id, status, updated_at_utc DESC);
+CREATE INDEX IF NOT EXISTS ix_businessos_crm_knowledge_articles_category
+    ON businessos_crm.knowledge_articles(tenant_id, category_id, status);
+
+CREATE TABLE IF NOT EXISTS businessos_crm.media_assets (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    file_name text NOT NULL,
+    mime_type text NOT NULL,
+    size_bytes bigint NOT NULL,
+    purpose text NOT NULL,
+    storage_reference text NOT NULL,
+    uploaded_by_user_id uuid NOT NULL,
+    entity_type text NULL,
+    entity_id uuid NULL,
+    active boolean NOT NULL DEFAULT true,
+    created_at_utc timestamptz NOT NULL,
+    updated_at_utc timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_businessos_crm_media_assets_active
+    ON businessos_crm.media_assets(tenant_id, active, updated_at_utc DESC);
+CREATE INDEX IF NOT EXISTS ix_businessos_crm_media_assets_entity
+    ON businessos_crm.media_assets(tenant_id, entity_type, entity_id)
+    WHERE entity_id IS NOT NULL;
 CREATE TABLE IF NOT EXISTS businessos_crm.team_members (
     id uuid PRIMARY KEY,
     tenant_id uuid NOT NULL,

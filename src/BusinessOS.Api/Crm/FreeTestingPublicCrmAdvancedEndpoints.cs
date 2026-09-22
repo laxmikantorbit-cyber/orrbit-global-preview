@@ -240,6 +240,7 @@ public static class FreeTestingPublicCrmAdvancedEndpoints
         group.MapGet("/global-search", async (
             string? q, IConfiguration configuration, IHostEnvironment environment, HttpContext context,
             ILeadRepository leads, ICrmAccountStore accounts, ICrmOpportunityStore opportunities,
+            ICrmEstimateRequestStore estimateRequests, ICrmKnowledgeStore knowledge, ICrmMediaStore media,
             CancellationToken ct) =>
         {
             if (!Enabled(configuration, environment)) return Disabled();
@@ -252,8 +253,16 @@ public static class FreeTestingPublicCrmAdvancedEndpoints
                 leadItems = leadItems.Where(x => x.Attribution.AccountOwnerUserId == member.Id).ToArray();
             var accountItems = await accounts.ListAsync(DemoTenantId, ct);
             var opportunityItems = await opportunities.ListAsync(DemoTenantId, ct);
+            var estimateItems = await estimateRequests.ListAsync(DemoTenantId, ct);
+            var knowledgeItems = await knowledge.ListArticlesAsync(DemoTenantId, ct);
+            var mediaItems = await media.ListAsync(DemoTenantId, ct);
             if (!CrmFreeTestingAccessMiddleware.CanViewAllOwnedRecords(member))
+            {
                 opportunityItems = opportunityItems.Where(x => x.OwnerUserId == member.Id).ToArray();
+                estimateItems = estimateItems.Where(x => x.AssignedUserId == member.Id).ToArray();
+            }
+            if (member.Role is not (CrmRoleCode.Owner or CrmRoleCode.Admin))
+                knowledgeItems = knowledgeItems.Where(x => x.Visibility == CrmKnowledgeVisibility.Team || x.OwnerUserId == member.Id).ToArray();
 
             var hits = new List<CrmGlobalSearchHit>();
             hits.AddRange(leadItems.Where(x => Match(needle, x.Title, x.ContactName, x.MobileNumber, x.Email, x.ProductInterest))
@@ -262,6 +271,14 @@ public static class FreeTestingPublicCrmAdvancedEndpoints
                 .Select(x => new CrmGlobalSearchHit("Account", x.Id, x.Name, x.Status.ToString(), x.PrimaryContact?.Name, x.PrimaryContact?.Phone)));
             hits.AddRange(opportunityItems.Where(x => Match(needle, x.Title, x.Stage.ToString(), x.Forecast.CurrencyCode))
                 .Select(x => new CrmGlobalSearchHit("Opportunity", x.Id, x.Title, x.Stage.ToString(), $"{x.Forecast.CurrencyCode} {x.Forecast.EstimatedValue:0.##}", null)));
+            hits.AddRange(estimateItems.Where(x => Match(needle, x.Source, x.Requirement, x.ContactName, x.MobileNumber, x.Email))
+                .Select(x => new CrmGlobalSearchHit("EstimateRequest", x.Id, x.ContactName ?? x.Email ?? x.MobileNumber ?? "Estimate request",
+                    x.Status.ToString(), x.Requirement, x.Source)));
+            hits.AddRange(knowledgeItems.Where(x => Match(needle, x.Title, x.Content, x.Status.ToString()))
+                .Select(x => new CrmGlobalSearchHit("KnowledgeArticle", x.Id, x.Title, x.Status.ToString(),
+                    x.Visibility.ToString(), null)));
+            hits.AddRange(mediaItems.Where(x => x.Active && Match(needle, x.FileName, x.Purpose, x.EntityType, x.MimeType))
+                .Select(x => new CrmGlobalSearchHit("MediaAsset", x.Id, x.FileName, "Active", x.Purpose, x.EntityType)));
             return Results.Ok(new CrmGlobalSearchResponse(hits.Take(50).ToArray()));
         });
 

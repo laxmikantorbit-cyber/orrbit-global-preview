@@ -20,6 +20,10 @@ import {
   listCrmInvoices,
   listCrmCreditNotes,
   listCrmBusinessRecords,
+  listCrmEstimateRequests,
+  listCrmKnowledgeCategories,
+  listCrmKnowledgeArticles,
+  listCrmMediaAssets,
   listCrmSalesItems,
   listCrmLeads,
   listCrmOpportunities,
@@ -35,6 +39,10 @@ import {
   type CrmInvoice,
   type CrmCreditNote,
   type CrmBusinessRecord,
+  type CrmEstimateRequest,
+  type CrmKnowledgeCategory,
+  type CrmKnowledgeArticle,
+  type CrmMediaAsset,
   type CrmSalesItem,
   type CrmLead,
   type CrmOpportunity,
@@ -50,6 +58,7 @@ import { CrmWorkView } from './CrmWorkView'
 import { CrmSalesView } from './CrmSalesView'
 import { CrmSalesWorkspace } from './CrmSalesWorkspace'
 import { CrmBusinessRecordsView } from './CrmBusinessRecordsView'
+import { CrmEstimateRequestsView, CrmKnowledgeBaseView, CrmUtilitiesView } from './CrmPhase4BViews'
 import { CrmTeamView } from './CrmTeamView'
 import { exportCrmSpreadsheet, pickCrmSpreadsheet, type CrmSpreadsheetFormat } from './crmSpreadsheet'
 
@@ -138,6 +147,10 @@ export function CrmDemo() {
   const [salesItems, setSalesItems] = useState<CrmSalesItem[]>([])
   const [creditNotes, setCreditNotes] = useState<CrmCreditNote[]>([])
   const [businessRecords, setBusinessRecords] = useState<CrmBusinessRecord[]>([])
+  const [estimateRequests, setEstimateRequests] = useState<CrmEstimateRequest[]>([])
+  const [knowledgeCategories, setKnowledgeCategories] = useState<CrmKnowledgeCategory[]>([])
+  const [knowledgeArticles, setKnowledgeArticles] = useState<CrmKnowledgeArticle[]>([])
+  const [mediaAssets, setMediaAssets] = useState<CrmMediaAsset[]>([])
   const [teamMembers, setTeamMembers] = useState<CrmTeamMember[]>([])
   const [roles, setRoles] = useState<CrmRole[]>([])
   const [session, setSession] = useState<CrmSession | null>(null)
@@ -293,6 +306,9 @@ export function CrmDemo() {
     if (hit.type === 'Lead') { setView('leads'); setSelectedLeadId(hit.id); return }
     if (hit.type === 'Account') { setView('accounts'); return }
     if (hit.type === 'Opportunity') { setView('opportunities'); return }
+    if (hit.type === 'EstimateRequest') { setView('estimateRequests'); return }
+    if (hit.type === 'KnowledgeArticle') { setView('knowledgeBase'); return }
+    if (hit.type === 'MediaAsset') { setView('utilities'); return }
   }
 
   async function applyBulkLeadUpdate() {
@@ -334,7 +350,7 @@ export function CrmDemo() {
       const sessionResult = await getCrmSession()
       setSession(sessionResult)
       const allowed = (permission: string) => sessionResult.member.permissions.includes(permission)
-      const [leadResult, dashResult, followResult, taskResult, workResult, accountResult, opportunityResult, salesResult, invoiceResult, salesItemResult, creditNoteResult, businessResult, teamResult, roleResult, readyResult] = await Promise.all([
+      const [leadResult, dashResult, followResult, taskResult, workResult, accountResult, opportunityResult, salesResult, invoiceResult, salesItemResult, creditNoteResult, businessResult, estimateRequestResult, knowledgeCategoryResult, knowledgeArticleResult, mediaResult, teamResult, roleResult, readyResult] = await Promise.all([
         allowed('ViewLeads') ? listCrmLeads() : Promise.resolve({ leads: [] as CrmLead[] }),
         allowed('ViewDashboard') ? crmDashboard() : Promise.resolve(initialDashboard()),
         allowed('ManageFollowUps') ? listCrmFollowUps() : Promise.resolve({ followUps: [] as CrmFollowUp[] }),
@@ -347,6 +363,10 @@ export function CrmDemo() {
         allowed('ViewSales') ? listCrmSalesItems() : Promise.resolve({ items: [] as CrmSalesItem[] }),
         allowed('ViewSales') ? listCrmCreditNotes() : Promise.resolve({ creditNotes: [] as CrmCreditNote[] }),
         allowed('ViewDashboard') ? listCrmBusinessRecords() : Promise.resolve({ records: [] as CrmBusinessRecord[] }),
+        allowed('ViewLeads') ? listCrmEstimateRequests() : Promise.resolve({ requests: [] as CrmEstimateRequest[] }),
+        allowed('ViewDashboard') ? listCrmKnowledgeCategories() : Promise.resolve({ categories: [] as CrmKnowledgeCategory[] }),
+        allowed('ViewDashboard') ? listCrmKnowledgeArticles() : Promise.resolve({ articles: [] as CrmKnowledgeArticle[] }),
+        allowed('ViewDashboard') ? listCrmMediaAssets() : Promise.resolve({ assets: [] as CrmMediaAsset[] }),
         allowed('ViewTeam') ? listCrmTeam() : Promise.resolve({ members: [sessionResult.member] }),
         allowed('ViewDashboard') ? listCrmRoles() : Promise.resolve({ roles: [] as CrmRole[] }),
         readiness(),
@@ -363,6 +383,10 @@ export function CrmDemo() {
       setSalesItems(salesItemResult.items)
       setCreditNotes(creditNoteResult.creditNotes)
       setBusinessRecords(businessResult.records)
+      setEstimateRequests(estimateRequestResult.requests)
+      setKnowledgeCategories(knowledgeCategoryResult.categories)
+      setKnowledgeArticles(knowledgeArticleResult.articles)
+      setMediaAssets(mediaResult.assets)
       setTeamMembers(teamResult.members)
       setRoles(roleResult.roles)
       setStorageLabel(readyResult.storageMode === 'Postgres' ? 'Saved online data' : 'Temporary test data')
@@ -624,9 +648,12 @@ export function CrmDemo() {
           </section>
         ) : null}
         {(['expenses', 'contracts', 'projects', 'support'].includes(view)) ? (
-          <CrmBusinessRecordsView view={view as 'expenses' | 'contracts' | 'projects' | 'support'} accounts={accounts} records={businessRecords} teamMembers={teamMembers} busy={loading} refresh={refresh} notify={setMessage} canManage={can('ViewDashboard')} />
+          <CrmBusinessRecordsView view={view as 'expenses' | 'contracts' | 'projects' | 'support'} accounts={accounts} records={businessRecords} teamMembers={teamMembers} busy={loading} refresh={refresh} notify={setMessage} canManage={can('ManageTasks')} />
         ) : null}
-        {referenceModuleContent[view] && view !== 'sales' && !['expenses', 'contracts', 'projects', 'support'].includes(view) ? (
+        {view === 'estimateRequests' ? <CrmEstimateRequestsView requests={estimateRequests} teamMembers={teamMembers} busy={loading} refresh={refresh} notify={setMessage} canManage={can('EditLead')} /> : null}
+        {view === 'knowledgeBase' ? <CrmKnowledgeBaseView categories={knowledgeCategories} articles={knowledgeArticles} teamMembers={teamMembers} currentRole={session?.member.role} busy={loading} refresh={refresh} notify={setMessage} canManage={can('ManageTasks')} /> : null}
+        {view === 'utilities' ? <CrmUtilitiesView assets={mediaAssets} busy={loading} refresh={refresh} notify={setMessage} canManage={can('ManageTasks')} /> : null}
+        {referenceModuleContent[view] && view !== 'sales' && !['expenses', 'contracts', 'projects', 'support', 'estimateRequests', 'knowledgeBase', 'utilities'].includes(view) ? (
           <section className="crm2-reference-module">
             <div className="crm2-reference-module-head">
               <div><span className="crm2-kicker">BUSINESS MODULE</span><h2>{referenceModuleContent[view].title}</h2><p>{referenceModuleContent[view].subtitle}</p></div>

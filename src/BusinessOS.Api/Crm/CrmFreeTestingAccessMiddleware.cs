@@ -99,6 +99,9 @@ public sealed class CrmFreeTestingAccessMiddleware
             if (relative.Equals("sales-items", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("sales-items/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewSales;
             if (relative.Equals("credit-notes", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("credit-notes/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewSales;
             if (relative.Equals("business-records", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("business-records/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewDashboard;
+            if (relative.Equals("estimate-requests", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("estimate-requests/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewLeads;
+            if (relative.Equals("knowledge", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("knowledge/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewDashboard;
+            if (relative.Equals("media-assets", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("media-assets/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewDashboard;
             return CrmPermission.ViewDashboard;
         }
 
@@ -124,6 +127,9 @@ public sealed class CrmFreeTestingAccessMiddleware
             if (relative.Equals("sales-items", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("sales-items/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageSales;
             if (relative.Equals("credit-notes", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("credit-notes/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageSales;
             if (relative.Equals("business-records", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("business-records/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageTasks;
+            if (relative.Equals("estimate-requests", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("estimate-requests/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.EditLead;
+            if (relative.Equals("knowledge", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("knowledge/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageTasks;
+            if (relative.Equals("media-assets", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("media-assets/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageTasks;
             if (relative.Equals("team", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("team/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageTeam;
         }
 

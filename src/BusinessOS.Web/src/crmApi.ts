@@ -919,3 +919,213 @@ export async function changeCrmBusinessRecordStatus(recordId: string, status: st
   })
   return parseResponse<CrmBusinessRecord>(response)
 }
+
+export type CrmEstimateRequest = {
+  id: string
+  source: string
+  requirement: string
+  contactName?: string | null
+  mobileNumber?: string | null
+  email?: string | null
+  expectedValue?: number | null
+  assignedUserId?: string | null
+  status: 'New' | 'Reviewing' | 'Converted' | 'Closed'
+  convertedLeadId?: string | null
+  convertedEstimateId?: string | null
+  createdAtUtc: string
+  updatedAtUtc: string
+}
+
+export type CrmEstimateRequestDraft = {
+  source: string
+  requirement: string
+  contactName?: string
+  mobileNumber?: string
+  email?: string
+  expectedValue?: number | null
+  assignedUserId?: string | null
+}
+
+
+export async function listCrmEstimateRequests() {
+  const response = await crmFetch('/estimate-requests')
+  return parseResponse<{ requests: CrmEstimateRequest[] }>(response)
+}
+
+export async function createCrmEstimateRequest(input: CrmEstimateRequestDraft) {
+  const response = await crmFetch('/estimate-requests', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmEstimateRequest>(response)
+}
+
+export async function updateCrmEstimateRequest(id: string, input: CrmEstimateRequestDraft) {
+  const response = await crmFetch(`/estimate-requests/${id}/profile`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmEstimateRequest>(response)
+}
+
+export async function reviewCrmEstimateRequest(id: string) {
+  const response = await crmFetch(`/estimate-requests/${id}/review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  })
+  return parseResponse<CrmEstimateRequest>(response)
+}
+
+export async function closeCrmEstimateRequest(id: string) {
+  const response = await crmFetch(`/estimate-requests/${id}/close`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  })
+  return parseResponse<CrmEstimateRequest>(response)
+}
+
+export async function convertCrmEstimateRequestToLead(id: string) {
+  const response = await crmFetch(`/estimate-requests/${id}/convert-to-lead`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  })
+  return parseResponse<{ request: CrmEstimateRequest; leadId: string }>(response)
+}
+
+export type CrmKnowledgeCategory = {
+  id: string
+  name: string
+  sortOrder: number
+  active: boolean
+}
+
+export type CrmKnowledgeArticle = {
+  id: string
+  title: string
+  content: string
+  categoryId: string
+  ownerUserId: string
+  visibility: 'Team' | 'Private'
+  status: 'Draft' | 'Published' | 'Archived'
+  createdAtUtc: string
+  updatedAtUtc: string
+}
+
+export async function listCrmKnowledgeCategories() {
+  const response = await crmFetch('/knowledge/categories')
+  return parseResponse<{ categories: CrmKnowledgeCategory[] }>(response)
+}
+
+export async function saveCrmKnowledgeCategory(input: {
+  id?: string | null
+  name: string
+  sortOrder: number
+  active: boolean
+}) {
+  const response = await crmFetch('/knowledge/categories', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmKnowledgeCategory>(response)
+}
+
+export async function listCrmKnowledgeArticles() {
+  const response = await crmFetch('/knowledge/articles')
+  return parseResponse<{ articles: CrmKnowledgeArticle[] }>(response)
+}
+
+export async function createCrmKnowledgeArticle(input: {
+  title: string
+  content: string
+  categoryId: string
+  ownerUserId?: string | null
+  visibility?: CrmKnowledgeArticle['visibility']
+}) {
+  const response = await crmFetch('/knowledge/articles', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmKnowledgeArticle>(response)
+}
+
+export async function updateCrmKnowledgeArticle(id: string, input: {
+  title: string
+  content: string
+  categoryId: string
+  ownerUserId?: string | null
+  visibility?: CrmKnowledgeArticle['visibility']
+}) {
+  const response = await crmFetch(`/knowledge/articles/${id}/profile`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmKnowledgeArticle>(response)
+}
+
+export async function publishCrmKnowledgeArticle(id: string) {
+  const response = await crmFetch(`/knowledge/articles/${id}/publish`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+  })
+  return parseResponse<CrmKnowledgeArticle>(response)
+}
+
+export async function archiveCrmKnowledgeArticle(id: string) {
+  const response = await crmFetch(`/knowledge/articles/${id}/archive`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+  })
+  return parseResponse<CrmKnowledgeArticle>(response)
+}
+
+export type CrmMediaAsset = {
+  id: string
+  fileName: string
+  mimeType: string
+  sizeBytes: number
+  purpose: string
+  storageReference: string
+  uploadedByUserId: string
+  entityType?: string | null
+  entityId?: string | null
+  active: boolean
+  createdAtUtc: string
+  updatedAtUtc: string
+}
+
+export async function listCrmMediaAssets() {
+  const response = await crmFetch('/media-assets')
+  return parseResponse<{ assets: CrmMediaAsset[] }>(response)
+}
+
+export async function registerCrmMediaAsset(input: {
+  fileName: string
+  mimeType: string
+  sizeBytes: number
+  purpose: string
+  storageReference: string
+  entityType?: string | null
+  entityId?: string | null
+}) {
+  const response = await crmFetch('/media-assets', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmMediaAsset>(response)
+}
+
+export async function setCrmMediaAssetActive(id: string, active: boolean) {
+  const response = await crmFetch(`/media-assets/${id}/active`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ active }),
+  })
+  return parseResponse<CrmMediaAsset>(response)
+}

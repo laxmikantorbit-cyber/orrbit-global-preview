@@ -57,6 +57,9 @@ if (string.IsNullOrWhiteSpace(crmConnection))
     builder.Services.AddSingleton<ICrmSalesItemStore, InMemoryCrmSalesItemStore>();
     builder.Services.AddSingleton<ICrmCreditNoteStore, InMemoryCrmCreditNoteStore>();
     builder.Services.AddSingleton<ICrmBusinessRecordStore, InMemoryCrmBusinessRecordStore>();
+    builder.Services.AddSingleton<ICrmEstimateRequestStore, InMemoryCrmEstimateRequestStore>();
+    builder.Services.AddSingleton<ICrmKnowledgeStore, InMemoryCrmKnowledgeStore>();
+    builder.Services.AddSingleton<ICrmMediaStore, InMemoryCrmMediaStore>();
     builder.Services.AddSingleton<ICrmTeamRepository, InMemoryCrmTeamRepository>();
     builder.Services.AddSingleton<ICrmManagementStore, InMemoryCrmManagementStore>();
     builder.Services.AddSingleton<ICrmNotificationStore, InMemoryCrmNotificationStore>();
@@ -77,6 +80,9 @@ else
     builder.Services.AddSingleton<ICrmSalesItemStore, PostgresCrmSalesItemStore>();
     builder.Services.AddSingleton<ICrmCreditNoteStore, PostgresCrmCreditNoteStore>();
     builder.Services.AddSingleton<ICrmBusinessRecordStore, PostgresCrmBusinessRecordStore>();
+    builder.Services.AddSingleton<ICrmEstimateRequestStore, PostgresCrmEstimateRequestStore>();
+    builder.Services.AddSingleton<ICrmKnowledgeStore, PostgresCrmKnowledgeStore>();
+    builder.Services.AddSingleton<ICrmMediaStore, PostgresCrmMediaStore>();
     builder.Services.AddSingleton<ICrmTeamRepository, PostgresCrmTeamRepository>();
     builder.Services.AddSingleton<ICrmManagementStore, PostgresCrmManagementStore>();
     builder.Services.AddSingleton<ICrmNotificationStore, PostgresCrmNotificationStore>();
@@ -190,6 +196,8 @@ app.MapFreeTestingPublicCrmSalesDocumentEndpoints();
 app.MapFreeTestingPublicCrmInvoiceEndpoints();
 app.MapFreeTestingPublicCrmCreditNoteItemEndpoints();
 app.MapFreeTestingPublicCrmBusinessRecordEndpoints();
+app.MapFreeTestingPublicCrmEstimateRequestEndpoints();
+app.MapFreeTestingPublicCrmKnowledgeMediaEndpoints();
 app.MapFreeTestingPublicCrmAddressEndpoints();
 app.MapFreeTestingPublicCrmAdvancedEndpoints();
 app.MapFreeTestingPublicCrmNotificationEndpoints();
