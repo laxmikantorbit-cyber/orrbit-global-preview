@@ -885,6 +885,8 @@
   font-family: Inter, Segoe UI, Arial, sans-serif!important;
 }
 .crm2-sidebar{background:var(--ref-sidebar)!important;padding:0!important;border-right:0!important;box-shadow:none!important;overflow:auto!important;}
+.crm2-app.sidebar-collapsed{grid-template-columns:0 minmax(0,1fr)!important;}
+.crm2-app.sidebar-collapsed .crm2-sidebar{display:none!important;}
 .crm2-ref-brand{height:96px!important;display:grid!important;place-items:center!important;padding:0!important;background:#1a2637!important;border-bottom:1px solid rgba(255,255,255,.05)!important;}
 .crm2-ref-tree{position:relative;width:72px;height:62px;}
 .crm2-ref-tree i{position:absolute;width:28px;height:24px;background:#21b66f;border-radius:50% 50% 50% 6px;box-shadow:0 10px 25px rgba(34,197,94,.22)}
@@ -921,7 +923,11 @@
 .crm2-calendar-grid strong{height:26px;border:1px solid #ddd;border-bottom:0;display:grid;place-items:center;color:#064cff;font-weight:500!important;}
 .crm2-calendar-grid article{height:132px;border:1px solid #ddd;border-right:0;border-bottom:0;background:#fff;position:relative;}
 .crm2-calendar-grid article:nth-child(7n){border-right:1px solid #ddd}.crm2-calendar-grid article.today{background:#fff8d9!important;}
-.crm2-calendar-grid article span{position:absolute;right:7px;top:7px;color:#064cff;font-size:14px;}.crm2-calendar-grid article em{margin-top:34px!important;background:#ff6900!important;border-radius:3px!important;}
+.crm2-calendar-grid article.outside{background:#f7f9fc!important;opacity:.65}
+.crm2-calendar-grid article span{position:absolute;right:7px;top:7px;color:#064cff;font-size:14px;}
+.crm2-calendar-event{display:block;width:calc(100% - 8px);margin:25px 4px -20px;padding:6px 7px;border:0;border-radius:3px;background:#ff6900;color:#fff;text-align:left;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.crm2-calendar-event + .crm2-calendar-event{margin-top:23px}
+.crm2-calendar-more{position:absolute;left:8px;bottom:5px;color:#64748b;font-size:10px}
 .crm2-table-tools,.crm2-reference-table-tools{background:#fff!important;border-bottom:1px solid #e1e8f0!important;}
 .crm2-reference-actions{padding:0 0 16px 0!important;margin-top:-2px!important}.crm2-reference-actions button,.crm2-primary{background:#2f67e8!important;color:#fff!important;border-radius:6px!important;box-shadow:none!important;}
 .crm2-reference-head,.crm2-table-head{background:#f6f8fb!important;border-top:1px solid #e1e8f0!important;border-bottom:1px solid #e1e8f0!important;color:#26364a!important;font-size:14px!important;text-transform:none!important;letter-spacing:0!important;}

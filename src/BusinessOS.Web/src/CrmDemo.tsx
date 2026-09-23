@@ -13,7 +13,6 @@ import {
   getCrmSession,
   globalCrmSearch,
   getCrmNotifications,
-  setCrmDemoUserId,
   updateCrmLeadTag,
   listCrmAccounts,
   listCrmFollowUps,
@@ -74,62 +73,6 @@ function formatLeadValue(value?: number | null) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value)
 }
 
-const referenceModuleContent: Record<string, { title: string; subtitle: string; actions: string[]; columns: string[]; rows: string[][] }> = {
-  sales: {
-    title: 'Sales', subtitle: 'Create and track proposals, estimates, invoices, payments, credit notes and items.',
-    actions: ['New Proposal', 'New Estimate', 'New Invoice', 'Record Payment', 'Add Item'],
-    columns: ['Document', 'Customer', 'Amount', 'Status', 'Date'],
-    rows: [['INV-000490', 'Existing customer', '₹41,300.00', 'Due', '08 Sep 2026'], ['EST-000128', 'New enquiry', '₹9,999.00', 'Draft', 'Today']]
-  },
-  subscriptions: {
-    title: 'Subscriptions', subtitle: 'Manage recurring software plans, renewal dates, billing cycles and active customers.',
-    actions: ['New Subscription', 'Renew Subscription', 'Export'],
-    columns: ['Customer', 'Plan', 'Renewal', 'Status', 'Owner'],
-    rows: [['Bismi mobiles', 'AI Repair Pro', 'Annual', 'Active', 'Sales Owner'], ['Perfect Solutions', 'BusinessOS CRM', 'Monthly', 'Trial', 'CRM Owner']]
-  },
-  expenses: {
-    title: 'Expenses', subtitle: 'Record office expenses, sales expenses, staff expenses and vendor payments.',
-    actions: ['Add Expense', 'Import', 'Export'],
-    columns: ['Expense', 'Category', 'Amount', 'Paid By', 'Date'],
-    rows: [['Calling recharge', 'Sales', '₹799.00', 'Office', 'Today'], ['Demo travel', 'Business', '₹1,250.00', 'Staff', 'Yesterday']]
-  },
-  contracts: {
-    title: 'Contracts', subtitle: 'Keep signed agreements, service contracts, AMC documents and renewal commitments.',
-    actions: ['New Contract', 'Upload Document', 'Export'],
-    columns: ['Contract', 'Customer', 'Start Date', 'End Date', 'Status'],
-    rows: [['AMC-2026-001', 'A2ZTECH.IN', '01 Sep 2026', '31 Aug 2027', 'Active']]
-  },
-  projects: {
-    title: 'Projects', subtitle: 'Track implementation, onboarding, customisation, delivery and internal project work.',
-    actions: ['New Project', 'Assign Staff', 'Export'],
-    columns: ['Project', 'Customer', 'Owner', 'Progress', 'Status'],
-    rows: [['CRM onboarding', 'Bhilai Public School', 'Support Team', '45%', 'In progress']]
-  },
-  support: {
-    title: 'Support', subtitle: 'Handle customer complaints, service tickets, help requests and pending support calls.',
-    actions: ['New Ticket', 'Assign Ticket', 'Export'],
-    columns: ['Ticket', 'Customer', 'Issue', 'Priority', 'Status'],
-    rows: [['SUP-00041', 'BOYFRIEND SPORTSWEAR', 'Invoice help', 'Normal', 'Open']]
-  },
-  estimateRequests: {
-    title: 'Estimate Request', subtitle: 'Collect website/WhatsApp estimate requests and convert them into enquiries or estimates.',
-    actions: ['Review Request', 'Convert to Enquiry', 'Export'],
-    columns: ['Email', 'Requirement', 'Assigned', 'Status', 'Created'],
-    rows: [['demo@example.com', 'Repair CRM pricing', 'Sales Owner', 'New', 'Today']]
-  },
-  knowledgeBase: {
-    title: 'Knowledge Base', subtitle: 'Store FAQs, training notes, sales answers, onboarding guides and support articles.',
-    actions: ['New Article', 'New Category', 'Export'],
-    columns: ['Article', 'Category', 'Owner', 'Visibility', 'Updated'],
-    rows: [['How to follow up a lead', 'Sales Training', 'Admin', 'Team', 'Today']]
-  },
-  utilities: {
-    title: 'Utilities', subtitle: 'Manage media files, imports, exports and helper tools used by the CRM team.',
-    actions: ['Open Media', 'Import File', 'Export Data'],
-    columns: ['Utility', 'Purpose', 'Owner', 'Status', 'Last Used'],
-    rows: [['Media', 'Files and attachments', 'Admin', 'Ready', 'Today']]
-  }
-}
 function initialDashboard(): CrmDashboard {
   return { totalLeads: 0, new: 0, contacted: 0, qualified: 0, converted: 0, unqualified: 0, statusCounts: {} }
 }
@@ -138,8 +81,20 @@ function initialWorkSummary(): CrmWorkSummary {
   return { openFollowUps: 0, overdueFollowUps: 0, dueTodayFollowUps: 0, openTasks: 0, overdueTasks: 0 }
 }
 
+function calendarKey(value: Date) {
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  return `${value.getFullYear()}-${month}-${day}`
+}
+
 export function CrmDemo() {
   const [view, setView] = useState<CrmView>('overview')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [calendarCursor, setCalendarCursor] = useState(() => {
+    const now = new Date()
+    return new Date(now.getFullYear(), now.getMonth(), 1)
+  })
+  const [calendarFilter, setCalendarFilter] = useState<'All' | 'FollowUps' | 'Tasks'>('All')
   const [leads, setLeads] = useState<CrmLead[]>([])
   const [followUps, setFollowUps] = useState<CrmFollowUp[]>([])
   const [tasks, setTasks] = useState<CrmTask[]>([])
@@ -202,6 +157,43 @@ export function CrmDemo() {
   const leadTags = useMemo(
     () => Array.from(new Set(leads.flatMap((lead) => lead.tags || []))).sort((a, b) => a.localeCompare(b)),
     [leads],
+  )
+
+  const calendarDays = useMemo(() => {
+    const first = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1)
+    const mondayOffset = (first.getDay() + 6) % 7
+    const start = new Date(first)
+    start.setDate(first.getDate() - mondayOffset)
+    return Array.from({ length: 42 }, (_, index) => {
+      const value = new Date(start)
+      value.setDate(start.getDate() + index)
+      return value
+    })
+  }, [calendarCursor])
+
+  const calendarEvents = useMemo(() => {
+    const result: Record<string, Array<{ id: string; label: string; type: 'FollowUp' | 'Task' }>> = {}
+    const add = (dateValue: string | null | undefined, event: { id: string; label: string; type: 'FollowUp' | 'Task' }) => {
+      if (!dateValue) return
+      const parsed = new Date(dateValue)
+      if (Number.isNaN(parsed.getTime())) return
+      const key = calendarKey(parsed)
+      result[key] = [...(result[key] || []), event]
+    }
+    if (calendarFilter !== 'Tasks') {
+      followUps.filter(item => item.status === 'Open').forEach(item =>
+        add(item.dueAtUtc, { id: item.id, label: item.purpose || 'Follow-up', type: 'FollowUp' }))
+    }
+    if (calendarFilter !== 'FollowUps') {
+      tasks.filter(item => item.status === 'Open').forEach(item =>
+        add(item.dueAtUtc, { id: item.id, label: item.title || 'Task', type: 'Task' }))
+    }
+    return result
+  }, [followUps, tasks, calendarFilter])
+
+  const calendarTitle = useMemo(
+    () => new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric' }).format(calendarCursor),
+    [calendarCursor],
   )
 
   const filteredLeads = useMemo(() => {
@@ -404,13 +396,6 @@ export function CrmDemo() {
     }
   }
 
-  async function switchUser(userId: string) {
-    setCrmDemoUserId(userId)
-    setSelectedLeadId(null)
-    setView('overview')
-    await refresh()
-  }
-
   async function addLead() {
     if (!title.trim()) return
     setLoading(true)
@@ -493,7 +478,7 @@ export function CrmDemo() {
   }, [globalQuery])
 
   return (
-    <div className="crm2-app">
+    <div className={`crm2-app${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
       <aside className="crm2-sidebar">
         <div className="crm2-brand crm2-ref-brand"><div className="crm2-ref-tree"><i></i><i></i><i></i><i></i><b></b></div></div>
         <nav className="crm2-nav crm2-reference-nav" aria-label="CRM navigation">
@@ -510,7 +495,7 @@ export function CrmDemo() {
           <button className={view === 'estimateRequests' ? 'active' : ''} onClick={() => setView('estimateRequests')}><span>◇</span>Estimate Request</button>
           <button className={view === 'knowledgeBase' ? 'active' : ''} onClick={() => setView('knowledgeBase')}><span>▭</span>Knowledge Base</button>
           <button className={view === 'utilities' ? 'active' : ''} onClick={() => setView('utilities')}><span>⚙</span>Utilities</button>
-          <button className={view === 'reports' ? 'active' : ''} onClick={() => setView('reports')}><span>≡</span>Reports</button>
+          {can('ViewReports') ? <button className={view === 'reports' ? 'active' : ''} onClick={() => setView('reports')}><span>≡</span>Reports</button> : null}
         </nav>
         <div className="crm2-module-nav" aria-label="Advanced CRM modules">
           <span className="crm2-module-title">More tools</span>
@@ -534,19 +519,19 @@ export function CrmDemo() {
 
       <main className="crm2-main">
         <header className="crm2-topbar crm2-ref-topbar">
-          <button className="crm2-ref-menu" aria-label="Toggle menu">☰</button>
+          <button className="crm2-ref-menu" aria-label="Toggle menu" aria-expanded={!sidebarCollapsed} onClick={() => setSidebarCollapsed(value => !value)}>☰</button>
           <label className="crm2-ref-search"><input value={globalQuery} onChange={(e) => setGlobalQuery(e.target.value)} placeholder="Search customers, leads, opportunities..." /><span>{globalSearching ? '...' : '⌕'}</span></label>
           {can('CreateLead') ? <button className="crm2-ref-plus" onClick={() => setShowAddLead(true)} aria-label="Add new lead">+</button> : null}
           <div className="crm2-ref-toolbar-spacer" />
           <button className="crm2-ref-icon" title="Export leads CSV" onClick={() => void exportLeads('csv')}>⌯</button>
           <button className="crm2-ref-icon" title="Tasks" onClick={() => setView('tasks')}>✓</button>
-          <button className="crm2-ref-avatar" title={session?.member.displayName ?? 'User'} onDoubleClick={() => session ? void switchUser(session.member.id) : undefined}></button>
-          <button className="crm2-ref-icon" title="Timer">◷</button>
-          <button className="crm2-ref-icon crm2-ref-bell" title="Notifications" onClick={() => void openNotifications()}>♢<b>{notifications.length || 1}</b></button>
+          <button className="crm2-ref-avatar" title={session ? `${session.member.displayName} · Team / profile` : 'Team / profile'} onClick={() => setView('team')}></button>
+          <button className="crm2-ref-icon" title="Follow-up schedule" onClick={() => setView('followups')}>◷</button>
+          <button className="crm2-ref-icon crm2-ref-bell" title="Notifications" onClick={() => void openNotifications()}>♢<b>{notifications.length}</b></button>
         </header>
         {globalHits.length > 0 ? <div className="crm2-global-results">{globalHits.map((hit) => <button key={`${hit.type}-${hit.id}`} onClick={() => openSearchHit(hit)}><strong>{hit.title}</strong><span>{hit.type} · {hit.status}</span><small>{hit.subtitle || hit.secondary || ''}</small></button>)}</div> : null}
         {showNotifications ? <div className="crm2-notification-panel">{notifications.length === 0 ? <p>No notifications right now</p> : notifications.map((item) => <button key={`${item.type}-${item.recordId}`} onClick={() => { if (item.leadId) { setSelectedLeadId(item.leadId); setView('leads') } setShowNotifications(false) }}><strong>{item.title}</strong><span>{item.detail}</span><small>{item.severity}</small></button>)}</div> : null}
-        <div className="crm2-ref-options"><button>⚙ Dashboard Options</button></div>
+        {can('ViewReports') ? <div className="crm2-ref-options"><button onClick={() => window.location.assign('/crm/analytics')}>≡ Detailed Reports</button></div> : null}
         <section className="crm2-statusbar"><div><span className={loading ? 'pulse busy' : 'pulse'} />{message}</div><span>{session ? `${session.member.displayName} · ${session.member.role} · ${session.canViewAllOwnedRecords ? 'Team view' : 'My view'} · ` : ''}Testing mode · {storageLabel}</span></section>
         <section className="crm2-workflow-board" aria-label="Simple working process">
           <div className="crm2-workflow-title">
@@ -593,15 +578,35 @@ export function CrmDemo() {
 
             <section className="crm2-reference-calendar">
               <div className="crm2-calendar-toolbar">
-                <div className="crm2-calendar-left"><button>‹</button><button>›</button><button>Today</button><button>Expand</button></div>
-                <h2>September 2026</h2>
-                <div className="crm2-calendar-right"><button className="active">Month</button><button>Week</button><button>Day</button><button>Filter By</button></div>
+                <div className="crm2-calendar-left">
+                  <button aria-label="Previous month" onClick={() => setCalendarCursor(value => new Date(value.getFullYear(), value.getMonth() - 1, 1))}>‹</button>
+                  <button aria-label="Next month" onClick={() => setCalendarCursor(value => new Date(value.getFullYear(), value.getMonth() + 1, 1))}>›</button>
+                  <button onClick={() => { const now = new Date(); setCalendarCursor(new Date(now.getFullYear(), now.getMonth(), 1)) }}>Today</button>
+                  <button onClick={() => setView('tasks')}>Tasks</button>
+                </div>
+                <h2>{calendarTitle}</h2>
+                <div className="crm2-calendar-right">
+                  <button className={calendarFilter === 'All' ? 'active' : ''} onClick={() => setCalendarFilter('All')}>All</button>
+                  <button className={calendarFilter === 'FollowUps' ? 'active' : ''} onClick={() => setCalendarFilter('FollowUps')}>Follow-ups</button>
+                  <button className={calendarFilter === 'Tasks' ? 'active' : ''} onClick={() => setCalendarFilter('Tasks')}>Tasks</button>
+                  {can('ViewReports') ? <button onClick={() => window.location.assign('/crm/analytics')}>Reports</button> : null}
+                </div>
               </div>
               <div className="crm2-calendar-grid">
                 {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(day => <strong key={day}>{day}</strong>)}
-                {Array.from({ length: 35 }).map((_, index) => {
-                  const label = index === 0 ? '31' : String(index)
-                  return <article key={index} className={label === '18' ? 'today' : ''}><span>{label}</span>{label === '8' ? <em>INV-000490</em> : null}</article>
+                {calendarDays.map((day) => {
+                  const key = calendarKey(day)
+                  const isToday = key === calendarKey(new Date())
+                  const isOutside = day.getMonth() !== calendarCursor.getMonth()
+                  const events = calendarEvents[key] || []
+                  return <article key={key} className={`${isToday ? 'today ' : ''}${isOutside ? 'outside' : ''}`.trim()}>
+                    <span>{day.getDate()}</span>
+                    {events.slice(0, 3).map(event =>
+                      <button className="crm2-calendar-event" key={`${event.type}-${event.id}`} title={event.label} onClick={() => setView(event.type === 'Task' ? 'tasks' : 'followups')}>
+                        {event.type === 'Task' ? 'Task' : 'Call'} · {event.label}
+                      </button>)}
+                    {events.length > 3 ? <small className="crm2-calendar-more">+{events.length - 3} more</small> : null}
+                  </article>
                 })}
               </div>
             </section>
@@ -660,22 +665,6 @@ export function CrmDemo() {
         {view === 'knowledgeBase' ? <CrmKnowledgeBaseView categories={knowledgeCategories} articles={knowledgeArticles} teamMembers={teamMembers} currentRole={session?.member.role} busy={loading} refresh={refresh} notify={setMessage} canManage={can('ManageTasks')} /> : null}
         {view === 'utilities' ? <CrmUtilitiesView assets={mediaAssets} busy={loading} refresh={refresh} notify={setMessage} canManage={can('ManageTasks')} /> : null}
         {view === 'subscriptions' ? <CrmSubscriptionsView subscriptions={subscriptions} busy={loading} openSales={() => setView('sales')} /> : null}
-        {referenceModuleContent[view] && view !== 'sales' && !['subscriptions', 'expenses', 'contracts', 'projects', 'support', 'estimateRequests', 'knowledgeBase', 'utilities'].includes(view) ? (
-          <section className="crm2-reference-module">
-            <div className="crm2-reference-module-head">
-              <div><span className="crm2-kicker">BUSINESS MODULE</span><h2>{referenceModuleContent[view].title}</h2><p>{referenceModuleContent[view].subtitle}</p></div>
-              <button className="crm2-filter-button">Filter</button>
-            </div>
-            <div className="crm2-reference-actions">
-              {referenceModuleContent[view].actions.map(action => <button key={action}>{action}</button>)}
-            </div>
-            <div className="crm2-reference-table">
-              <div className="crm2-reference-table-tools"><select><option>25</option><option>50</option></select><button>Export</button><button>Bulk Actions</button><button>Refresh</button><span /><label><b>⌕</b><input placeholder="Search..." /></label></div>
-              <div className="crm2-reference-head">{referenceModuleContent[view].columns.map(column => <span key={column}>{column}</span>)}</div>
-              {referenceModuleContent[view].rows.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : referenceModuleContent[view].rows.map((row, rowIndex) => <div className="crm2-reference-row" key={rowIndex}>{row.map((cell, index) => <span key={`${rowIndex}-${index}`}>{cell}</span>)}</div>)}
-            </div>
-          </section>
-        ) : null}
         {view === 'pipeline' ? (
           <section className="crm2-kanban-wrap">
             {statuses.map((status) => {
