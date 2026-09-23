@@ -2708,3 +2708,9 @@
   color:#fff!important;
   font:400 24px/1 Arial,sans-serif!important;
 }
+
+/* Final shell micro-parity against authenticated reference */
+.crm2-app > .crm2-sidebar > .crm2-brand{
+  background-size:auto 76px!important;
+  background-position:center -5px!important;
+}
