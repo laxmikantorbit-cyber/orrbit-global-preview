@@ -58,7 +58,7 @@ import { CrmWorkView } from './CrmWorkView'
 import { CrmSalesView } from './CrmSalesView'
 import { CrmSalesWorkspace } from './CrmSalesWorkspace'
 import { CrmBusinessRecordsView } from './CrmBusinessRecordsView'
-import { CrmEstimateRequestsView } from './CrmPhase4BViews'
+import { CrmEstimateRequestsView, CrmKnowledgeBaseView } from './CrmPhase4BViews'
 import { CrmTeamView } from './CrmTeamView'
 import { exportCrmSpreadsheet, pickCrmSpreadsheet, type CrmSpreadsheetFormat } from './crmSpreadsheet'
 
@@ -148,8 +148,8 @@ export function CrmDemo() {
   const [creditNotes, setCreditNotes] = useState<CrmCreditNote[]>([])
   const [businessRecords, setBusinessRecords] = useState<CrmBusinessRecord[]>([])
   const [estimateRequests, setEstimateRequests] = useState<CrmEstimateRequest[]>([])
-  const [, setKnowledgeCategories] = useState<CrmKnowledgeCategory[]>([])
-  const [, setKnowledgeArticles] = useState<CrmKnowledgeArticle[]>([])
+  const [knowledgeCategories, setKnowledgeCategories] = useState<CrmKnowledgeCategory[]>([])
+  const [knowledgeArticles, setKnowledgeArticles] = useState<CrmKnowledgeArticle[]>([])
   const [, setMediaAssets] = useState<CrmMediaAsset[]>([])
   const [teamMembers, setTeamMembers] = useState<CrmTeamMember[]>([])
   const [roles, setRoles] = useState<CrmRole[]>([])
@@ -651,7 +651,8 @@ export function CrmDemo() {
           <CrmBusinessRecordsView view={view as 'expenses' | 'contracts' | 'projects' | 'support'} accounts={accounts} records={businessRecords} teamMembers={teamMembers} busy={loading} refresh={refresh} notify={setMessage} canManage={can('ManageTasks')} />
         ) : null}
         {view === 'estimateRequests' ? <CrmEstimateRequestsView requests={estimateRequests} accounts={accounts} teamMembers={teamMembers} busy={loading} refresh={refresh} notify={setMessage} canManage={can('EditLead')} canCreateEstimate={can('ManageSales')} /> : null}
-        {referenceModuleContent[view] && view !== 'sales' && !['expenses', 'contracts', 'projects', 'support', 'estimateRequests'].includes(view) ? (
+        {view === 'knowledgeBase' ? <CrmKnowledgeBaseView categories={knowledgeCategories} articles={knowledgeArticles} teamMembers={teamMembers} currentRole={session?.member.role} busy={loading} refresh={refresh} notify={setMessage} canManage={can('ManageTasks')} /> : null}
+        {referenceModuleContent[view] && view !== 'sales' && !['expenses', 'contracts', 'projects', 'support', 'estimateRequests', 'knowledgeBase'].includes(view) ? (
           <section className="crm2-reference-module">
             <div className="crm2-reference-module-head">
               <div><span className="crm2-kicker">BUSINESS MODULE</span><h2>{referenceModuleContent[view].title}</h2><p>{referenceModuleContent[view].subtitle}</p></div>
