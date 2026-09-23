@@ -4,11 +4,14 @@ import './CrmAdvancedHub.css'
 import {
   getCrmDetailedAnalytics,
   getCrmLeadAging,
+  getCrmOpportunityAging,
   type CrmDetailedAnalytics,
   type CrmLeadAging,
+  type CrmOpportunityAging,
 } from './crmAnalyticsApi'
+import { exportCrmSpreadsheet, type CrmSpreadsheetFormat } from './crmSpreadsheet'
 
-type View = 'executives' | 'productivity' | 'forecast' | 'accounts' | 'trends' | 'aging'
+type View = 'executives' | 'productivity' | 'forecast' | 'accounts' | 'trends' | 'aging' | 'dealAging'
 
 function money(value: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value || 0)
@@ -21,15 +24,19 @@ export function CrmAnalyticsHub() {
   const [view, setView] = useState<View>('executives')
   const [data, setData] = useState<CrmDetailedAnalytics | null>(null)
   const [aging, setAging] = useState<CrmLeadAging | null>(null)
+  const [opportunityAging, setOpportunityAging] = useState<CrmOpportunityAging | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('Detailed analytics ready')
 
   async function refresh() {
     setBusy(true)
     try {
-      const [analyticsResult, agingResult] = await Promise.all([getCrmDetailedAnalytics(), getCrmLeadAging()])
+      const [analyticsResult, agingResult, opportunityAgingResult] = await Promise.all([
+        getCrmDetailedAnalytics(), getCrmLeadAging(), getCrmOpportunityAging(),
+      ])
       setData(analyticsResult)
       setAging(agingResult)
+      setOpportunityAging(opportunityAgingResult)
       setMessage('Detailed CRM analytics refreshed')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
@@ -53,7 +60,42 @@ export function CrmAnalyticsHub() {
       : view === 'forecast' ? 'Sales forecast'
         : view === 'accounts' ? 'Account-wise business'
           : view === 'trends' ? 'Monthly sales trends'
-            : 'Lead aging & inactivity'
+            : view === 'aging' ? 'Lead aging & inactivity'
+              : 'Opportunity aging'
+
+  async function exportCurrent(format: CrmSpreadsheetFormat) {
+    let headers: string[] = []
+    let rows: Array<Array<string | number | boolean | null | undefined>> = []
+    if (view === 'executives') {
+      headers = ['Executive', 'Leads', 'Converted', 'Conversion %', 'Completed Follow-ups', 'Completed Tasks', 'Open Opportunities', 'Open Pipeline', 'Weighted Pipeline', 'Won Value']
+      rows = (data?.executivePerformance ?? []).map(x => [x.userName, x.leads, x.convertedLeads, x.conversionPercent, x.completedFollowUps, x.completedTasks, x.openOpportunities, x.openPipelineValue, x.weightedPipelineValue, x.wonValue])
+    } else if (view === 'productivity') {
+      headers = ['Type', 'User', 'Total', 'Open', 'Completed', 'Cancelled', 'Overdue']
+      rows = [
+        ...(data?.followUpProductivity ?? []).map(x => ['Follow-up', x.userName, x.total, x.open, x.completed, x.cancelled, x.overdue]),
+        ...(data?.taskPerformance ?? []).map(x => ['Task', x.userName, x.total, x.open, x.completed, x.cancelled, x.overdue]),
+      ]
+    } else if (view === 'forecast') {
+      headers = ['Forecast Type', 'Bucket', 'Opportunities', 'Pipeline Value', 'Weighted Value']
+      rows = [
+        ...(data?.ownerForecast ?? []).map(x => ['Owner', x.label, x.opportunityCount, x.pipelineValue, x.weightedValue]),
+        ...(data?.monthForecast ?? []).map(x => ['Month', x.label, x.opportunityCount, x.pipelineValue, x.weightedValue]),
+      ]
+    } else if (view === 'accounts') {
+      headers = ['Account', 'Opportunities', 'Open Pipeline', 'Weighted Pipeline', 'Won Value']
+      rows = (data?.accountBusiness ?? []).map(x => [x.accountName, x.opportunityCount, x.openPipelineValue, x.weightedPipelineValue, x.wonValue])
+    } else if (view === 'trends') {
+      headers = ['Month', 'Leads Created', 'Leads Converted', 'Expected Closures']
+      rows = (data?.monthlyTrends ?? []).map(x => [x.month, x.leadsCreated, x.leadsConverted, x.expectedClosures])
+    } else if (view === 'aging') {
+      headers = ['Lead', 'Status', 'Priority', 'Owner', 'Age Days', 'Inactive Days', 'Next Follow-up', 'Product']
+      rows = (aging?.leads ?? []).map(x => [x.title, x.status, x.priority, x.ownerName, x.ageDays, x.inactiveDays, x.nextFollowUpAtUtc, x.productInterest])
+    } else {
+      headers = ['Opportunity', 'Product / Service', 'Stage', 'Owner', 'Estimated Value', 'Probability %', 'Expected Close', 'Age Days', 'Stage Age Days']
+      rows = (opportunityAging?.opportunities ?? []).map(x => [x.title, x.productService, x.stage, x.ownerName, x.estimatedValue, x.probabilityPercent, x.expectedCloseDate, x.ageDays, x.stageAgeDays])
+    }
+    await exportCrmSpreadsheet(`crm-report-${view}`, { headers, rows }, format)
+  }
 
   return <div className="crm2-app crm-advanced-app">
     <aside className="crm2-sidebar">
@@ -66,19 +108,20 @@ export function CrmAnalyticsHub() {
         <button className={view === 'accounts' ? 'active' : ''} onClick={() => setView('accounts')}><span>A</span>Account Business</button>
         <button className={view === 'trends' ? 'active' : ''} onClick={() => setView('trends')}><span>≋</span>Monthly Trends</button>
         <button className={view === 'aging' ? 'active' : ''} onClick={() => setView('aging')}><span>⌛</span>Lead Aging</button>
+        <button className={view === 'dealAging' ? 'active' : ''} onClick={() => setView('dealAging')}><span>◷</span>Opportunity Aging</button>
       </nav>
       <div className="crm2-sidebar-foot"><strong>SALES ANALYTICS</strong><small>Team · Productivity · Forecast · Customers · Aging</small></div>
     </aside>
 
     <main className="crm2-main">
-      <header className="crm2-topbar"><div><span className="crm2-kicker">CRM ANALYTICS</span><h1>{title}</h1></div><div className="crm2-top-actions"><button className="crm2-refresh" disabled={busy} onClick={() => void refresh()}>↻ Refresh</button></div></header>
+      <header className="crm2-topbar"><div><span className="crm2-kicker">CRM ANALYTICS</span><h1>{title}</h1></div><div className="crm2-top-actions"><button disabled={busy} onClick={() => void exportCurrent('csv')}>Export CSV</button><button disabled={busy} onClick={() => void exportCurrent('xlsx')}>Export Excel</button><button className="crm2-refresh" disabled={busy} onClick={() => void refresh()}>↻ Refresh</button></div></header>
       <section className="crm2-statusbar"><div><span className={busy ? 'pulse busy' : 'pulse'} />{message}</div><span>Persistent CRM data · live calculations</span></section>
 
       <section className="crm2-metrics crm-advanced-metrics">
         <article><span>Open pipeline</span><strong>{money(totals.pipeline)}</strong><small>All visible owners</small></article>
         <article><span>Weighted forecast</span><strong>{money(totals.weighted)}</strong><small>Probability adjusted</small></article>
         <article className="accent"><span>Won value</span><strong>{money(totals.won)}</strong><small>Closed won opportunities</small></article>
-        <article><span>{view === 'aging' ? 'Open leads' : 'Converted leads'}</span><strong>{view === 'aging' ? aging?.openLeadCount ?? '—' : totals.converted}</strong><small>Current visible scope</small></article>
+        <article><span>{view === 'aging' ? 'Open leads' : view === 'dealAging' ? 'Opportunities' : 'Converted leads'}</span><strong>{view === 'aging' ? aging?.openLeadCount ?? '—' : view === 'dealAging' ? opportunityAging?.opportunityCount ?? '—' : totals.converted}</strong><small>Current visible scope</small></article>
       </section>
 
       {view === 'executives' ? <section className="crm2-table-card">
@@ -115,6 +158,16 @@ export function CrmAnalyticsHub() {
         <section className="crm2-table-card">
           <div className="crm2-section-head"><div><span>OPEN LEADS</span><h2>Oldest / stalest leads first</h2></div></div>
           <div className="crm-advanced-list">{aging?.leads.map(x => <article key={x.leadId}><div><b>{x.priority} · {x.status}</b><strong>{x.title}</strong><small>{x.ownerName} · {x.productInterest || 'Product not set'} · Next: {when(x.nextFollowUpAtUtc)}</small></div><span className={x.inactiveDays >= 7 ? 'danger' : ''}>{x.ageDays}d old · {x.inactiveDays}d inactive</span></article>)}{aging && !aging.leads.length ? <p>No open leads.</p> : null}</div>
+        </section>
+      </> : null}
+
+      {view === 'dealAging' ? <>
+        <section className="crm-advanced-grid">
+          {opportunityAging?.buckets.map(x => <article className="crm2-table-card" key={x.label}><div className="crm2-section-head"><div><span>DEAL AGE</span><h2>{x.label}</h2></div></div><div className="crm2-metrics crm-advanced-metrics"><article><span>Opportunities</span><strong>{x.count}</strong><small>Deals in this age bucket</small></article></div></article>)}
+        </section>
+        <section className="crm2-table-card">
+          <div className="crm2-section-head"><div><span>OPEN / HISTORICAL DEALS</span><h2>Opportunity age and stage age</h2></div></div>
+          <div className="crm-advanced-list">{opportunityAging?.opportunities.map(x => <article key={x.opportunityId}><div><b>{x.stage} · {x.probabilityPercent}%</b><strong>{x.title}</strong><small>{x.ownerName} · {x.productService || 'Product not set'} · Expected close: {x.expectedCloseDate || 'Not set'}</small></div><span className={(x.stageAgeDays ?? 0) >= 14 ? 'danger' : ''}>{money(x.estimatedValue)} · {x.ageDays ?? '—'}d old · {x.stageAgeDays ?? '—'}d in stage</span></article>)}{opportunityAging && !opportunityAging.opportunities.length ? <p>No opportunities found.</p> : null}</div>
         </section>
       </> : null}
     </main>

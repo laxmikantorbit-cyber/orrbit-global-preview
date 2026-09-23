@@ -40,6 +40,21 @@ public sealed class CrmAccessScopeTests
         Assert.False(CrmFreeTestingAccessMiddleware.CanAccessLead(member, LeadOwnedBy(null)));
     }
 
+    [Theory]
+    [InlineData(CrmRoleCode.Owner)]
+    [InlineData(CrmRoleCode.Admin)]
+    [InlineData(CrmRoleCode.SalesManager)]
+    [InlineData(CrmRoleCode.SalesExecutive)]
+    [InlineData(CrmRoleCode.Viewer)]
+    public void Report_Roles_Can_View_Reports(CrmRoleCode role) =>
+        Assert.True(CrmRolePolicy.Allows(role, CrmPermission.ViewReports));
+
+    [Theory]
+    [InlineData(CrmRoleCode.Telecaller)]
+    [InlineData(CrmRoleCode.Support)]
+    public void Non_Report_Roles_Cannot_View_Reports(CrmRoleCode role) =>
+        Assert.False(CrmRolePolicy.Allows(role, CrmPermission.ViewReports));
+
     private static CrmTeamMember Member(Guid id, CrmRoleCode role) =>
         new(id, TenantId, role.ToString(), $"{id:N}@qa.test", null, role);
 
