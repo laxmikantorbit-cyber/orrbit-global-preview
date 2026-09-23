@@ -1882,3 +1882,21 @@
   color:#8794a4!important;
   font-size:11px!important;
 }
+
+/* Final company-brand parity across every CRM route */
+.crm2-app > .crm2-sidebar > .crm2-brand {
+  height: 96px !important;
+  min-height: 96px !important;
+  margin: 0 !important;
+  padding: 10px 18px !important;
+  display: block !important;
+  background-color: #1a2637 !important;
+  background-image: url('/crm-reference-logo.png') !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: auto 76px !important;
+  border-bottom: 1px solid rgba(255,255,255,.05) !important;
+}
+.crm2-app > .crm2-sidebar > .crm2-brand > * {
+  display: none !important;
+}
