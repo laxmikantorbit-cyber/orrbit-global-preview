@@ -1025,3 +1025,733 @@
   .crm2-sales-edit-line-with-item strong{grid-column:1/4}
   .crm2-sales-edit-line-with-item>button{grid-column:4}
 }
+
+/* Full page visual parity layer for the reference CRM (Perfex-style admin UI).
+   Presentation only: no domain behavior or API contract is changed. */
+
+.crm2-app {
+  --perfex-sidebar: #1f2d3d;
+  --perfex-sidebar-hover: #2b3b4f;
+  --perfex-sidebar-active: #34465b;
+  --perfex-bg: #f1f5f9;
+  --perfex-panel: #ffffff;
+  --perfex-border: #dfe6ee;
+  --perfex-border-soft: #edf1f5;
+  --perfex-text: #415164;
+  --perfex-heading: #2d3e50;
+  --perfex-muted: #7f8b99;
+  --perfex-blue: #2f67e8;
+  --perfex-blue-hover: #2557c7;
+  --perfex-green: #16a34a;
+  --perfex-red: #dc3545;
+  --perfex-amber: #d99000;
+  --perfex-radius: 4px;
+  font-size: 14px;
+}
+
+.crm2-app, .crm2-app button, .crm2-app input, .crm2-app select, .crm2-app textarea {
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+}
+
+.crm2-main { color: var(--perfex-text); }
+.crm2-ref-list-page,
+.crm2-module-page,
+.crm2-sales-module {
+  max-width: none;
+  margin: 18px 0 0;
+  padding: 20px 24px 24px;
+  background: var(--perfex-panel);
+  border: 1px solid var(--perfex-border);
+  border-radius: var(--perfex-radius);
+  box-shadow: 0 1px 2px rgba(15,23,42,.025);
+}
+
+.crm2-reference-module-head,
+.crm2-module-head {
+  margin: -20px -24px 18px;
+  padding: 18px 24px 16px;
+  align-items: flex-start;
+  background: #fff;
+  border-bottom: 1px solid var(--perfex-border-soft);
+}
+
+.crm2-reference-module-head h2,
+.crm2-module-head h2 {
+  margin: 2px 0 4px;
+  color: var(--perfex-heading);
+  font-size: 18px;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.crm2-reference-module-head p,
+.crm2-module-head p {
+  margin: 0;
+  color: var(--perfex-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.crm2-kicker {
+  color: #8a98a9 !important;
+  font-size: 10px !important;
+  line-height: 1;
+  font-weight: 700 !important;
+  letter-spacing: .08em !important;
+}
+
+.crm2-primary,
+.crm2-ref-primary,
+.crm2-reference-actions button {
+  min-height: 34px;
+  padding: 7px 12px !important;
+  border: 1px solid var(--perfex-blue) !important;
+  border-radius: var(--perfex-radius) !important;
+  background: var(--perfex-blue) !important;
+  color: #fff !important;
+  font-size: 12px !important;
+  line-height: 1.2;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+}
+
+.crm2-primary:hover:not(:disabled),
+.crm2-ref-primary:hover:not(:disabled),
+.crm2-reference-actions button:hover:not(:disabled) {
+  border-color: var(--perfex-blue-hover) !important;
+  background: var(--perfex-blue-hover) !important;
+}
+
+.crm2-filter-button,
+.crm2-ref-outline,
+.crm2-refresh,
+.crm2-cancel,
+.crm2-top-actions button:not(.crm2-primary) {
+  min-height: 34px;
+  padding: 7px 12px !important;
+  border: 1px solid #ccd6e0 !important;
+  border-radius: var(--perfex-radius) !important;
+  background: #fff !important;
+  color: #415164 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+}
+
+.crm2-ref-action-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin: 0 0 14px;
+}
+
+.crm2-ref-square {
+  width: 34px;
+  height: 34px;
+  padding: 0 !important;
+  border: 1px solid #ccd6e0 !important;
+  border-radius: var(--perfex-radius) !important;
+  background: #fff !important;
+  color: #526173 !important;
+  box-shadow: none !important;
+}
+.crm2-ref-square.active { color: var(--perfex-blue) !important; border-color: #a9c2f7 !important; background: #f4f8ff !important; }
+
+.crm2-ref-summary-card,
+.crm2-summary-strip,
+.crm2-deal-summary,
+.crm2-report-grid,
+.crm2-funnel-report {
+  border-radius: var(--perfex-radius) !important;
+}
+
+.crm2-ref-summary-card {
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--perfex-border);
+  background: #fff;
+  box-shadow: none;
+}
+.crm2-ref-summary-card h2 { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
+.crm2-ref-summary-line { gap: 8px 14px; }
+.crm2-ref-summary-line strong { font-size: 18px; font-weight: 600; }
+.crm2-ref-summary-line span { font-size: 12px; }
+
+.crm2-ref-filter-card {
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--perfex-border);
+  border-radius: var(--perfex-radius);
+  background: #fff;
+  box-shadow: none;
+}
+.crm2-ref-filter-card > strong {
+  display: block;
+  margin: 0 0 10px;
+  color: var(--perfex-heading);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.crm2-ref-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4,minmax(140px,1fr));
+  gap: 8px;
+  align-items: center;
+}
+
+.crm2-ref-filter-grid input,
+.crm2-ref-filter-grid select,
+.crm2-form-grid input,
+.crm2-form-grid select,
+.crm2-form-section input,
+.crm2-form-section select,
+.crm2-form-section textarea,
+.crm2-inline-form input,
+.crm2-inline-form select,
+.crm2-inline-create input,
+.crm2-drawer input,
+.crm2-drawer select,
+.crm2-drawer textarea,
+.crm-advanced-form input,
+.crm-advanced-form select {
+  min-height: 36px;
+  margin: 0;
+  padding: 7px 10px;
+  border: 1px solid #cfd8e3;
+  border-radius: var(--perfex-radius);
+  background: #fff;
+  color: #344356;
+  font-size: 12px;
+  line-height: 1.35;
+  box-shadow: none;
+  outline: none;
+}
+.crm2-ref-filter-grid input:focus,
+.crm2-ref-filter-grid select:focus,
+.crm2-form-grid input:focus,
+.crm2-form-grid select:focus,
+.crm2-drawer input:focus,
+.crm2-drawer select:focus,
+.crm2-drawer textarea:focus,
+.crm-advanced-form input:focus,
+.crm-advanced-form select:focus {
+  border-color: #79a5ef;
+  box-shadow: 0 0 0 2px rgba(47,103,232,.08);
+}
+
+.crm2-form-grid label,
+.crm2-form-section label,
+.crm2-drawer label {
+  gap: 5px;
+  margin-bottom: 12px;
+  color: #556579;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.crm2-ref-table-card,
+.crm2-table-card {
+  margin: 0 !important;
+  border: 1px solid var(--perfex-border) !important;
+  border-radius: var(--perfex-radius) !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  overflow: auto;
+}
+
+.crm2-ref-table-tools,
+.crm2-table-tools {
+  min-height: 48px;
+  margin: 0 !important;
+  padding: 8px 10px !important;
+  border-bottom: 1px solid var(--perfex-border-soft) !important;
+  background: #fff !important;
+}
+
+.crm2-reference-head,
+.crm2-ref-customers-head,
+.crm2-ref-leads-head,
+.crm2-sales-head,
+.crm2-invoice-head,
+.crm2-item-head,
+.crm2-credit-head,
+.crm2-opportunity-head {
+  background: #f7f9fb !important;
+  color: #516174 !important;
+  border-color: var(--perfex-border) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+.crm2-reference-head span,
+.crm2-ref-customers-head span,
+.crm2-ref-leads-head span,
+.crm2-sales-head span,
+.crm2-invoice-head span,
+.crm2-item-head span,
+.crm2-credit-head span,
+.crm2-opportunity-head span {
+  padding: 9px 10px !important;
+}
+
+.crm2-reference-row,
+.crm2-ref-customers-row,
+.crm2-ref-leads-row,
+.crm2-sales-row,
+.crm2-invoice-row,
+.crm2-item-row,
+.crm2-credit-row,
+.crm2-opportunity-table article {
+  min-height: 52px !important;
+  border-color: var(--perfex-border-soft) !important;
+  background: #fff !important;
+  color: #425268 !important;
+  font-size: 12px !important;
+}
+.crm2-reference-row:hover,
+.crm2-ref-customers-row:hover,
+.crm2-ref-leads-row:hover,
+.crm2-sales-row:hover,
+.crm2-invoice-row:hover,
+.crm2-item-row:hover,
+.crm2-credit-row:hover,
+.crm2-opportunity-table article:hover {
+  background: #f9fbfd !important;
+}
+
+.crm2-reference-row span,
+.crm2-ref-customers-row span,
+.crm2-ref-leads-row span,
+.crm2-sales-row span,
+.crm2-invoice-row span,
+.crm2-item-row span,
+.crm2-credit-row span {
+  padding: 9px 10px !important;
+}
+
+.crm2-reference-row a,
+.crm2-ref-customers-row a,
+.crm2-ref-leads-row a,
+.crm2-sales-row strong,
+.crm2-invoice-row strong,
+.crm2-item-row strong,
+.crm2-credit-row strong,
+.crm2-link-button {
+  color: #2463d4 !important;
+  font-weight: 600 !important;
+  text-decoration: none !important;
+}
+
+.crm2-reference-empty,
+.crm2-empty-card,
+.crm2-empty {
+  padding: 24px 16px !important;
+  color: #8491a1 !important;
+  background: #fff !important;
+  font-size: 12px !important;
+}
+
+.crm2-sales-status,
+.crm2-stage,
+.crm2-reference-row b,
+.crm2-readonly-badge,
+.crm2-module-list em {
+  border-radius: 3px !important;
+  padding: 3px 7px !important;
+  font-size: 10px !important;
+  line-height: 1.3;
+  font-weight: 600 !important;
+}
+
+.crm2-tabs {
+  gap: 0 !important;
+  margin: 0 0 16px !important;
+  padding: 0 !important;
+  border-bottom: 1px solid #dce4ec;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+.crm2-tabs button {
+  flex: 0 0 auto !important;
+  padding: 9px 12px !important;
+  border-radius: 0 !important;
+  border-bottom: 2px solid transparent !important;
+  background: transparent !important;
+  color: #677689 !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+}
+.crm2-tabs button.active {
+  color: var(--perfex-blue) !important;
+  border-bottom-color: var(--perfex-blue) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.crm2-overlay {
+  padding: 24px;
+  align-items: center !important;
+  justify-content: center !important;
+  background: rgba(15,23,42,.48) !important;
+  backdrop-filter: none !important;
+}
+.crm2-drawer {
+  width: min(760px,96vw) !important;
+  height: auto !important;
+  max-height: 92vh;
+  padding: 20px 22px 22px !important;
+  border: 0;
+  border-radius: 5px !important;
+  box-shadow: 0 20px 55px rgba(15,23,42,.24) !important;
+}
+.crm2-wide-drawer { width: min(980px,96vw) !important; }
+.crm2-drawer-head {
+  margin: -20px -22px 18px !important;
+  padding: 16px 20px 14px;
+  border-bottom: 1px solid var(--perfex-border-soft);
+}
+.crm2-drawer-head h2 {
+  margin: 3px 0 0 !important;
+  color: var(--perfex-heading) !important;
+  font-size: 18px !important;
+  font-weight: 600;
+  letter-spacing: 0 !important;
+}
+.crm2-drawer-head > button {
+  width: 30px !important;
+  height: 30px !important;
+  border: 1px solid #d8e0e8 !important;
+  border-radius: var(--perfex-radius) !important;
+  background: #fff !important;
+  font-size: 18px !important;
+}
+
+.crm2-detail-summary {
+  gap: 0 !important;
+  margin: 0 0 16px !important;
+  border: 1px solid var(--perfex-border);
+  border-radius: var(--perfex-radius);
+  overflow: hidden;
+}
+.crm2-detail-summary div {
+  padding: 10px 12px !important;
+  border: 0 !important;
+  border-right: 1px solid var(--perfex-border-soft) !important;
+  border-radius: 0 !important;
+  background: #fafbfd !important;
+}
+.crm2-detail-summary div:last-child { border-right: 0 !important; }
+.crm2-detail-summary span { color: #8491a1 !important; font-size: 9px !important; }
+.crm2-detail-summary strong { color: #3c4b5f !important; font-size: 11px !important; font-weight: 600; }
+
+.crm2-drawer-actions {
+  padding-top: 12px;
+  border-top: 1px solid var(--perfex-border-soft);
+}
+
+.crm2-module-list,
+.crm2-team-list {
+  border: 1px solid var(--perfex-border);
+  border-radius: var(--perfex-radius) !important;
+  background: #fff;
+  overflow: hidden;
+}
+.crm2-module-list > article,
+.crm2-team-list > article {
+  min-height: 62px;
+  padding: 11px 14px !important;
+  border-bottom: 1px solid var(--perfex-border-soft) !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+.crm2-module-list > article:last-child,
+.crm2-team-list > article:last-child { border-bottom: 0 !important; }
+
+.crm2-summary-strip {
+  margin: 0 0 14px;
+  display: flex !important;
+  gap: 0 !important;
+  border: 1px solid var(--perfex-border) !important;
+  background: #fff !important;
+  overflow: hidden;
+}
+.crm2-summary-strip > div {
+  min-width: 130px;
+  padding: 10px 14px !important;
+  border-right: 1px solid var(--perfex-border-soft);
+  background: #fff !important;
+}
+.crm2-summary-strip > div:last-child { border-right: 0; }
+.crm2-summary-strip span { color: #8491a1 !important; font-size: 10px !important; }
+.crm2-summary-strip b { color: #344356 !important; font-size: 17px !important; font-weight: 600; }
+.crm2-summary-strip .danger b { color: var(--perfex-red) !important; }
+
+.crm2-team-person strong,
+.crm2-module-list strong,
+.crm2-module-list .crm2-link-label { color: #354559 !important; font-weight: 600 !important; }
+.crm2-permissions span { border-radius: 3px !important; font-size: 9px !important; }
+
+.crm2-inline-form {
+  margin-top: 14px;
+  padding: 16px !important;
+  border: 1px solid var(--perfex-border);
+  border-radius: var(--perfex-radius) !important;
+  background: #fff !important;
+}
+
+.crm2-sales-tabs {
+  margin: 18px 0 0 !important;
+  padding: 0 18px;
+  border: 1px solid var(--perfex-border);
+  border-bottom-color: #d8e1ea;
+  border-radius: var(--perfex-radius) var(--perfex-radius) 0 0;
+  background: #fff;
+}
+.crm2-sales-tabs button {
+  padding: 11px 14px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+.crm2-sales-tabs b { background: #edf2f7 !important; font-size: 10px; }
+
+.crm2-sales-documents,
+.crm2-invoices {
+  margin-top: 0 !important;
+}
+
+.crm2-sales-detail-grid span,
+.crm2-sales-lines,
+.crm2-sales-total-box,
+.crm2-sales-edit-lines,
+.crm2-payment-history {
+  border-radius: var(--perfex-radius) !important;
+  box-shadow: none !important;
+}
+
+.crm2-calendar-toolbar h2 { font-size: 20px !important; font-weight: 500 !important; }
+.crm2-calendar-left button,
+.crm2-calendar-right button {
+  height: 32px !important;
+  padding: 0 11px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+}
+.crm2-calendar-grid strong { height: 25px !important; font-size: 11px; }
+.crm2-calendar-grid article { height: 116px !important; min-height: 116px !important; }
+
+@media (max-width: 900px) {
+  .crm2-ref-filter-grid { grid-template-columns: 1fr 1fr !important; }
+  .crm2-overlay { padding: 10px; }
+  .crm2-drawer, .crm2-wide-drawer { width: 100% !important; max-height: 96vh; }
+  .crm2-detail-summary { grid-template-columns: 1fr 1fr !important; }
+  .crm2-detail-summary div:nth-child(2n) { border-right: 0 !important; }
+}
+
+@media (max-width: 640px) {
+  .crm2-ref-list-page, .crm2-module-page, .crm2-sales-module { padding: 14px !important; }
+  .crm2-reference-module-head, .crm2-module-head { margin: -14px -14px 14px !important; padding: 14px !important; }
+  .crm2-ref-filter-grid { grid-template-columns: 1fr !important; }
+  .crm2-summary-strip { display: grid !important; grid-template-columns: 1fr 1fr; }
+  .crm2-summary-strip > div { border-bottom: 1px solid var(--perfex-border-soft); }
+}
+
+
+/* Page-scoped summaries remain visible outside the calendar-first dashboard */
+.crm2-ref-list-page .crm2-metrics,
+.crm2-module-page .crm2-metrics,
+.crm2-sales-module .crm2-metrics {
+  display:grid!important;
+  max-width:none!important;
+  margin:0 0 14px!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:10px!important;
+}
+.crm2-ref-list-page .crm2-metrics article,
+.crm2-module-page .crm2-metrics article,
+.crm2-sales-module .crm2-metrics article {
+  min-height:86px!important;
+  padding:13px 15px!important;
+  border:1px solid #dfe6ee!important;
+  border-radius:4px!important;
+  background:#fff!important;
+  color:#415164!important;
+  box-shadow:none!important;
+}
+.crm2-ref-list-page .crm2-metrics article.accent,
+.crm2-module-page .crm2-metrics article.accent,
+.crm2-sales-module .crm2-metrics article.accent {
+  border-left:3px solid #16a34a!important;
+  background:#fff!important;
+}
+.crm2-ref-list-page .crm2-metrics article>span,
+.crm2-ref-list-page .crm2-metrics article.accent>span {color:#7f8b99!important;font-size:10px!important}
+.crm2-ref-list-page .crm2-metrics strong,
+.crm2-ref-list-page .crm2-metrics article.accent strong {margin:8px 0 5px!important;color:#2d3e50!important;font-size:22px!important;font-weight:600!important}
+.crm2-ref-list-page .crm2-metrics small,
+.crm2-ref-list-page .crm2-metrics article.accent small {color:#8a97a6!important;font-size:10px!important}
+.crm2-ref-list-page .crm2-metrics article.accent:after{display:none!important}
+
+/* Opportunity / pipeline page uses the same compact panel/table grammar */
+.crm2-deal-summary{
+  margin:0 0 14px!important;
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:0!important;
+  border:1px solid #dfe6ee!important;
+  border-radius:4px!important;
+  background:#fff!important;
+  overflow:hidden!important;
+}
+.crm2-deal-summary>div{
+  padding:10px 14px!important;
+  border-right:1px solid #edf1f5!important;
+  background:#fff!important;
+}
+.crm2-deal-summary>div:last-child{border-right:0!important}
+.crm2-deal-summary span{color:#8491a1!important;font-size:10px!important}
+.crm2-deal-summary strong{color:#344356!important;font-size:17px!important;font-weight:600!important}
+.crm2-opportunity-table{
+  border:1px solid #dfe6ee!important;
+  border-radius:4px!important;
+  overflow:hidden!important;
+  background:#fff!important;
+}
+.crm2-opportunity-head,
+.crm2-opportunity-table article{
+  display:grid!important;
+  grid-template-columns:1.4fr 1.1fr .8fr .65fr .75fr!important;
+  align-items:center!important;
+}
+.crm2-opportunity-head{min-height:38px!important}
+.crm2-opportunity-head span,.crm2-opportunity-table article>*{padding:9px 10px!important}
+.crm2-opportunity-table article{border-bottom:1px solid #edf1f5!important}
+.crm2-opportunity-table article:last-child{border-bottom:0!important}
+
+/* Team/access mirrors a reference list page instead of floating cards */
+.crm2-team-page .crm2-module-head{margin:-20px -24px 14px!important}
+.crm2-team-list>article{
+  display:grid!important;
+  grid-template-columns:minmax(190px,1.2fr) minmax(220px,1.6fr) auto!important;
+  align-items:center!important;
+  gap:14px!important;
+}
+.crm2-team-person{min-width:0}
+.crm2-team-person>i{width:34px!important;height:34px!important;border-radius:50%!important}
+.crm2-user-active,.crm2-user-inactive{
+  min-width:72px!important;
+  min-height:30px!important;
+  padding:5px 9px!important;
+  border-radius:3px!important;
+  box-shadow:none!important;
+  font-size:10px!important;
+  font-weight:600!important;
+}
+.crm2-user-active{border:1px solid #b7dfc3!important;background:#ecf8f0!important;color:#198342!important}
+.crm2-user-inactive{border:1px solid #e0c5c9!important;background:#fff4f5!important;color:#b23a48!important}
+
+/* Follow-up/task/report lists */
+.crm2-module-page .crm2-module-head{margin:-20px -24px 14px!important}
+.crm2-module-stat{
+  min-width:70px!important;
+  padding:7px 10px!important;
+  border:1px solid #dfe6ee!important;
+  border-radius:4px!important;
+  background:#f8fafc!important;
+}
+.crm2-module-stat strong{font-size:17px!important;font-weight:600!important}
+.crm2-module-stat span{font-size:9px!important}
+.crm2-module-list>article{
+  display:grid!important;
+  grid-template-columns:minmax(150px,.85fr) minmax(240px,1.5fr) auto auto!important;
+  align-items:center!important;
+  gap:12px!important;
+}
+.crm2-module-list .crm2-top-actions{gap:5px!important}
+.crm2-module-list .crm2-top-actions button{
+  min-height:30px!important;
+  padding:5px 8px!important;
+  border:1px solid #ccd6e0!important;
+  border-radius:4px!important;
+  background:#fff!important;
+  color:#425268!important;
+  font-size:10px!important;
+  font-weight:600!important;
+}
+.crm2-report-grid{
+  margin:0 0 14px!important;
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:10px!important;
+}
+.crm2-report-grid article{
+  min-height:84px!important;
+  padding:13px 15px!important;
+  border:1px solid #dfe6ee!important;
+  border-radius:4px!important;
+  background:#fff!important;
+  box-shadow:none!important;
+}
+.crm2-report-grid span{color:#7f8b99!important;font-size:10px!important}
+.crm2-report-grid strong{color:#2d3e50!important;font-size:22px!important;font-weight:600!important}
+.crm2-funnel-report{
+  padding:14px 16px!important;
+  border:1px solid #dfe6ee!important;
+  background:#fff!important;
+  box-shadow:none!important;
+}
+
+/* Business forms are visually identical across Expense/Contract/Project/Support/KB/Media */
+.crm2-business-records textarea,
+.crm2-ref-list-page textarea{
+  width:100%;
+  padding:8px 10px;
+  border:1px solid #cfd8e3;
+  border-radius:4px;
+  background:#fff;
+  color:#344356;
+  font-size:12px;
+  resize:vertical;
+}
+.crm2-reference-row small{display:block;margin-top:3px;color:#8a97a6;font-size:10px}
+.crm2-reference-row small button{
+  margin:4px 4px 0 0;
+  padding:3px 6px;
+  border:1px solid #ccd6e0;
+  border-radius:3px;
+  background:#fff;
+  color:#526173;
+  font-size:9px;
+}
+
+/* Consistent pagination/data-table feel */
+.crm2-table-foot{
+  min-height:38px!important;
+  padding:9px 12px!important;
+  border-top:1px solid #edf1f5!important;
+  background:#fff!important;
+  color:#8491a1!important;
+  font-size:10px!important;
+}
+.crm2-ref-table-tools label{height:34px!important;border-radius:4px!important}
+.crm2-ref-table-tools input{font-size:11px!important}
+.crm2-ref-table-tools button,.crm2-ref-table-tools select{height:32px!important;font-size:10px!important}
+
+/* Compact reference-style toggle */
+.crm2-ref-switch i{width:38px!important;height:18px!important;background:#cbd5e1!important}
+.crm2-ref-switch input:checked+i{background:#2f67e8!important}
+.crm2-ref-switch i:after{width:14px!important;height:14px!important;left:2px!important;right:auto!important;transition:transform .15s ease}
+.crm2-ref-switch input:checked+i:after{transform:translateX(20px)!important}
+
+@media(max-width:900px){
+  .crm2-ref-list-page .crm2-metrics{grid-template-columns:1fr 1fr!important}
+  .crm2-deal-summary{grid-template-columns:1fr 1fr!important}
+  .crm2-team-list>article,.crm2-module-list>article{grid-template-columns:1fr!important}
+  .crm2-report-grid{grid-template-columns:1fr 1fr!important}
+}
