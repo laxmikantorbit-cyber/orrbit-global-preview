@@ -11,6 +11,7 @@ import {
 import { exportCrmSpreadsheet, type CrmSpreadsheetFormat } from './crmSpreadsheet'
 
 type Props = {
+  initialKind?: 'Proposal' | 'Estimate'
   accounts: CrmAccount[]
   opportunities: CrmOpportunity[]
   documents: CrmSalesDocument[]
@@ -44,9 +45,9 @@ function lineSubtotal(line: DraftLine) {
 }
 
 export function CrmSalesDocumentsView({
-  accounts, opportunities, documents, salesItems, busy, refresh, notify, canManageSales,
+  initialKind, accounts, opportunities, documents, salesItems, busy, refresh, notify, canManageSales,
 }: Props) {
-  const [kindFilter, setKindFilter] = useState<'All' | 'Proposal' | 'Estimate'>('All')
+  const [kindFilter, setKindFilter] = useState<'All' | 'Proposal' | 'Estimate'>(initialKind || 'All')
   const [statusFilter, setStatusFilter] = useState<(typeof statuses)[number]>('All')
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -224,27 +225,21 @@ export function CrmSalesDocumentsView({
   return (
     <section className="crm2-ref-list-page crm2-sales-documents">
       <div className="crm2-ref-action-row">
-        {canManageSales ? <button className="crm2-ref-primary" onClick={() => resetDraft('Proposal')}>+ New Proposal</button> : null}
-        {canManageSales ? <button className="crm2-ref-primary" onClick={() => resetDraft('Estimate')}>+ New Estimate</button> : null}
-        <button onClick={() => void exportDocuments('csv')}>Export CSV</button>
-        <button onClick={() => void exportDocuments('xlsx')}>Export Excel</button>
+        {canManageSales && initialKind !== 'Estimate' ? <button className="crm2-ref-primary" onClick={() => resetDraft('Proposal')}>+ New Proposal</button> : null}
+        {canManageSales && initialKind !== 'Proposal' ? <button className="crm2-ref-primary" onClick={() => resetDraft('Estimate')}>+ Create New Estimate</button> : null}
+        <button className="crm2-ref-square" title="Pipeline">▤</button>
+        <button className="crm2-ref-square" title="Filter">▼</button>
       </div>
-
-      <section className="crm2-ref-filter-card">
-        <strong>Sales documents</strong>
-        <div className="crm2-ref-filter-grid">
-          <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value as typeof kindFilter)}>
-            <option>All</option><option>Proposal</option><option>Estimate</option>
-          </select>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}>
-            {statuses.map((status) => <option key={status}>{status}</option>)}
-          </select>
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search document, customer, subject..." />
-          <button onClick={() => void refresh()} disabled={busy}>Refresh</button>
-        </div>
-      </section>
-
       <section className="crm2-ref-table-card">
+        <div className="crm2-ref-table-tools">
+          <select><option>25</option><option>50</option></select>
+          <button onClick={() => void exportDocuments('xlsx')}>Export</button>
+          <button onClick={() => void refresh()} disabled={busy}>↻</button>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}>{statuses.map((status) => <option key={status}>{status}</option>)}</select>
+          {!initialKind ? <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value as typeof kindFilter)}><option>All</option><option>Proposal</option><option>Estimate</option></select> : null}
+          <span />
+          <label><b>⌕</b><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search..." /></label>
+        </div>
         <div className="crm2-sales-head">
           <span>Document</span><span>Customer</span><span>Subject</span><span>Amount</span><span>Status</span><span>Issue Date</span>
         </div>

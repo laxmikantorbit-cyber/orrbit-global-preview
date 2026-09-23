@@ -140,15 +140,10 @@ export function CrmEstimateRequestsView({
   }
 
   return <section className="crm2-ref-list-page">
-    <div className="crm2-reference-module-head">
-      <div><span className="crm2-kicker">BUSINESS MODULE</span><h2>Estimate Request</h2><p>Collect website/WhatsApp requests, review them and convert qualified requests into CRM leads or draft estimates.</p></div>
-      {canManage ? <button className="crm2-filter-button" onClick={openCreate}>+ New Request</button> : null}
+    <div className="crm2-ref-action-row">
+      {canManage ? <button className="crm2-ref-primary" onClick={openCreate}>+ New Estimate Request</button> : null}
+      <span className="crm2-action-spacer" /><button className="crm2-ref-square">▼</button>
     </div>
-    <section className="crm2-ref-filter-card"><strong>Filter by</strong><div className="crm2-ref-filter-grid">
-      <select value={status} onChange={(e) => setStatus(e.target.value)}><option>All</option><option>New</option><option>Reviewing</option><option>Converted</option><option>Closed</option></select>
-      <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search contact or requirement..." />
-      <button onClick={() => void refresh()} disabled={busy}>Refresh</button>
-    </div></section>
     {canManage && (creating || editing) ? <section className="crm2-ref-filter-card">
       <strong>{editing ? 'Edit request' : 'New estimate request'}</strong>
       <div className="crm2-form-grid">
@@ -174,10 +169,11 @@ export function CrmEstimateRequestsView({
       <div className="crm2-drawer-actions"><button onClick={() => setEstimateTarget(null)}>Cancel</button><button className="crm2-primary" onClick={() => void convertToEstimate()} disabled={busy}>Create Draft Estimate</button></div>
     </section> : null}
     <section className="crm2-ref-table-card">
-      <div className="crm2-reference-head"><span>Contact</span><span>Requirement</span><span>Value</span><span>Assigned</span><span>Status</span></div>
+      <div className="crm2-ref-table-tools"><select><option>25</option><option>50</option></select><button>Export</button><button onClick={() => void refresh()} disabled={busy}>↻</button><select value={status} onChange={(e) => setStatus(e.target.value)}><option>All</option><option>New</option><option>Reviewing</option><option>Converted</option><option>Closed</option></select><span /><label><b>⌕</b><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search..." /></label></div>
+      <div className="crm2-estimate-request-head"><span>Contact</span><span>Requirement</span><span>Value</span><span>Assigned</span><span>Status</span></div>
       {filtered.length === 0 ? <p className="crm2-reference-empty">No estimate requests found</p> : filtered.map(item => {
         const owner = teamMembers.find(x => x.id === item.assignedUserId)
-        return <div className="crm2-reference-row" key={item.id}>
+        return <div className="crm2-estimate-request-row" key={item.id}>
           <span><strong>{item.contactName || item.email || item.mobileNumber || 'Anonymous'}</strong><small>{item.source} · {fmtDate(item.createdAtUtc)}</small></span>
           <span>{item.requirement}</span><span>{money(item.expectedValue)}</span><span>{owner?.displayName || 'Unassigned'}</span>
           <span><b>{item.status}</b>{canManage && item.status !== 'Converted' && item.status !== 'Closed' ? <small>
@@ -208,6 +204,7 @@ export function CrmKnowledgeBaseView({
   const [ownerUserId, setOwnerUserId] = useState('')
   const [visibility, setVisibility] = useState<'Team' | 'Private'>('Team')
   const [categoryName, setCategoryName] = useState('')
+  const [showCategories, setShowCategories] = useState(false)
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -249,19 +246,18 @@ export function CrmKnowledgeBaseView({
   }
 
   const admin = currentRole === 'Owner' || currentRole === 'Admin'
-  return <section className="crm2-ref-list-page">
-    <div className="crm2-reference-module-head"><div><span className="crm2-kicker">BUSINESS MODULE</span><h2>Knowledge Base</h2><p>Store FAQs, sales answers, onboarding guides and team support articles.</p></div>{canManage ? <button className="crm2-filter-button" onClick={openCreate}>+ New Article</button> : null}</div>
-    <section className="crm2-ref-filter-card"><strong>Knowledge search</strong><div className="crm2-ref-filter-grid"><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search articles..." /><button onClick={() => void refresh()} disabled={busy}>Refresh</button></div></section>
-    {admin ? <section className="crm2-ref-filter-card"><strong>Categories</strong><div className="crm2-ref-filter-grid"><input value={categoryName} onChange={(e) => setCategoryName(e.target.value)} placeholder="New category name" /><button onClick={() => void addCategory()} disabled={busy}>Add Category</button><span>{categories.filter(x => x.active).map(x => x.name).join(' · ') || 'No categories'}</span></div></section> : null}
+  return <section className="crm2-ref-list-page crm2-kb-reference">
+    <div className="crm2-ref-action-row">{canManage ? <button className="crm2-ref-primary" onClick={openCreate}>+ New Article</button> : null}{admin ? <button onClick={() => setShowCategories(value => !value)}>▣ Groups</button> : null}<button className="crm2-ref-square">▦</button><span className="crm2-action-spacer" /><button className="crm2-ref-square">▼</button></div>
+    {admin && showCategories ? <section className="crm2-ref-filter-card"><strong>Groups</strong><div className="crm2-ref-filter-grid"><input value={categoryName} onChange={(e) => setCategoryName(e.target.value)} placeholder="New group name" /><button onClick={() => void addCategory()} disabled={busy}>Add Group</button><span>{categories.filter(x => x.active).map(x => x.name).join(' · ') || 'No groups'}</span></div></section> : null}
     {canManage && (creating || editing) ? <section className="crm2-ref-filter-card"><strong>{editing ? 'Edit' : 'New'} article</strong>
       <div className="crm2-form-grid"><label>Title<input value={title} onChange={(e) => setTitle(e.target.value)} /></label><label>Category<select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}><option value="">Select category</option>{categories.filter(x => x.active).map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label><label>Owner<select value={ownerUserId} onChange={(e) => setOwnerUserId(e.target.value)}><option value="">Current user</option>{teamMembers.filter(x => x.active).map(x => <option key={x.id} value={x.id}>{x.displayName}</option>)}</select></label><label>Visibility<select value={visibility} onChange={(e) => setVisibility(e.target.value as 'Team' | 'Private')}><option>Team</option><option>Private</option></select></label></div>
       <label>Article content<textarea rows={7} value={content} onChange={(e) => setContent(e.target.value)} /></label>
       <div className="crm2-drawer-actions"><button onClick={resetArticle}>Cancel</button><button className="crm2-primary" onClick={() => void saveArticle()} disabled={busy}>Save</button></div>
     </section> : null}
-    <section className="crm2-ref-table-card"><div className="crm2-reference-head"><span>Article</span><span>Category</span><span>Owner</span><span>Visibility</span><span>Status</span></div>
+    <section className="crm2-ref-table-card"><div className="crm2-ref-table-tools"><select><option>25</option><option>50</option></select><button>Export</button><button onClick={() => void refresh()} disabled={busy}>↻</button><span /><label><b>⌕</b><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search..." /></label></div><div className="crm2-kb-head"><span>Article Name</span><span>Group</span><span>Date Published</span></div>
       {filtered.length === 0 ? <p className="crm2-reference-empty">No knowledge articles found</p> : filtered.map(item => {
         const category = categories.find(x => x.id === item.categoryId); const owner = teamMembers.find(x => x.id === item.ownerUserId)
-        return <div className="crm2-reference-row" key={item.id}><span><strong>{item.title}</strong><small>{fmtDate(item.updatedAtUtc)}</small></span><span>{category?.name || '—'}</span><span>{owner?.displayName || '—'}</span><span>{item.visibility}</span><span><b>{item.status}</b>{canManage && item.status !== 'Archived' ? <small><button onClick={() => openEdit(item)}>Edit</button>{item.status === 'Draft' ? <button onClick={() => void articleAction(item, 'publish')}>Publish</button> : null}<button onClick={() => void articleAction(item, 'archive')}>Archive</button></small> : null}</span></div>
+        return <div className="crm2-kb-row" key={item.id}><span><a>{item.title}</a><small>{owner?.displayName || '—'} · {item.visibility} · {item.status}{canManage && item.status !== 'Archived' ? <> · <button onClick={() => openEdit(item)}>Edit</button>{item.status === 'Draft' ? <button onClick={() => void articleAction(item, 'publish')}>Publish</button> : null}<button onClick={() => void articleAction(item, 'archive')}>Archive</button></> : null}</small></span><span>{category?.name || '—'}</span><span>{item.status === 'Published' ? fmtDate(item.updatedAtUtc) : '—'}</span></div>
       })}
     </section>
   </section>
@@ -328,22 +324,16 @@ export function CrmUtilitiesView({
     }, notify)
   }
 
-  return <section className="crm2-ref-list-page">
-    <div className="crm2-reference-module-head"><div><span className="crm2-kicker">BUSINESS MODULE</span><h2>Utilities & Media</h2><p>Register CRM files and attachment references used by imports, exports, customers and internal work.</p></div>{canManage ? <button className="crm2-filter-button" onClick={() => setCreating(true)}>+ Register Media</button> : null}</div>
-    <section className="crm2-ref-filter-card"><strong>Import / export utilities</strong><div className="crm2-ref-filter-grid">
-      {canManage ? <button onClick={importAssets} disabled={busy}>Import Metadata</button> : null}
-      <button onClick={() => void exportAssets('csv')} disabled={busy || assets.length === 0}>Export CSV</button>
-      <button onClick={() => void exportAssets('xlsx')} disabled={busy || assets.length === 0}>Export Excel</button>
-      <button onClick={() => void refresh()} disabled={busy}>Refresh</button>
-    </div></section>
+  return <section className="crm2-ref-list-page crm2-media-reference">
+    <div className="crm2-ref-action-row">{canManage ? <button className="crm2-ref-primary" onClick={() => setCreating(true)}>+ Register Media</button> : null}{canManage ? <button onClick={importAssets} disabled={busy}>↥ Import Metadata</button> : null}<span className="crm2-action-spacer" /><button className="crm2-ref-square">▼</button></div>
     {canManage && creating ? <section className="crm2-ref-filter-card"><strong>Register media reference</strong><div className="crm2-form-grid">
       <label>File name<input value={fileName} onChange={(e) => setFileName(e.target.value)} /></label><label>MIME type<input value={mimeType} onChange={(e) => setMimeType(e.target.value)} /></label>
       <label>Size in bytes<input type="number" min="0" value={sizeBytes} onChange={(e) => setSizeBytes(e.target.value)} /></label><label>Purpose<input value={purpose} onChange={(e) => setPurpose(e.target.value)} /></label>
       <label>Storage reference<input value={storageReference} onChange={(e) => setStorageReference(e.target.value)} placeholder="R2/Drive/object key or URL" /></label><label>Entity type<input value={entityType} onChange={(e) => setEntityType(e.target.value)} placeholder="Lead / Account / Contract..." /></label>
       <label>Entity id<input value={entityId} onChange={(e) => setEntityId(e.target.value)} placeholder="Optional GUID" /></label>
     </div><div className="crm2-drawer-actions"><button onClick={() => setCreating(false)}>Cancel</button><button className="crm2-primary" onClick={() => void save()} disabled={busy}>Save</button></div></section> : null}
-    <section className="crm2-ref-table-card"><div className="crm2-reference-head"><span>File</span><span>Purpose</span><span>Type</span><span>Size</span><span>Status</span></div>
-      {assets.length === 0 ? <p className="crm2-reference-empty">No media assets registered</p> : assets.map(item => <div className="crm2-reference-row" key={item.id}><span><strong>{item.fileName}</strong><small>{fmtDate(item.createdAtUtc)}</small></span><span>{item.purpose}</span><span>{item.mimeType}</span><span>{Math.max(0, item.sizeBytes / 1024).toFixed(1)} KB</span><span><b>{item.active ? 'Active' : 'Inactive'}</b>{canManage ? <small><button onClick={() => void toggle(item)}>{item.active ? 'Deactivate' : 'Activate'}</button></small> : null}</span></div>)}
+    <section className="crm2-ref-table-card"><div className="crm2-ref-table-tools"><select><option>25</option><option>50</option></select><button onClick={() => void exportAssets('xlsx')} disabled={busy || assets.length === 0}>Export</button><button onClick={() => void refresh()} disabled={busy}>↻</button><span /><label><b>⌕</b><input placeholder="Search..." /></label></div><div className="crm2-media-head"><span>File</span><span>Purpose</span><span>Type</span><span>Size</span><span>Status</span></div>
+      {assets.length === 0 ? <p className="crm2-reference-empty">No media assets registered</p> : assets.map(item => <div className="crm2-media-row" key={item.id}><span><strong>{item.fileName}</strong><small>{fmtDate(item.createdAtUtc)}</small></span><span>{item.purpose}</span><span>{item.mimeType}</span><span>{Math.max(0, item.sizeBytes / 1024).toFixed(1)} KB</span><span><b>{item.active ? 'Active' : 'Inactive'}</b>{canManage ? <small><button onClick={() => void toggle(item)}>{item.active ? 'Deactivate' : 'Activate'}</button></small> : null}</span></div>)}
     </section>
   </section>
 }

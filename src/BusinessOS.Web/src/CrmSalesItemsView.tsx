@@ -78,18 +78,14 @@ export function CrmSalesItemsView({ items, busy, refresh, notify, canManageSales
   return <section className="crm2-ref-list-page">
     <div className="crm2-ref-action-row">
       {canManageSales ? <button className="crm2-ref-primary" onClick={beginNew}>+ Add Item</button> : null}
+      <button>Import Items</button><button>Groups</button>
     </div>
-    <section className="crm2-ref-filter-card">
-      <strong>Reusable products & services</strong>
-      <div className="crm2-ref-filter-grid">
-        <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
-          <option>All</option><option>Active</option><option>Inactive</option>
-        </select>
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search code, item, description..." />
-        <button onClick={() => void refresh()} disabled={busy}>Refresh</button>
-      </div>
-    </section>
     <section className="crm2-ref-table-card">
+      <div className="crm2-ref-table-tools">
+        <select><option>25</option><option>50</option></select><button>Export</button><button>Bulk Actions</button><button onClick={() => void refresh()} disabled={busy}>↻</button>
+        <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)}><option>All</option><option>Active</option><option>Inactive</option></select>
+        <span /><label><b>⌕</b><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search..." /></label>
+      </div>
       <div className="crm2-item-head">
         <span>Code</span><span>Item</span><span>Description</span><span>Rate</span><span>Tax</span><span>Status</span>
       </div>

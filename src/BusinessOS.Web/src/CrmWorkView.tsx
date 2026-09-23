@@ -170,60 +170,82 @@ export function CrmWorkView(props: Props) {
   }
 
   if (props.view === 'tasks') {
-    const open = props.tasks.filter((x) => x.status === 'Open')
+    const count = (status: string) => props.tasks.filter(x => x.status === status).length
+    const assigned = (status: string) => props.tasks.filter(x => x.status === status && (!props.currentUserId || x.assigneeUserId === props.currentUserId)).length
     return (
-      <section className="crm2-module-page">
-        <div className="crm2-module-head"><div><span className="crm2-kicker">TASK CENTRE</span><h2>Sales tasks</h2><p>Edit, reassign, complete and cancel tasks from the same workspace.</p></div><div className="crm2-module-stat"><strong>{open.length}</strong><span>open</span></div></div>
-        <div className="crm2-summary-strip"><div><span>Open tasks</span><b>{props.summary.openTasks}</b></div><div className="danger"><span>Overdue</span><b>{props.summary.overdueTasks}</b></div><div><span>Completed</span><b>{props.tasks.filter((x) => x.status === 'Completed').length}</b></div></div>
-        <div className="crm2-module-list">
-          {props.tasks.length === 0 ? <div className="crm2-empty"><strong>No tasks yet</strong><span>Create tasks from any lead workspace.</span></div> : props.tasks.map((item) => {
+      <section className="crm2-ref-list-page crm2-tasks-reference">
+        <div className="crm2-ref-action-row">
+          <button className="crm2-ref-primary" disabled title="Create tasks from a lead workspace">+ New Task</button>
+          <button className="crm2-ref-square">▦</button>
+          <span className="crm2-action-spacer" />
+          <button className="crm2-tasks-overview">Tasks Overview</button>
+          <button className="crm2-ref-square">▼</button>
+        </div>
+        <section className="crm2-reference-status-summary crm2-task-summary">
+          <h2>▧ Tasks Summary</h2>
+          <div>
+            <span><b>{count('Open')}</b><em>Not Started<small>Tasks assigned to me: {assigned('Open')}</small></em></span>
+            <span><b>{count('InProgress')}</b><em className="blue">In Progress<small>Tasks assigned to me: {assigned('InProgress')}</small></em></span>
+            <span><b>{count('Testing')}</b><em className="blue">Testing<small>Tasks assigned to me: {assigned('Testing')}</small></em></span>
+            <span><b>{count('AwaitingFeedback')}</b><em className="warn">Awaiting Feedback<small>Tasks assigned to me: {assigned('AwaitingFeedback')}</small></em></span>
+            <span><b>{count('Completed')}</b><em className="good">Complete<small>Tasks assigned to me: {assigned('Completed')}</small></em></span>
+          </div>
+        </section>
+        <section className="crm2-ref-table-card">
+          <div className="crm2-ref-table-tools">
+            <select><option>25</option><option>50</option></select><button>Export</button><button>Bulk Actions</button><button>↻</button><span />
+            <label><b>⌕</b><input placeholder="Search..." /></label>
+          </div>
+          <div className="crm2-task-head"><span></span><span>#</span><span>Name</span><span>Status</span><span>Start Date</span><span>Due Date</span><span>Assigned to</span><span>Tags</span><span>Priority</span></div>
+          {props.tasks.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : props.tasks.map((item, index) => {
             const overdue = item.status === 'Open' && !!item.dueAtUtc && new Date(item.dueAtUtc) < new Date()
             const editing = editingTaskId === item.id
-            return <article key={item.id} className={overdue ? 'overdue' : ''} style={{ alignItems: editing ? 'flex-start' : undefined }}>
-              {item.leadId ? <button className="crm2-link-button" onClick={() => props.openLead(item.leadId!)}>{leadTitle(item.leadId)}</button> : <span className="crm2-link-label">General</span>}
-              <div style={{ flex: 1 }}>
-                <strong>{item.title}</strong><span>{item.priority} · {formatDate(item.dueAtUtc)}</span>{item.details ? <small>{item.details}</small> : null}
-                {editing ? <div className="crm-advanced-form stacked" style={{ marginTop: 12 }}>
-                  <input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="Task title" />
-                  <textarea rows={3} value={taskDetails} onChange={(e) => setTaskDetails(e.target.value)} placeholder="Task details" />
-                  <input type="datetime-local" value={taskDue} onChange={(e) => setTaskDue(e.target.value)} />
-                  <select value={taskPriority} onChange={(e) => setTaskPriority(e.target.value)}><option>Low</option><option>Normal</option><option>High</option><option>Urgent</option></select>
-                  {team.length ? <select value={taskAssignee} onChange={(e) => setTaskAssignee(e.target.value)}><option value="">Unassigned</option>{assignableUsers.map((user) => <option key={user.id} value={user.id}>{user.displayName} · {user.role}</option>)}</select> : null}
-                  <div className="crm2-top-actions"><button className="crm2-primary" disabled={busy || !taskTitle.trim()} onClick={() => void saveTask(item.id)}>Save</button><button className="crm2-refresh" onClick={() => setEditingTaskId(null)}>Close</button></div>
-                </div> : null}
+            const assignee = team.find(user => user.id === item.assigneeUserId)
+            return <div className={'crm2-task-row-wrap' + (overdue ? ' overdue' : '')} key={item.id}>
+              <div className="crm2-task-row">
+                <span><input type="checkbox" /></span><span>{index + 1}</span>
+                <span><a onClick={() => item.leadId && props.openLead(item.leadId)}>{item.title}</a>{item.status === 'Open' ? <small><button disabled={busy} onClick={() => editTask(item)}>Edit</button><button disabled={busy} onClick={() => void props.completeTask(item.id)}>Complete</button><button disabled={busy} onClick={() => void cancelTask(item.id)}>Cancel</button></small> : null}</span>
+                <span><em className={'crm2-task-status ' + item.status.toLowerCase()}>{item.status === 'Open' ? 'Not Started' : item.status}</em></span>
+                <span>{new Date(item.createdAtUtc).toLocaleDateString('en-IN')}</span><span>{item.dueAtUtc ? new Date(item.dueAtUtc).toLocaleDateString('en-IN') : '—'}</span>
+                <span>{assignee?.displayName || '—'}</span><span>—</span><span className={'priority-' + item.priority.toLowerCase()}>{item.priority}</span>
               </div>
-              <em className={item.status.toLowerCase()}>{overdue ? 'Overdue' : item.status}</em>
-              {item.status === 'Open' ? <div className="crm2-top-actions"><button disabled={busy} onClick={() => editTask(item)}>Edit</button><button disabled={busy} onClick={() => void props.completeTask(item.id)}>Complete</button><button disabled={busy} onClick={() => void cancelTask(item.id)}>Cancel</button></div> : null}
-            </article>
+              {editing ? <div className="crm2-task-inline-edit">
+                <input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="Task title" />
+                <textarea rows={2} value={taskDetails} onChange={(e) => setTaskDetails(e.target.value)} placeholder="Task details" />
+                <input type="datetime-local" value={taskDue} onChange={(e) => setTaskDue(e.target.value)} />
+                <select value={taskPriority} onChange={(e) => setTaskPriority(e.target.value)}><option>Low</option><option>Normal</option><option>High</option><option>Urgent</option></select>
+                {team.length ? <select value={taskAssignee} onChange={(e) => setTaskAssignee(e.target.value)}><option value="">Unassigned</option>{assignableUsers.map((user) => <option key={user.id} value={user.id}>{user.displayName} · {user.role}</option>)}</select> : null}
+                <button className="crm2-primary" disabled={busy || !taskTitle.trim()} onClick={() => void saveTask(item.id)}>Save</button><button onClick={() => setEditingTaskId(null)}>Close</button>
+              </div> : null}
+            </div>
           })}
-        </div>
+        </section>
       </section>
     )
   }
 
-  const total = props.dashboard.totalLeads || 1
-  const conversion = Math.round((props.dashboard.converted / total) * 100)
-  const qualification = Math.round((props.dashboard.qualified / total) * 100)
   return (
-    <section className="crm2-module-page">
-      <div className="crm2-module-head"><div><span className="crm2-kicker">CRM REPORTS</span><h2>Sales performance</h2><p>Live staging metrics from the current CRM dataset.</p></div></div>
-      <div className="crm2-report-grid">
-        <article><span>Total leads</span><strong>{props.dashboard.totalLeads}</strong><small>All captured leads</small></article>
-        <article><span>Conversion rate</span><strong>{conversion}%</strong><small>{props.dashboard.converted} converted</small></article>
-        <article><span>Qualification rate</span><strong>{qualification}%</strong><small>{props.dashboard.qualified} currently qualified</small></article>
-        <article><span>Open actions</span><strong>{props.summary.openFollowUps + props.summary.openTasks}</strong><small>Follow-ups + tasks</small></article>
+    <section className="crm2-ref-list-page crm2-reports-reference">
+      <div className="crm2-report-columns">
+        <section>
+          <h2>▧ Sales Report</h2>
+          <details><summary>Invoices Report</summary><p>Open actions: {props.summary.openFollowUps + props.summary.openTasks}</p></details>
+          <details><summary>Items Report</summary><p>CRM reporting workspace</p></details>
+          <details><summary>Payments Received</summary><p>Use Sales → Payments for transaction-level details.</p></details>
+          <details><summary>Credit Notes Report</summary><p>Use Sales → Credit Notes for document details.</p></details>
+          <details><summary>Proposals Report</summary><p>Total leads: {props.dashboard.totalLeads}</p></details>
+          <details><summary>Estimates Report</summary><p>Qualified leads: {props.dashboard.qualified}</p></details>
+          <details><summary>Customers Report</summary><p>Converted leads: {props.dashboard.converted}</p></details>
+        </section>
+        <section>
+          <h2>▥ Charts Based Report</h2>
+          <details><summary>Total Income</summary><p>Open the detailed analytics workspace for revenue charts.</p></details>
+          <details><summary>Payment Modes (Transactions)</summary><p>Use Sales → Payments for payment-mode details.</p></details>
+          <details><summary>Total Value By Customer Groups</summary><p>Use Customers and Analytics for customer-group analysis.</p></details>
+        </section>
       </div>
-      <div className="crm2-funnel-report">
-        {[
-          ['New', props.dashboard.new], ['Contacted', props.dashboard.contacted],
-          ['Qualified', props.dashboard.qualified], ['Converted', props.dashboard.converted],
-          ['Unqualified', props.dashboard.unqualified],
-        ].map(([label, value]) => {
-          const count = Number(value)
-          const width = Math.max(3, Math.round((count / total) * 100))
-          return <div key={String(label)}><span>{label}</span><i><b style={{ width: `${width}%` }} /></i><strong>{count}</strong></div>
-        })}
-      </div>
+      <p className="crm2-report-note">ⓘ Cancelled/void records are excluded where the underlying report applies that rule.</p>
     </section>
   )
+
 }

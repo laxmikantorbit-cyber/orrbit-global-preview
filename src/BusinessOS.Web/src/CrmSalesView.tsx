@@ -45,11 +45,13 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
   const [contactDraft, setContactDraft] = useState('')
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([])
   const [customerQuery, setCustomerQuery] = useState('')
-  const [customerStatusFilter, setCustomerStatusFilter] = useState('Active')
+  const [customerStatusFilter, setCustomerStatusFilter] = useState('All')
+  const [excludeInactive, setExcludeInactive] = useState(true)
   const [customerGroupFilter, setCustomerGroupFilter] = useState('All')
   const [bulkCustomerStatus, setBulkCustomerStatus] = useState('')
   const [bulkCustomerGroup, setBulkCustomerGroup] = useState('')
   const [bulkCustomerGroupMode, setBulkCustomerGroupMode] = useState<'add' | 'remove'>('add')
+  const [showBulkCustomerActions, setShowBulkCustomerActions] = useState(false)
   const [detailName, setDetailName] = useState('')
   const [detailLegalName, setDetailLegalName] = useState('')
   const [detailGstin, setDetailGstin] = useState('')
@@ -74,7 +76,7 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
     const search = customerQuery.trim().toLowerCase()
     return accounts.filter((account) => {
       const groups = account.groups || []
-      const matchesStatus = customerStatusFilter === 'All' || account.status === customerStatusFilter
+      const matchesStatus = (customerStatusFilter === 'All' || account.status === customerStatusFilter) && (!excludeInactive || account.status !== 'Inactive')
       const matchesGroup = customerGroupFilter === 'All' || groups.some((group) => group.toLowerCase() === customerGroupFilter.toLowerCase())
       const haystack = [
         account.name, account.legalName, account.gstin, account.displayCode,
@@ -83,7 +85,7 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
       ].filter(Boolean).join(' ').toLowerCase()
       return matchesStatus && matchesGroup && (!search || haystack.includes(search))
     })
-  }, [accounts, customerGroupFilter, customerQuery, customerStatusFilter])
+  }, [accounts, customerGroupFilter, customerQuery, customerStatusFilter, excludeInactive])
   const totalPipeline = opportunities
     .filter((item) => !['Won', 'Lost'].includes(item.stage))
     .reduce((sum, item) => sum + item.estimatedValue, 0)
@@ -271,25 +273,35 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
         </div>
         <section className="crm2-ref-summary-card">
           <h2>Customers Summary</h2>
-          <div className="crm2-ref-summary-line"><strong>{accounts.length}</strong><span>Total Customers</span><strong>{activeCustomers}</strong><span className="good">Active Customers</span><strong>{inactiveCustomers}</strong><span className="bad">Inactive Customers</span><strong>{activeContacts}</strong><span>Active Contacts</span><strong>{customerGroups.length}</strong><span>Customer Groups</span></div>
-        </section>
-        <section className="crm2-ref-filter-card">
-          <strong>Filter by</strong>
-          <div className="crm2-ref-filter-grid">
-            <select value={customerStatusFilter} onChange={(e) => setCustomerStatusFilter(e.target.value)}><option value="All">All statuses</option><option>Active</option><option>Inactive</option><option>Archived</option></select>
-            <select value={customerGroupFilter} onChange={(e) => setCustomerGroupFilter(e.target.value)}><option value="All">All groups</option>{customerGroups.map((group) => <option key={group}>{group}</option>)}</select>
-            <input value={customerQuery} onChange={(e) => setCustomerQuery(e.target.value)} placeholder="Company, contact, GSTIN, group..." />
+          <div className="crm2-ref-summary-line">
+            <div><strong>{accounts.length}</strong><span>Total Customers</span></div>
+            <div><strong>{activeCustomers}</strong><span className="good">Active Customers</span></div>
+            <div><strong>{inactiveCustomers}</strong><span className="bad">Inactive Customers</span></div>
+            <div><strong>{activeContacts}</strong><span>Active Contacts</span></div>
+            <div><strong>{customerGroups.length}</strong><span>Customer Groups</span></div>
           </div>
         </section>
+        <div className="crm2-ref-inline-checks">
+          <label><input type="checkbox" checked={excludeInactive} onChange={(e) => setExcludeInactive(e.target.checked)} /> Exclude Inactive</label>
+        </div>
         <section className="crm2-ref-table-card">
           <div className="crm2-ref-table-tools">
             <select><option>25</option><option>50</option></select>
-            <button onClick={() => void exportCustomers('csv')}>Export CSV</button>
-            <button onClick={() => void exportCustomers('xlsx')}>Export Excel</button>
-            {canManageAccounts ? <><select value={bulkCustomerStatus} onChange={(e) => setBulkCustomerStatus(e.target.value)}><option value="">Bulk Status</option><option>Active</option><option>Inactive</option><option>Archived</option></select><select value={bulkCustomerGroupMode} onChange={(e) => setBulkCustomerGroupMode(e.target.value as 'add' | 'remove')}><option value="add">Add Group</option><option value="remove">Remove Group</option></select><input value={bulkCustomerGroup} onChange={(e) => setBulkCustomerGroup(e.target.value)} placeholder="Group name" /><button disabled={busy} onClick={() => void applyCustomerBulkAction()}>Apply Bulk</button></> : null}
-            <button onClick={refresh}>Refresh</button><span />
+            <button onClick={() => void exportCustomers('xlsx')}>Export</button>
+            {canManageAccounts ? <button disabled={busy || selectedAccountIds.length === 0} onClick={() => setShowBulkCustomerActions(value => !value)}>Bulk Actions</button> : null}
+            <button onClick={refresh}>↻</button>
+            <select value={customerStatusFilter} onChange={(e) => setCustomerStatusFilter(e.target.value)}><option value="All">All statuses</option><option>Active</option><option>Inactive</option><option>Archived</option></select>
+            <select value={customerGroupFilter} onChange={(e) => setCustomerGroupFilter(e.target.value)}><option value="All">All groups</option>{customerGroups.map((group) => <option key={group}>{group}</option>)}</select>
+            <span />
             <label><b>⌕</b><input value={customerQuery} onChange={(e) => setCustomerQuery(e.target.value)} placeholder="Search..." /></label>
           </div>
+          {canManageAccounts && showBulkCustomerActions ? <div className="crm2-ref-bulk-panel">
+            <select value={bulkCustomerStatus} onChange={(e) => setBulkCustomerStatus(e.target.value)}><option value="">Change status...</option><option>Active</option><option>Inactive</option><option>Archived</option></select>
+            <select value={bulkCustomerGroupMode} onChange={(e) => setBulkCustomerGroupMode(e.target.value as 'add' | 'remove')}><option value="add">Add Group</option><option value="remove">Remove Group</option></select>
+            <input value={bulkCustomerGroup} onChange={(e) => setBulkCustomerGroup(e.target.value)} placeholder="Group name" />
+            <button disabled={busy} onClick={() => void applyCustomerBulkAction()}>Apply</button>
+            <button onClick={() => setShowBulkCustomerActions(false)}>Close</button>
+          </div> : null}
           <div className="crm2-ref-customers-head"><span><input type="checkbox" checked={filteredAccounts.length > 0 && filteredAccounts.every((account) => selectedAccountIds.includes(account.id))} onChange={(e) => setSelectedAccountIds((ids) => e.target.checked ? Array.from(new Set([...ids, ...filteredAccounts.map((account) => account.id)])) : ids.filter((id) => !filteredAccounts.some((account) => account.id === id)))} /></span><span>#</span><span>Company</span><span>Primary Contact</span><span>Primary Email</span><span>Phone</span><span>Active</span><span>Groups</span></div>
           {filteredAccounts.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : filteredAccounts.map((account, index) => (
             <article className="crm2-ref-customers-row" key={account.id} onClick={() => openAccount(account)}>

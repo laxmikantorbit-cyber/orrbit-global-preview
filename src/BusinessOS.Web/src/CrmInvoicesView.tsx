@@ -261,21 +261,19 @@ export function CrmInvoicesView({
     <section className="crm2-ref-list-page crm2-invoices">
       <div className="crm2-ref-action-row">
         {canManageSales ? <button className="crm2-ref-primary" onClick={resetDraft}>+ New Invoice</button> : null}
+        <button>Batch Payments</button>
+        <button>Recurring Invoices</button>
         {canManageSales ? <button onClick={() => { setConvertDocumentId(availableDocuments[0]?.id || ''); setConvertDueDate(addDays(today(), 7)); setConverting(true) }}>Convert Accepted Document</button> : null}
+        <button className="crm2-ref-square" title="Filter">▼</button>
       </div>
-
-      <section className="crm2-ref-filter-card">
-        <strong>Invoices & payments</strong>
-        <div className="crm2-ref-filter-grid">
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}>
-            {statuses.map((status) => <option key={status}>{status}</option>)}
-          </select>
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search invoice, customer, subject..." />
-          <button onClick={() => void refresh()} disabled={busy}>Refresh</button>
-        </div>
-      </section>
-
       <section className="crm2-ref-table-card">
+        <div className="crm2-ref-table-tools">
+          <select><option>25</option><option>50</option></select>
+          <button>Export</button><button onClick={() => void refresh()} disabled={busy}>↻</button>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}>{statuses.map((status) => <option key={status}>{status}</option>)}</select>
+          <span />
+          <label><b>⌕</b><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search..." /></label>
+        </div>
         <div className="crm2-invoice-head">
           <span>Invoice</span><span>Customer</span><span>Subject</span><span>Total</span><span>Paid</span><span>Balance</span><span>Status</span><span>Due</span>
         </div>

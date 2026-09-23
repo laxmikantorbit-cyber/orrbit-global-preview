@@ -95,6 +95,11 @@ export function CrmDemo() {
     return new Date(now.getFullYear(), now.getMonth(), 1)
   })
   const [calendarFilter, setCalendarFilter] = useState<'All' | 'FollowUps' | 'Tasks'>('All')
+  const [calendarExpanded, setCalendarExpanded] = useState(false)
+  const [salesSection, setSalesSection] = useState<'proposals' | 'estimates' | 'invoices' | 'payments' | 'credits' | 'items'>('proposals')
+  const [salesMenuOpen, setSalesMenuOpen] = useState(false)
+  const [utilitiesMenuOpen, setUtilitiesMenuOpen] = useState(false)
+  const [reportsMenuOpen, setReportsMenuOpen] = useState(false)
   const [leads, setLeads] = useState<CrmLead[]>([])
   const [followUps, setFollowUps] = useState<CrmFollowUp[]>([])
   const [tasks, setTasks] = useState<CrmTask[]>([])
@@ -134,6 +139,7 @@ export function CrmDemo() {
   const [bulkStatus, setBulkStatus] = useState('')
   const [bulkPriority, setBulkPriority] = useState('')
   const [bulkOwnerId, setBulkOwnerId] = useState('')
+  const [showLeadBulkActions, setShowLeadBulkActions] = useState(false)
   const [showAddLead, setShowAddLead] = useState(false)
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
   const [title, setTitle] = useState('')
@@ -483,44 +489,59 @@ export function CrmDemo() {
         <div className="crm2-brand crm2-ref-brand"><div className="crm2-ref-tree"><i></i><i></i><i></i><i></i><b></b></div></div>
         <nav className="crm2-nav crm2-reference-nav" aria-label="CRM navigation">
           <button className={view === 'overview' ? 'active' : ''} onClick={() => setView('overview')}><span>⌂</span>Dashboard</button>
-          <button className={view === 'accounts' ? 'active' : ''} onClick={() => setView('accounts')}><span>○</span>Customers <b>{accounts.length}</b></button>
-          {can('ViewSales') ? <button className={view === 'sales' ? 'active' : ''} onClick={() => setView('sales')}><span>▣</span>Sales <b>{salesDocuments.length}</b></button> : null}
-          {can('ViewSales') ? <button className={view === 'subscriptions' ? 'active' : ''} onClick={() => setView('subscriptions')}><span>↻</span>Subscriptions <b>{subscriptions.length}</b></button> : null}
-          <button className={view === 'expenses' ? 'active' : ''} onClick={() => setView('expenses')}><span>□</span>Expenses</button>
-          <button className={view === 'contracts' ? 'active' : ''} onClick={() => setView('contracts')}><span>▤</span>Contracts</button>
-          <button className={view === 'projects' ? 'active' : ''} onClick={() => setView('projects')}><span>⌙</span>Projects</button>
-          <button className={view === 'tasks' ? 'active' : ''} onClick={() => setView('tasks')}><span>✓</span>Tasks <b>{workSummary.openTasks}</b></button>
+          <button className={view === 'accounts' ? 'active' : ''} onClick={() => setView('accounts')}><span>♙</span>Customers</button>
+          {can('ViewSales') ? <div className={'crm2-nav-group ' + ((salesMenuOpen || view === 'sales') ? 'open' : '')}>
+            <button className={view === 'sales' ? 'active' : ''} onClick={() => setSalesMenuOpen(value => !value)}><span>▤</span>Sales <i>{salesMenuOpen || view === 'sales' ? '⌄' : '‹'}</i></button>
+            {salesMenuOpen || view === 'sales' ? <div className="crm2-nav-sub">
+              <button className={view === 'sales' && salesSection === 'proposals' ? 'active' : ''} onClick={() => { setSalesSection('proposals'); setView('sales') }}>Proposals</button>
+              <button className={view === 'sales' && salesSection === 'estimates' ? 'active' : ''} onClick={() => { setSalesSection('estimates'); setView('sales') }}>Estimates</button>
+              <button className={view === 'sales' && salesSection === 'invoices' ? 'active' : ''} onClick={() => { setSalesSection('invoices'); setView('sales') }}>Invoices</button>
+              <button className={view === 'sales' && salesSection === 'payments' ? 'active' : ''} onClick={() => { setSalesSection('payments'); setView('sales') }}>Payments</button>
+              <button className={view === 'sales' && salesSection === 'credits' ? 'active' : ''} onClick={() => { setSalesSection('credits'); setView('sales') }}>Credit Notes</button>
+              <button className={view === 'sales' && salesSection === 'items' ? 'active' : ''} onClick={() => { setSalesSection('items'); setView('sales') }}>Items</button>
+            </div> : null}
+          </div> : null}
+          {can('ViewSales') ? <button className={view === 'subscriptions' ? 'active' : ''} onClick={() => setView('subscriptions')}><span>↻</span>Subscriptions</button> : null}
+          <button className={view === 'expenses' ? 'active' : ''} onClick={() => setView('expenses')}><span>▧</span>Expenses</button>
+          <button className={view === 'contracts' ? 'active' : ''} onClick={() => setView('contracts')}><span>▧</span>Contracts</button>
+          <button className={view === 'projects' ? 'active' : ''} onClick={() => setView('projects')}><span>⌞</span>Projects</button>
+          <button className={view === 'tasks' ? 'active' : ''} onClick={() => setView('tasks')}><span>◉</span>Tasks</button>
           <button className={view === 'support' ? 'active' : ''} onClick={() => setView('support')}><span>◎</span>Support</button>
-          <button className={view === 'leads' ? 'active' : ''} onClick={() => setView('leads')}><span>▥</span>Leads <b>{dashboard.totalLeads}</b></button>
-          <button className={view === 'estimateRequests' ? 'active' : ''} onClick={() => setView('estimateRequests')}><span>◇</span>Estimate Request</button>
-          <button className={view === 'knowledgeBase' ? 'active' : ''} onClick={() => setView('knowledgeBase')}><span>▭</span>Knowledge Base</button>
-          <button className={view === 'utilities' ? 'active' : ''} onClick={() => setView('utilities')}><span>⚙</span>Utilities</button>
-          {can('ViewReports') ? <button className={view === 'reports' ? 'active' : ''} onClick={() => setView('reports')}><span>≡</span>Reports</button> : null}
+          <button className={view === 'leads' ? 'active' : ''} onClick={() => setView('leads')}><span>☎</span>Leads</button>
+          <button className={view === 'estimateRequests' ? 'active' : ''} onClick={() => setView('estimateRequests')}><span>▯</span>Estimate Request</button>
+          <button className={view === 'knowledgeBase' ? 'active' : ''} onClick={() => setView('knowledgeBase')}><span>□</span>Knowledge Base</button>
+          <div className={'crm2-nav-group ' + ((utilitiesMenuOpen || view === 'utilities') ? 'open' : '')}>
+            <button className={view === 'utilities' ? 'active' : ''} onClick={() => setUtilitiesMenuOpen(value => !value)}><span>⚙</span>Utilities <i>{utilitiesMenuOpen || view === 'utilities' ? '⌄' : '‹'}</i></button>
+            {utilitiesMenuOpen || view === 'utilities' ? <div className="crm2-nav-sub">
+              <button className={view === 'utilities' ? 'active' : ''} onClick={() => setView('utilities')}>Media</button>
+              <a href="/crm/export">Bulk PDF Export</a>
+              <button onClick={() => setView('overview')}>Calendar</button>
+              <a href="/crm/inbox">Announcements</a>
+              <a href="/crm/advanced">Activity Log</a>
+              <a href="/crm/maintenance">Database Backup</a>
+              <button onClick={() => setView('support')}>Ticket Pipe Log</button>
+            </div> : null}
+          </div>
+          {can('ViewReports') ? <div className={'crm2-nav-group ' + ((reportsMenuOpen || view === 'reports') ? 'open' : '')}>
+            <button className={view === 'reports' ? 'active' : ''} onClick={() => setReportsMenuOpen(value => !value)}><span>≡</span>Reports <i>{reportsMenuOpen || view === 'reports' ? '⌄' : '‹'}</i></button>
+            {reportsMenuOpen || view === 'reports' ? <div className="crm2-nav-sub">
+              <button className={view === 'reports' ? 'active' : ''} onClick={() => setView('reports')}>Sales</button>
+              <button onClick={() => setView('reports')}>Expenses</button>
+              <button onClick={() => setView('reports')}>Expenses vs Income</button>
+              <a href="/crm/analytics">Leads</a>
+              <a href="/crm/analytics">Timesheets overview</a>
+              <button onClick={() => setView('knowledgeBase')}>KB Articles</button>
+            </div> : null}
+          </div> : null}
         </nav>
-        <div className="crm2-module-nav" aria-label="Advanced CRM modules">
-          <span className="crm2-module-title">More tools</span>
-          <a href="/crm/advanced">More options</a>
-          <a href="/crm/manage">Software settings</a>
-          <a href="/crm/maintenance">Clean / update data</a>
-          <a href="/crm/pipeline-board">Move deals by drag</a>
-          <a href="/crm/addresses">Customer addresses</a>
-          <a href="/crm/leads-query">Search enquiries</a>
-          <a href="/crm/analytics">Detailed reports</a>
-          <a href="/crm/opportunity-products">Products in deals</a>
-          <a href="/crm/inbox">My day</a>
-          <a href="/crm/communications">Calls & messages</a>
-          <a href="/crm/intelligence">AI sales help</a>
-          <a href="/crm/export">Excel export</a>
-          <a href="/crm/contacts">Contact list</a>
-          <a href="/crm/deal-aging">Old pending deals</a>
-        </div>
+        <div className="crm2-setup-nav"><a href="/crm/manage"><span>⚙</span>Setup</a></div>
         <div className="crm2-sidebar-foot"><strong>BUSINESSOS CRM</strong><small>Simple CRM for daily customer follow-up</small></div>
       </aside>
 
       <main className="crm2-main">
         <header className="crm2-topbar crm2-ref-topbar">
           <button className="crm2-ref-menu" aria-label="Toggle menu" aria-expanded={!sidebarCollapsed} onClick={() => setSidebarCollapsed(value => !value)}>☰</button>
-          <label className="crm2-ref-search"><input value={globalQuery} onChange={(e) => setGlobalQuery(e.target.value)} placeholder="Search customers, leads, opportunities..." /><span>{globalSearching ? '...' : '⌕'}</span></label>
+          <label className="crm2-ref-search"><input value={globalQuery} onChange={(e) => setGlobalQuery(e.target.value)} placeholder="Search..." /><span>{globalSearching ? '...' : '⌕'}</span></label>
           {can('CreateLead') ? <button className="crm2-ref-plus" onClick={() => setShowAddLead(true)} aria-label="Add new lead">+</button> : null}
           <div className="crm2-ref-toolbar-spacer" />
           <button className="crm2-ref-icon" title="Export leads CSV" onClick={() => void exportLeads('csv')}>⌯</button>
@@ -531,7 +552,7 @@ export function CrmDemo() {
         </header>
         {globalHits.length > 0 ? <div className="crm2-global-results">{globalHits.map((hit) => <button key={`${hit.type}-${hit.id}`} onClick={() => openSearchHit(hit)}><strong>{hit.title}</strong><span>{hit.type} · {hit.status}</span><small>{hit.subtitle || hit.secondary || ''}</small></button>)}</div> : null}
         {showNotifications ? <div className="crm2-notification-panel">{notifications.length === 0 ? <p>No notifications right now</p> : notifications.map((item) => <button key={`${item.type}-${item.recordId}`} onClick={() => { if (item.leadId) { setSelectedLeadId(item.leadId); setView('leads') } setShowNotifications(false) }}><strong>{item.title}</strong><span>{item.detail}</span><small>{item.severity}</small></button>)}</div> : null}
-        {can('ViewReports') ? <div className="crm2-ref-options"><button onClick={() => window.location.assign('/crm/analytics')}>≡ Detailed Reports</button></div> : null}
+        {view === 'overview' ? <div className="crm2-ref-options"><button onClick={() => setMessage('Dashboard options ready')}>⚙ Dashboard Options</button></div> : null}
         <section className="crm2-statusbar"><div><span className={loading ? 'pulse busy' : 'pulse'} />{message}</div><span>{session ? `${session.member.displayName} · ${session.member.role} · ${session.canViewAllOwnedRecords ? 'Team view' : 'My view'} · ` : ''}Testing mode · {storageLabel}</span></section>
         <section className="crm2-workflow-board" aria-label="Simple working process">
           <div className="crm2-workflow-title">
@@ -576,20 +597,20 @@ export function CrmDemo() {
               </div>
             </section>
 
-            <section className="crm2-reference-calendar">
+            <section className={'crm2-reference-calendar' + (calendarExpanded ? ' expanded' : '')}>
               <div className="crm2-calendar-toolbar">
                 <div className="crm2-calendar-left">
                   <button aria-label="Previous month" onClick={() => setCalendarCursor(value => new Date(value.getFullYear(), value.getMonth() - 1, 1))}>‹</button>
                   <button aria-label="Next month" onClick={() => setCalendarCursor(value => new Date(value.getFullYear(), value.getMonth() + 1, 1))}>›</button>
                   <button onClick={() => { const now = new Date(); setCalendarCursor(new Date(now.getFullYear(), now.getMonth(), 1)) }}>Today</button>
-                  <button onClick={() => setView('tasks')}>Tasks</button>
+                  <button onClick={() => setCalendarExpanded(value => !value)}>Expand</button>
                 </div>
                 <h2>{calendarTitle}</h2>
                 <div className="crm2-calendar-right">
-                  <button className={calendarFilter === 'All' ? 'active' : ''} onClick={() => setCalendarFilter('All')}>All</button>
-                  <button className={calendarFilter === 'FollowUps' ? 'active' : ''} onClick={() => setCalendarFilter('FollowUps')}>Follow-ups</button>
-                  <button className={calendarFilter === 'Tasks' ? 'active' : ''} onClick={() => setCalendarFilter('Tasks')}>Tasks</button>
-                  {can('ViewReports') ? <button onClick={() => window.location.assign('/crm/analytics')}>Reports</button> : null}
+                  <button className="active">Month</button>
+                  <button onClick={() => setMessage('Week view uses the same live CRM events')}>Week</button>
+                  <button onClick={() => setMessage('Day view uses the same live CRM events')}>Day</button>
+                  <button onClick={() => setCalendarFilter(value => value === 'All' ? 'FollowUps' : value === 'FollowUps' ? 'Tasks' : 'All')}>Filter By</button>
                 </div>
               </div>
               <div className="crm2-calendar-grid">
@@ -633,14 +654,16 @@ export function CrmDemo() {
             <section className="crm2-ref-table-card">
               <div className="crm2-ref-table-tools">
                 <select><option>25</option><option>50</option></select>
-                <button onClick={() => void exportLeads('csv')}>Export CSV</button>
-                <button onClick={() => void exportLeads('xlsx')}>Export Excel</button>
-                {can('EditLead') ? <select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)}><option value="">Bulk Status</option><option value="New">New</option><option value="Contacted">Contacted</option><option value="Qualified">Qualified</option><option value="Unqualified">Unqualified</option></select> : null}
-                {can('EditLead') ? <select value={bulkPriority} onChange={(e) => setBulkPriority(e.target.value)}><option value="">Bulk Priority</option><option>Low</option><option>Normal</option><option>High</option><option>Urgent</option></select> : null}
-                {can('AssignLead') ? <select value={bulkOwnerId} onChange={(e) => setBulkOwnerId(e.target.value)}><option value="">Bulk Assignee</option><option value="__unassigned__">Unassigned</option>{teamMembers.filter((member) => member.active).map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select> : null}
-                {can('EditLead') || can('AssignLead') ? <button disabled={loading} onClick={() => void applyBulkLeadUpdate()}>Apply Bulk</button> : null}
-                <button onClick={refresh}>Refresh</button><span /><label><b>⌕</b><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search..." /></label>
+                <button onClick={() => void exportLeads('xlsx')}>Export</button>
+                {can('EditLead') || can('AssignLead') ? <button disabled={loading || selectedLeadIds.length === 0} onClick={() => setShowLeadBulkActions(value => !value)}>Bulk Actions</button> : null}
+                <button onClick={refresh}>↻</button><span /><label><b>⌕</b><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search..." /></label>
               </div>
+              {showLeadBulkActions ? <div className="crm2-ref-bulk-panel">
+                {can('EditLead') ? <select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)}><option value="">Change status...</option><option value="New">New</option><option value="Contacted">Contacted</option><option value="Qualified">Qualified</option><option value="Unqualified">Unqualified</option></select> : null}
+                {can('EditLead') ? <select value={bulkPriority} onChange={(e) => setBulkPriority(e.target.value)}><option value="">Change priority...</option><option>Low</option><option>Normal</option><option>High</option><option>Urgent</option></select> : null}
+                {can('AssignLead') ? <select value={bulkOwnerId} onChange={(e) => setBulkOwnerId(e.target.value)}><option value="">Change assignee...</option><option value="__unassigned__">Unassigned</option>{teamMembers.filter((member) => member.active).map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select> : null}
+                <button disabled={loading} onClick={() => void applyBulkLeadUpdate()}>Apply</button><button onClick={() => setShowLeadBulkActions(false)}>Close</button>
+              </div> : null}
               <div className="crm2-ref-leads-head"><span><input type="checkbox" checked={filteredLeads.length > 0 && filteredLeads.every((lead) => selectedLeadIds.includes(lead.id))} onChange={(e) => setSelectedLeadIds((ids) => e.target.checked ? Array.from(new Set([...ids, ...filteredLeads.map((lead) => lead.id)])) : ids.filter((id) => !filteredLeads.some((lead) => lead.id === id)))} /></span><span>#</span><span>Name</span><span>Company</span><span>Email</span><span>Phone</span><span>Value</span><span>Tags</span><span>Assigned</span><span>Status</span></div>
               {filteredLeads.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : leadViewMode === 'grid' ? <div className="crm2-ref-lead-grid">{filteredLeads.map((lead) => {
                 const owner = teamMembers.find((member) => member.id === lead.ownerUserId)
@@ -687,7 +710,7 @@ export function CrmDemo() {
         ) : null}
 
         {view === 'sales' && can('ViewSales') ? (
-          <CrmSalesWorkspace accounts={accounts} opportunities={opportunities} documents={salesDocuments} invoices={invoices} salesItems={salesItems} creditNotes={creditNotes} busy={loading} refresh={refresh} notify={setMessage} canManageSales={can('ManageSales')} />
+          <CrmSalesWorkspace section={salesSection} accounts={accounts} opportunities={opportunities} documents={salesDocuments} invoices={invoices} salesItems={salesItems} creditNotes={creditNotes} busy={loading} refresh={refresh} notify={setMessage} canManageSales={can('ManageSales')} />
         ) : null}
         {view === 'accounts' || view === 'opportunities' ? (
           <CrmSalesView view={view} accounts={accounts} opportunities={opportunities} busy={loading} refresh={refresh} notify={setMessage} canManageAccounts={can('ManageAccounts')} canManageOpportunities={can('ManageOpportunities')} />

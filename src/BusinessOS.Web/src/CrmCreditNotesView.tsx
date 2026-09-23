@@ -111,17 +111,12 @@ export function CrmCreditNotesView({
     <div className="crm2-ref-action-row">
       {canManageSales ? <button className="crm2-ref-primary" onClick={beginNew}>+ New Credit Note</button> : null}
     </div>
-    <section className="crm2-ref-filter-card">
-      <strong>Credit notes</strong>
-      <div className="crm2-ref-filter-grid">
-        <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
-          <option>All</option><option>Draft</option><option>Issued</option><option>Void</option>
-        </select>
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search credit note, invoice, customer..." />
-        <button onClick={() => void refresh()} disabled={busy}>Refresh</button>
-      </div>
-    </section>
     <section className="crm2-ref-table-card">
+      <div className="crm2-ref-table-tools">
+        <select><option>25</option><option>50</option></select><button>Export</button><button onClick={() => void refresh()} disabled={busy}>↻</button>
+        <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)}><option>All</option><option>Draft</option><option>Issued</option><option>Void</option></select>
+        <span /><label><b>⌕</b><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search..." /></label>
+      </div>
       <div className="crm2-credit-head">
         <span>Credit Note</span><span>Invoice</span><span>Customer</span><span>Reason</span><span>Amount</span><span>Status</span>
       </div>
