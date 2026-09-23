@@ -1150,3 +1150,23 @@ export async function setCrmMediaAssetActive(id: string, active: boolean) {
   })
   return parseResponse<CrmMediaAsset>(response)
 }
+
+export type CrmSubscription = {
+  subscriptionId: string
+  accountId: string
+  accountName: string
+  licenseId: string
+  productCode: string
+  startsOn: string
+  validUntil: string
+  status: 'Active' | 'Expired' | string
+  renewalCount: number
+  latestOrderAmount: number
+  currencyCode: string
+  lastPaidAtUtc?: string | null
+}
+
+export async function listCrmSubscriptions() {
+  const response = await crmFetch('/subscriptions')
+  return parseResponse<{ subscriptions: CrmSubscription[] }>(response)
+}

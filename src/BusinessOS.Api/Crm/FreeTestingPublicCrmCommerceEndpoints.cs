@@ -116,6 +116,47 @@ public static class FreeTestingPublicCrmCommerceEndpoints
                 renewals));
         });
 
+        group.MapGet("/subscriptions", async (
+            IConfiguration configuration,
+            IHostEnvironment environment,
+            ICommerceActivationStore commerce,
+            ICrmAccountStore accounts,
+            CancellationToken ct) =>
+        {
+            if (!Enabled(configuration, environment)) return Disabled();
+            var snapshot = await commerce.GetAdminSnapshotAsync(DemoTenantId, 1000, ct);
+            var accountNames = (await accounts.ListAsync(DemoTenantId, ct))
+                .ToDictionary(x => x.Id, x => x.Name);
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var items = snapshot.Activations.Select(activation =>
+            {
+                var renewals = snapshot.Renewals
+                    .Where(x => x.SubscriptionId == activation.SubscriptionId)
+                    .OrderBy(x => x.NewValidUntil)
+                    .ToArray();
+                var effectiveValidUntil = renewals.Length == 0
+                    ? activation.ValidUntil
+                    : renewals[^1].NewValidUntil;
+                var latestOrderId = renewals.Length == 0 ? activation.OrderId : renewals[^1].OrderId;
+                var order = snapshot.Orders.FirstOrDefault(x => x.CommerceOrderId == latestOrderId)
+                    ?? snapshot.Orders.FirstOrDefault(x => x.CommerceOrderId == activation.OrderId);
+                return new CrmSubscriptionListItem(
+                    activation.SubscriptionId,
+                    activation.OrganisationId,
+                    accountNames.GetValueOrDefault(activation.OrganisationId) ?? "Unknown customer",
+                    activation.LicenseId,
+                    activation.ProductCode,
+                    activation.StartsOn,
+                    effectiveValidUntil,
+                    effectiveValidUntil >= today ? "Active" : "Expired",
+                    renewals.Length,
+                    order?.Amount ?? 0m,
+                    order?.CurrencyCode ?? "INR",
+                    order?.PaidAtUtc);
+            }).OrderBy(x => x.Status).ThenBy(x => x.ValidUntil).ThenBy(x => x.AccountName).ToArray();
+            return Results.Ok(new { subscriptions = items });
+        });
+
         return app;
     }
 
@@ -153,3 +194,17 @@ public sealed record CrmOpportunityBusinessOsResponse(
     IReadOnlyList<CommerceAdminOrderSnapshot> Orders,
     IReadOnlyList<ActivationResponse> Activations,
     IReadOnlyList<RenewalResponse> Renewals);
+
+public sealed record CrmSubscriptionListItem(
+    Guid SubscriptionId,
+    Guid AccountId,
+    string AccountName,
+    Guid LicenseId,
+    string ProductCode,
+    DateOnly StartsOn,
+    DateOnly ValidUntil,
+    string Status,
+    int RenewalCount,
+    decimal LatestOrderAmount,
+    string CurrencyCode,
+    DateTimeOffset? LastPaidAtUtc);

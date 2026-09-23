@@ -24,6 +24,7 @@ import {
   listCrmKnowledgeCategories,
   listCrmKnowledgeArticles,
   listCrmMediaAssets,
+  listCrmSubscriptions,
   listCrmSalesItems,
   listCrmLeads,
   listCrmOpportunities,
@@ -43,6 +44,7 @@ import {
   type CrmKnowledgeCategory,
   type CrmKnowledgeArticle,
   type CrmMediaAsset,
+  type CrmSubscription,
   type CrmSalesItem,
   type CrmLead,
   type CrmOpportunity,
@@ -59,6 +61,7 @@ import { CrmSalesView } from './CrmSalesView'
 import { CrmSalesWorkspace } from './CrmSalesWorkspace'
 import { CrmBusinessRecordsView } from './CrmBusinessRecordsView'
 import { CrmEstimateRequestsView, CrmKnowledgeBaseView, CrmUtilitiesView } from './CrmPhase4BViews'
+import { CrmSubscriptionsView } from './CrmSubscriptionsView'
 import { CrmTeamView } from './CrmTeamView'
 import { exportCrmSpreadsheet, pickCrmSpreadsheet, type CrmSpreadsheetFormat } from './crmSpreadsheet'
 
@@ -143,6 +146,7 @@ export function CrmDemo() {
   const [accounts, setAccounts] = useState<CrmAccount[]>([])
   const [opportunities, setOpportunities] = useState<CrmOpportunity[]>([])
   const [salesDocuments, setSalesDocuments] = useState<CrmSalesDocument[]>([])
+  const [subscriptions, setSubscriptions] = useState<CrmSubscription[]>([])
   const [invoices, setInvoices] = useState<CrmInvoice[]>([])
   const [salesItems, setSalesItems] = useState<CrmSalesItem[]>([])
   const [creditNotes, setCreditNotes] = useState<CrmCreditNote[]>([])
@@ -350,7 +354,7 @@ export function CrmDemo() {
       const sessionResult = await getCrmSession()
       setSession(sessionResult)
       const allowed = (permission: string) => sessionResult.member.permissions.includes(permission)
-      const [leadResult, dashResult, followResult, taskResult, workResult, accountResult, opportunityResult, salesResult, invoiceResult, salesItemResult, creditNoteResult, businessResult, estimateRequestResult, knowledgeCategoryResult, knowledgeArticleResult, mediaResult, teamResult, roleResult, readyResult] = await Promise.all([
+      const [leadResult, dashResult, followResult, taskResult, workResult, accountResult, opportunityResult, salesResult, subscriptionResult, invoiceResult, salesItemResult, creditNoteResult, businessResult, estimateRequestResult, knowledgeCategoryResult, knowledgeArticleResult, mediaResult, teamResult, roleResult, readyResult] = await Promise.all([
         allowed('ViewLeads') ? listCrmLeads() : Promise.resolve({ leads: [] as CrmLead[] }),
         allowed('ViewDashboard') ? crmDashboard() : Promise.resolve(initialDashboard()),
         allowed('ManageFollowUps') ? listCrmFollowUps() : Promise.resolve({ followUps: [] as CrmFollowUp[] }),
@@ -359,6 +363,7 @@ export function CrmDemo() {
         allowed('ViewAccounts') ? listCrmAccounts() : Promise.resolve({ accounts: [] as CrmAccount[] }),
         allowed('ViewOpportunities') ? listCrmOpportunities() : Promise.resolve({ opportunities: [] as CrmOpportunity[] }),
         allowed('ViewSales') ? listCrmSalesDocuments() : Promise.resolve({ documents: [] as CrmSalesDocument[] }),
+        allowed('ViewSales') ? listCrmSubscriptions() : Promise.resolve({ subscriptions: [] as CrmSubscription[] }),
         allowed('ViewSales') ? listCrmInvoices() : Promise.resolve({ invoices: [] as CrmInvoice[] }),
         allowed('ViewSales') ? listCrmSalesItems() : Promise.resolve({ items: [] as CrmSalesItem[] }),
         allowed('ViewSales') ? listCrmCreditNotes() : Promise.resolve({ creditNotes: [] as CrmCreditNote[] }),
@@ -379,6 +384,7 @@ export function CrmDemo() {
       setAccounts(accountResult.accounts)
       setOpportunities(opportunityResult.opportunities)
       setSalesDocuments(salesResult.documents)
+      setSubscriptions(subscriptionResult.subscriptions)
       setInvoices(invoiceResult.invoices)
       setSalesItems(salesItemResult.items)
       setCreditNotes(creditNoteResult.creditNotes)
@@ -494,7 +500,7 @@ export function CrmDemo() {
           <button className={view === 'overview' ? 'active' : ''} onClick={() => setView('overview')}><span>⌂</span>Dashboard</button>
           <button className={view === 'accounts' ? 'active' : ''} onClick={() => setView('accounts')}><span>○</span>Customers <b>{accounts.length}</b></button>
           {can('ViewSales') ? <button className={view === 'sales' ? 'active' : ''} onClick={() => setView('sales')}><span>▣</span>Sales <b>{salesDocuments.length}</b></button> : null}
-          <button className={view === 'subscriptions' ? 'active' : ''} onClick={() => setView('subscriptions')}><span>↻</span>Subscriptions</button>
+          {can('ViewSales') ? <button className={view === 'subscriptions' ? 'active' : ''} onClick={() => setView('subscriptions')}><span>↻</span>Subscriptions <b>{subscriptions.length}</b></button> : null}
           <button className={view === 'expenses' ? 'active' : ''} onClick={() => setView('expenses')}><span>□</span>Expenses</button>
           <button className={view === 'contracts' ? 'active' : ''} onClick={() => setView('contracts')}><span>▤</span>Contracts</button>
           <button className={view === 'projects' ? 'active' : ''} onClick={() => setView('projects')}><span>⌙</span>Projects</button>
@@ -653,7 +659,8 @@ export function CrmDemo() {
         {view === 'estimateRequests' ? <CrmEstimateRequestsView requests={estimateRequests} accounts={accounts} teamMembers={teamMembers} busy={loading} refresh={refresh} notify={setMessage} canManage={can('EditLead')} canCreateEstimate={can('ManageSales')} /> : null}
         {view === 'knowledgeBase' ? <CrmKnowledgeBaseView categories={knowledgeCategories} articles={knowledgeArticles} teamMembers={teamMembers} currentRole={session?.member.role} busy={loading} refresh={refresh} notify={setMessage} canManage={can('ManageTasks')} /> : null}
         {view === 'utilities' ? <CrmUtilitiesView assets={mediaAssets} busy={loading} refresh={refresh} notify={setMessage} canManage={can('ManageTasks')} /> : null}
-        {referenceModuleContent[view] && view !== 'sales' && !['expenses', 'contracts', 'projects', 'support', 'estimateRequests', 'knowledgeBase', 'utilities'].includes(view) ? (
+        {view === 'subscriptions' ? <CrmSubscriptionsView subscriptions={subscriptions} busy={loading} openSales={() => setView('sales')} /> : null}
+        {referenceModuleContent[view] && view !== 'sales' && !['subscriptions', 'expenses', 'contracts', 'projects', 'support', 'estimateRequests', 'knowledgeBase', 'utilities'].includes(view) ? (
           <section className="crm2-reference-module">
             <div className="crm2-reference-module-head">
               <div><span className="crm2-kicker">BUSINESS MODULE</span><h2>{referenceModuleContent[view].title}</h2><p>{referenceModuleContent[view].subtitle}</p></div>

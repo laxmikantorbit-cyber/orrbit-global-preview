@@ -98,6 +98,7 @@ public sealed class CrmFreeTestingAccessMiddleware
             if (relative.Equals("invoices", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("invoices/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewSales;
             if (relative.Equals("sales-items", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("sales-items/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewSales;
             if (relative.Equals("credit-notes", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("credit-notes/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewSales;
+            if (relative.Equals("subscriptions", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("subscriptions/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewSales;
             if (relative.Equals("business-records", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("business-records/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewDashboard;
             if (relative.Equals("estimate-requests", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("estimate-requests/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewLeads;
             if (relative.Equals("knowledge", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("knowledge/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewDashboard;
