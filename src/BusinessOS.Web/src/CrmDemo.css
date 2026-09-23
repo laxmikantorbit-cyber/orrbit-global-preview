@@ -2692,3 +2692,19 @@
 .crm2-tasks-reference{
   position:relative;
 }
+
+/* Exact Quick Create glyph centering */
+.crm2-ref-plus{
+  position:relative!important;
+  padding:0!important;
+  font-size:0!important;
+}
+.crm2-ref-plus::before{
+  content:"+"!important;
+  position:absolute!important;
+  left:50%!important;
+  top:50%!important;
+  transform:translate(-50%,-54%)!important;
+  color:#fff!important;
+  font:400 24px/1 Arial,sans-serif!important;
+}
