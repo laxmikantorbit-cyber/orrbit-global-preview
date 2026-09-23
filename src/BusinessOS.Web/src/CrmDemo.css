@@ -1755,3 +1755,130 @@
   .crm2-team-list>article,.crm2-module-list>article{grid-template-columns:1fr!important}
   .crm2-report-grid{grid-template-columns:1fr 1fr!important}
 }
+
+
+/* Lead detail / profile final reference parity */
+.crm2-detail .crm2-form-section{
+  gap:10px!important;
+}
+.crm2-detail .crm2-form-section>h3,
+.crm2-tag-editor>strong{
+  margin:0 0 8px!important;
+  color:#344356!important;
+  font-size:12px!important;
+  font-weight:600!important;
+}
+.crm2-tag-editor{
+  margin:4px 0 14px;
+  padding:12px 14px;
+  border:1px solid #dfe6ee;
+  border-radius:4px;
+  background:#fafbfd;
+}
+.crm2-tag-list{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  flex-wrap:wrap;
+  margin:7px 0 9px;
+}
+.crm2-tag-list>span,
+.crm2-tag-list>button{
+  min-height:24px;
+  padding:3px 7px;
+  border:1px solid #cfd8e3;
+  border-radius:3px;
+  background:#fff;
+  color:#526173;
+  font-size:10px;
+  line-height:1.2;
+  box-shadow:none;
+}
+.crm2-tag-list>button:hover{
+  border-color:#9fb9df;
+  background:#f4f8ff;
+  color:#2463d4;
+}
+.crm2-detail .crm2-inline-create{
+  display:flex;
+  gap:6px;
+  align-items:center;
+}
+.crm2-detail .crm2-inline-create input{
+  flex:1;
+  min-width:0;
+}
+.crm2-detail .crm2-inline-create .crm2-primary{
+  flex:0 0 auto;
+}
+.crm2-detail .crm2-timeline,
+.crm2-detail .crm2-work-list{
+  border:1px solid #dfe6ee;
+  border-radius:4px;
+  background:#fff;
+  overflow:hidden;
+}
+.crm2-detail .crm2-timeline article,
+.crm2-detail .crm2-work-list article{
+  margin:0!important;
+  padding:10px 12px!important;
+  border-bottom:1px solid #edf1f5!important;
+  background:#fff!important;
+  box-shadow:none!important;
+}
+.crm2-detail .crm2-timeline article:last-child,
+.crm2-detail .crm2-work-list article:last-child{
+  border-bottom:0!important;
+}
+.crm2-detail .crm2-timeline article>i{
+  width:28px!important;
+  height:28px!important;
+  border-radius:3px!important;
+  background:#eef4ff!important;
+  color:#2f67e8!important;
+  font-size:10px!important;
+}
+.crm2-detail .crm2-timeline strong,
+.crm2-detail .crm2-work-list strong{
+  color:#3b4b5f!important;
+  font-size:11px!important;
+  font-weight:600!important;
+}
+.crm2-detail .crm2-timeline span,
+.crm2-detail .crm2-work-list span,
+.crm2-detail .crm2-timeline p{
+  color:#7f8b99!important;
+  font-size:10px!important;
+  line-height:1.45!important;
+}
+.crm2-conversion-note,
+.crm2-converted-card,
+.crm2-drawer-note,
+.crm2-reason{
+  padding:11px 12px!important;
+  border:1px solid #dce5ee!important;
+  border-radius:4px!important;
+  background:#f8fafc!important;
+}
+.crm2-converted-card{
+  border-color:#bfe3c9!important;
+  background:#effaf2!important;
+}
+.crm2-converted-card strong{color:#198342!important}
+.crm2-conversion-note strong,
+.crm2-drawer-note strong,
+.crm2-reason strong{
+  color:#415164!important;
+  font-size:11px!important;
+  font-weight:600!important;
+}
+.crm2-conversion-note span,
+.crm2-drawer-note span,
+.crm2-reason span{
+  color:#7f8b99!important;
+  font-size:10px!important;
+}
+.crm2-muted{
+  color:#8794a4!important;
+  font-size:11px!important;
+}
