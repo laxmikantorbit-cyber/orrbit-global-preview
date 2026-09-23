@@ -20,6 +20,7 @@ import {
   type CrmMediaAsset,
   type CrmTeamMember,
 } from './crmApi'
+import { exportCrmSpreadsheet, pickCrmSpreadsheet, type CrmSpreadsheetFormat } from './crmSpreadsheet'
 
 type SharedProps = {
   busy: boolean
@@ -295,8 +296,46 @@ export function CrmUtilitiesView({
     catch (error) { notify(error instanceof Error ? error.message : String(error)) }
   }
 
+  async function exportAssets(format: CrmSpreadsheetFormat) {
+    await exportCrmSpreadsheet('crm-media-assets', {
+      headers: ['File Name', 'MIME Type', 'Size Bytes', 'Purpose', 'Storage Reference', 'Entity Type', 'Entity Id', 'Uploaded By', 'Active', 'Created'],
+      rows: assets.map(item => [item.fileName, item.mimeType, item.sizeBytes, item.purpose, item.storageReference, item.entityType, item.entityId, item.uploadedByUserId, item.active, item.createdAtUtc]),
+    }, format)
+  }
+
+  function importAssets() {
+    pickCrmSpreadsheet(async (rows, sourceFile) => {
+      const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
+      const [header, ...data] = rows
+      const indexes = Object.fromEntries(header.map((value, index) => [normalize(value), index]))
+      const pick = (row: string[], key: string) => row[indexes[key]] || ''
+      let imported = 0
+      try {
+        for (const row of data) {
+          const file = pick(row, 'filename')
+          if (!file) continue
+          await registerCrmMediaAsset({
+            fileName: file, mimeType: pick(row, 'mimetype') || 'application/octet-stream',
+            sizeBytes: Number(pick(row, 'sizebytes') || 0), purpose: pick(row, 'purpose') || 'Imported media',
+            storageReference: pick(row, 'storagereference') || file,
+            entityType: pick(row, 'entitytype') || null, entityId: pick(row, 'entityid') || null,
+          })
+          imported += 1
+        }
+        notify(`Imported ${imported} media references from ${sourceFile}`)
+        await refresh()
+      } catch (error) { notify(error instanceof Error ? error.message : String(error)) }
+    }, notify)
+  }
+
   return <section className="crm2-ref-list-page">
     <div className="crm2-reference-module-head"><div><span className="crm2-kicker">BUSINESS MODULE</span><h2>Utilities & Media</h2><p>Register CRM files and attachment references used by imports, exports, customers and internal work.</p></div>{canManage ? <button className="crm2-filter-button" onClick={() => setCreating(true)}>+ Register Media</button> : null}</div>
+    <section className="crm2-ref-filter-card"><strong>Import / export utilities</strong><div className="crm2-ref-filter-grid">
+      {canManage ? <button onClick={importAssets} disabled={busy}>Import Metadata</button> : null}
+      <button onClick={() => void exportAssets('csv')} disabled={busy || assets.length === 0}>Export CSV</button>
+      <button onClick={() => void exportAssets('xlsx')} disabled={busy || assets.length === 0}>Export Excel</button>
+      <button onClick={() => void refresh()} disabled={busy}>Refresh</button>
+    </div></section>
     {canManage && creating ? <section className="crm2-ref-filter-card"><strong>Register media reference</strong><div className="crm2-form-grid">
       <label>File name<input value={fileName} onChange={(e) => setFileName(e.target.value)} /></label><label>MIME type<input value={mimeType} onChange={(e) => setMimeType(e.target.value)} /></label>
       <label>Size in bytes<input type="number" min="0" value={sizeBytes} onChange={(e) => setSizeBytes(e.target.value)} /></label><label>Purpose<input value={purpose} onChange={(e) => setPurpose(e.target.value)} /></label>
