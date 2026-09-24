@@ -14,7 +14,8 @@ public sealed class CrmEstimateRequestStoreTests
         var store = new InMemoryCrmEstimateRequestStore();
         var request = new CrmEstimateRequest(
             Guid.NewGuid(), TenantA, "Website", "Need implementation quote",
-            "Ajay", "9999999999", "ajay@example.com", 25000m);
+            "Ajay", "9999999999", "ajay@example.com", 25000m,
+            businessCompany: "Ajay Repairs", notes: "Needs branch-wise pricing");
 
         await store.AddAsync(request);
         request.StartReview();
@@ -23,6 +24,8 @@ public sealed class CrmEstimateRequestStoreTests
         var saved = Assert.Single(await store.ListAsync(TenantA));
         Assert.Equal(request.Id, saved.Id);
         Assert.Equal(CrmEstimateRequestStatus.Reviewing, saved.Status);
+        Assert.Equal("Ajay Repairs", saved.BusinessCompany);
+        Assert.Equal("Needs branch-wise pricing", saved.Notes);
         Assert.Empty(await store.ListAsync(TenantB));
     }
 

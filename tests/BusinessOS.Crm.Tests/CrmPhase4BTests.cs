@@ -59,6 +59,23 @@ public sealed class CrmPhase4BTests
     }
 
     [Fact]
+    public void Estimate_Request_Preserves_Company_Notes_Assignment_And_Status()
+    {
+        var request = new CrmEstimateRequest(
+            Guid.NewGuid(), TenantId, "Partner", "Need annual estimate",
+            "Ravi", "9888888888", "ravi@example.com", 42000m, null,
+            businessCompany: "Acme Services", notes: "Needs GST breakup");
+
+        Assert.Equal("Acme Services", request.BusinessCompany);
+        Assert.Equal("Needs GST breakup", request.Notes);
+        request.AssignTo(UserId);
+        Assert.Equal(UserId, request.AssignedUserId);
+        request.ChangeStatus(CrmEstimateRequestStatus.Reviewing);
+        Assert.Equal(CrmEstimateRequestStatus.Reviewing, request.Status);
+        Assert.Throws<InvalidOperationException>(() => request.ChangeStatus(CrmEstimateRequestStatus.New));
+    }
+
+    [Fact]
     public void Knowledge_Article_Lifecycle_Is_Draft_Published_Archived()
     {
         var category = new CrmKnowledgeCategory(Guid.NewGuid(), TenantId, "Sales Training");

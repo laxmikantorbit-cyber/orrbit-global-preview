@@ -57,6 +57,8 @@ export function CrmEstimateRequestsView({
   const [email, setEmail] = useState('')
   const [expectedValue, setExpectedValue] = useState('')
   const [assignedUserId, setAssignedUserId] = useState('')
+  const [businessCompany, setBusinessCompany] = useState('')
+  const [notes, setNotes] = useState('')
   const [estimateTarget, setEstimateTarget] = useState<CrmEstimateRequest | null>(null)
   const [estimateAccountId, setEstimateAccountId] = useState('')
   const [estimateAmount, setEstimateAmount] = useState('')
@@ -67,7 +69,7 @@ export function CrmEstimateRequestsView({
     const needle = query.trim().toLowerCase()
     return requests.filter((item) => {
       if (status !== 'All' && item.status !== status) return false
-      return !needle || [item.source, item.requirement, item.contactName, item.mobileNumber, item.email, item.status]
+      return !needle || [item.source, item.requirement, item.contactName, item.mobileNumber, item.email, item.businessCompany, item.notes, item.status]
         .filter(Boolean).join(' ').toLowerCase().includes(needle)
     })
   }, [query, requests, status])
@@ -75,6 +77,7 @@ export function CrmEstimateRequestsView({
   function resetForm() {
     setEditing(null); setCreating(false); setSource('Website'); setRequirement('')
     setContactName(''); setMobileNumber(''); setEmail(''); setExpectedValue(''); setAssignedUserId('')
+    setBusinessCompany(''); setNotes('')
   }
 
   function openCreate() { setEstimateTarget(null); resetForm(); setCreating(true) }
@@ -82,6 +85,7 @@ export function CrmEstimateRequestsView({
     setEstimateTarget(null); setCreating(false); setEditing(item); setSource(item.source); setRequirement(item.requirement)
     setContactName(item.contactName || ''); setMobileNumber(item.mobileNumber || ''); setEmail(item.email || '')
     setExpectedValue(item.expectedValue == null ? '' : String(item.expectedValue)); setAssignedUserId(item.assignedUserId || '')
+    setBusinessCompany(item.businessCompany || ''); setNotes(item.notes || '')
   }
 
   async function save() {
@@ -91,6 +95,7 @@ export function CrmEstimateRequestsView({
       contactName: contactName.trim() || undefined, mobileNumber: mobileNumber.trim() || undefined,
       email: email.trim() || undefined, expectedValue: expectedValue ? Number(expectedValue) : null,
       assignedUserId: assignedUserId || null,
+      businessCompany: businessCompany.trim() || undefined, notes: notes.trim() || undefined,
     }
     try {
       if (editing) await updateCrmEstimateRequest(editing.id, payload)
@@ -149,12 +154,14 @@ export function CrmEstimateRequestsView({
       <div className="crm2-form-grid">
         <label>Source<select value={source} onChange={(e) => setSource(e.target.value)}><option>Website</option><option>WhatsApp</option><option>Call</option><option>Partner</option><option>Other</option></select></label>
         <label>Contact name<input value={contactName} onChange={(e) => setContactName(e.target.value)} /></label>
+        <label>Business / Company<input value={businessCompany} onChange={(e) => setBusinessCompany(e.target.value)} /></label>
         <label>Mobile<input value={mobileNumber} onChange={(e) => setMobileNumber(e.target.value)} /></label>
         <label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
         <label>Expected value<input type="number" min="0" value={expectedValue} onChange={(e) => setExpectedValue(e.target.value)} /></label>
         <label>Assigned<select value={assignedUserId} onChange={(e) => setAssignedUserId(e.target.value)}><option value="">Current user / automatic</option>{teamMembers.filter(x => x.active).map(x => <option key={x.id} value={x.id}>{x.displayName}</option>)}</select></label>
       </div>
       <label>Requirement<textarea rows={4} value={requirement} onChange={(e) => setRequirement(e.target.value)} /></label>
+      <label>Notes<textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
       <div className="crm2-drawer-actions"><button onClick={resetForm}>Cancel</button><button className="crm2-primary" onClick={() => void save()} disabled={busy}>Save</button></div>
     </section> : null}
     {canCreateEstimate && estimateTarget ? <section className="crm2-ref-filter-card">
@@ -174,8 +181,8 @@ export function CrmEstimateRequestsView({
       {filtered.length === 0 ? <p className="crm2-reference-empty">No estimate requests found</p> : filtered.map(item => {
         const owner = teamMembers.find(x => x.id === item.assignedUserId)
         return <div className="crm2-estimate-request-row" key={item.id}>
-          <span><strong>{item.contactName || item.email || item.mobileNumber || 'Anonymous'}</strong><small>{item.source} · {fmtDate(item.createdAtUtc)}</small></span>
-          <span>{item.requirement}</span><span>{money(item.expectedValue)}</span><span>{owner?.displayName || 'Unassigned'}</span>
+          <span><strong>{item.businessCompany || item.contactName || item.email || item.mobileNumber || 'Anonymous'}</strong><small>{item.contactName && item.businessCompany ? `${item.contactName} · ` : ''}{item.source} · {fmtDate(item.createdAtUtc)}</small></span>
+          <span>{item.requirement}{item.notes ? <small>{item.notes}</small> : null}</span><span>{money(item.expectedValue)}</span><span>{owner?.displayName || 'Unassigned'}</span>
           <span><b>{item.status}</b>{canManage && item.status !== 'Converted' && item.status !== 'Closed' ? <small>
             {item.status === 'New' ? <button onClick={() => void act(item, 'review')}>Review</button> : null}
             <button onClick={() => openEdit(item)}>Edit</button><button onClick={() => void act(item, 'convert')}>Convert to Lead</button>{canCreateEstimate ? <button onClick={() => openEstimateConversion(item)}>Create Estimate</button> : null}<button onClick={() => void act(item, 'close')}>Close</button>

@@ -69,10 +69,10 @@ public sealed class PostgresCrmEstimateRequestStore : ICrmEstimateRequestStore
         await _db.EnsureReadyAsync(cancellationToken);
         await using var command = _db.DataSource.CreateCommand("""
 INSERT INTO businessos_crm.estimate_requests(
- id,tenant_id,source,requirement,contact_name,mobile_number,email,expected_value,assigned_user_id,status,
+ id,tenant_id,source,requirement,contact_name,mobile_number,email,expected_value,assigned_user_id,business_company,notes,status,
  converted_lead_id,converted_estimate_id,created_at_utc,updated_at_utc)
 VALUES(
- @id,@tenant,@source,@requirement,@contact,@mobile,@email,@value,@assigned,@status,
+ @id,@tenant,@source,@requirement,@contact,@mobile,@email,@value,@assigned,@company,@notes,@status,
  @lead,@estimate,@created,@updated);
 """);
         AddParameters(command, request);
@@ -85,7 +85,7 @@ VALUES(
         await using var command = _db.DataSource.CreateCommand("""
 UPDATE businessos_crm.estimate_requests SET
  source=@source,requirement=@requirement,contact_name=@contact,mobile_number=@mobile,email=@email,
- expected_value=@value,assigned_user_id=@assigned,status=@status,converted_lead_id=@lead,
+ expected_value=@value,assigned_user_id=@assigned,business_company=@company,notes=@notes,status=@status,converted_lead_id=@lead,
  converted_estimate_id=@estimate,updated_at_utc=@updated
 WHERE tenant_id=@tenant AND id=@id;
 """);
@@ -117,7 +117,7 @@ WHERE tenant_id=@tenant AND id=@id;
     }
 
     private const string SelectSql = """
-SELECT id,tenant_id,source,requirement,contact_name,mobile_number,email,expected_value,assigned_user_id,status,
+SELECT id,tenant_id,source,requirement,contact_name,mobile_number,email,expected_value,assigned_user_id,business_company,notes,status,
        converted_lead_id,converted_estimate_id,created_at_utc,updated_at_utc
 FROM businessos_crm.estimate_requests
 """;
@@ -133,6 +133,8 @@ FROM businessos_crm.estimate_requests
         Nullable(command, "email", NpgsqlDbType.Text, request.Email);
         Nullable(command, "value", NpgsqlDbType.Numeric, request.ExpectedValue);
         Nullable(command, "assigned", NpgsqlDbType.Uuid, request.AssignedUserId);
+        Nullable(command, "company", NpgsqlDbType.Text, request.BusinessCompany);
+        Nullable(command, "notes", NpgsqlDbType.Text, request.Notes);
         command.Parameters.AddWithValue("status", (int)request.Status);
         Nullable(command, "lead", NpgsqlDbType.Uuid, request.ConvertedLeadId);
         Nullable(command, "estimate", NpgsqlDbType.Uuid, request.ConvertedEstimateId);
@@ -145,9 +147,10 @@ FROM businessos_crm.estimate_requests
             reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2), reader.GetString(3),
             reader.IsDBNull(4) ? null : reader.GetString(4), reader.IsDBNull(5) ? null : reader.GetString(5),
             reader.IsDBNull(6) ? null : reader.GetString(6), reader.IsDBNull(7) ? null : reader.GetDecimal(7),
-            reader.IsDBNull(8) ? null : reader.GetGuid(8), (CrmEstimateRequestStatus)reader.GetInt32(9),
-            reader.IsDBNull(10) ? null : reader.GetGuid(10), reader.IsDBNull(11) ? null : reader.GetGuid(11),
-            reader.GetFieldValue<DateTimeOffset>(12), reader.GetFieldValue<DateTimeOffset>(13));
+            reader.IsDBNull(8) ? null : reader.GetGuid(8), (CrmEstimateRequestStatus)reader.GetInt32(11),
+            reader.IsDBNull(12) ? null : reader.GetGuid(12), reader.IsDBNull(13) ? null : reader.GetGuid(13),
+            reader.GetFieldValue<DateTimeOffset>(14), reader.GetFieldValue<DateTimeOffset>(15),
+            reader.IsDBNull(9) ? null : reader.GetString(9), reader.IsDBNull(10) ? null : reader.GetString(10));
 
     private static void Nullable(NpgsqlCommand command, string name, NpgsqlDbType type, object? value) =>
         command.Parameters.Add(name, type).Value = value ?? DBNull.Value;

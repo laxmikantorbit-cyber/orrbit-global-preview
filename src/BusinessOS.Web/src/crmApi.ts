@@ -929,6 +929,8 @@ export type CrmEstimateRequest = {
   email?: string | null
   expectedValue?: number | null
   assignedUserId?: string | null
+  businessCompany?: string | null
+  notes?: string | null
   status: 'New' | 'Reviewing' | 'Converted' | 'Closed'
   convertedLeadId?: string | null
   convertedEstimateId?: string | null
@@ -944,11 +946,19 @@ export type CrmEstimateRequestDraft = {
   email?: string
   expectedValue?: number | null
   assignedUserId?: string | null
+  businessCompany?: string
+  notes?: string
 }
 
 
-export async function listCrmEstimateRequests() {
-  const response = await crmFetch('/estimate-requests')
+export async function listCrmEstimateRequests(filters: { q?: string; status?: string; source?: string; assignedUserId?: string } = {}) {
+  const query = new URLSearchParams()
+  if (filters.q) query.set('q', filters.q)
+  if (filters.status) query.set('status', filters.status)
+  if (filters.source) query.set('source', filters.source)
+  if (filters.assignedUserId) query.set('assignedUserId', filters.assignedUserId)
+  const suffix = query.size ? `?${query.toString()}` : ''
+  const response = await crmFetch(`/estimate-requests${suffix}`)
   return parseResponse<{ requests: CrmEstimateRequest[] }>(response)
 }
 
@@ -966,6 +976,24 @@ export async function updateCrmEstimateRequest(id: string, input: CrmEstimateReq
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
+  })
+  return parseResponse<CrmEstimateRequest>(response)
+}
+
+export async function assignCrmEstimateRequest(id: string, assignedUserId?: string | null) {
+  const response = await crmFetch(`/estimate-requests/${id}/assign`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ assignedUserId: assignedUserId || null }),
+  })
+  return parseResponse<CrmEstimateRequest>(response)
+}
+
+export async function changeCrmEstimateRequestStatus(id: string, status: 'Reviewing' | 'Closed') {
+  const response = await crmFetch(`/estimate-requests/${id}/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
   })
   return parseResponse<CrmEstimateRequest>(response)
 }

@@ -14,6 +14,7 @@ public static class FreeTestingPublicCrmEstimateRequestEndpoints
         var group = app.MapGroup("/api/testing/public/crm");
 
         group.MapGet("/estimate-requests", async (
+            string? q, string? status, string? source, Guid? assignedUserId,
             IConfiguration configuration, IHostEnvironment environment, HttpContext context,
             ICrmEstimateRequestStore store, CancellationToken cancellationToken) =>
         {
@@ -22,6 +23,19 @@ public static class FreeTestingPublicCrmEstimateRequestEndpoints
             var items = await store.ListAsync(DemoTenantId, cancellationToken);
             if (!CrmFreeTestingAccessMiddleware.CanViewAllOwnedRecords(member))
                 items = items.Where(x => x.AssignedUserId == member.Id).ToArray();
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                if (!Enum.TryParse<CrmEstimateRequestStatus>(status, true, out var parsedStatus))
+                    return Results.BadRequest(new ErrorResponse("Status must be New, Reviewing, Converted or Closed."));
+                items = items.Where(x => x.Status == parsedStatus).ToArray();
+            }
+            if (!string.IsNullOrWhiteSpace(source))
+                items = items.Where(x => x.Source.Equals(source.Trim(), StringComparison.OrdinalIgnoreCase)).ToArray();
+            if (assignedUserId.HasValue)
+                items = items.Where(x => x.AssignedUserId == assignedUserId.Value).ToArray();
+            if (!string.IsNullOrWhiteSpace(q))
+                items = items.Where(x => Match(q, x.Source, x.Requirement, x.ContactName, x.MobileNumber,
+                    x.Email, x.BusinessCompany, x.Notes, x.Status.ToString())).ToArray();
             return Results.Ok(new { requests = items.Select(ToResponse).ToArray() });
         });
 
@@ -42,7 +56,8 @@ public static class FreeTestingPublicCrmEstimateRequestEndpoints
             {
                 var item = new CrmEstimateRequest(
                     Guid.NewGuid(), DemoTenantId, request.Source, request.Requirement,
-                    request.ContactName, request.MobileNumber, request.Email, request.ExpectedValue, assigned);
+                    request.ContactName, request.MobileNumber, request.Email, request.ExpectedValue, assigned,
+                    businessCompany: request.BusinessCompany, notes: request.Notes);
                 await store.AddAsync(item, cancellationToken);
                 await AuditAsync(management, member.Id, "EstimateRequestCreated", item.Id,
                     $"{item.Source}; {item.ContactName ?? item.Email ?? item.MobileNumber ?? "anonymous"}", cancellationToken);
@@ -73,7 +88,7 @@ public static class FreeTestingPublicCrmEstimateRequestEndpoints
             try
             {
                 item.Update(request.Source, request.Requirement, request.ContactName, request.MobileNumber,
-                    request.Email, request.ExpectedValue, assigned);
+                    request.Email, request.ExpectedValue, assigned, request.BusinessCompany, request.Notes);
                 await store.SaveAsync(item, cancellationToken);
                 await AuditAsync(management, member.Id, "EstimateRequestUpdated", item.Id, item.Status.ToString(), cancellationToken);
                 return Results.Ok(ToResponse(item));
@@ -82,6 +97,56 @@ public static class FreeTestingPublicCrmEstimateRequestEndpoints
             {
                 return Results.BadRequest(new ErrorResponse(ex.Message));
             }
+        });
+
+        group.MapPost("/estimate-requests/{id:guid}/assign", async (
+            Guid id, AssignCrmEstimateRequestRequest request,
+            IConfiguration configuration, IHostEnvironment environment, HttpContext context,
+            ICrmEstimateRequestStore store, ICrmTeamRepository team, ICrmManagementStore management,
+            CancellationToken cancellationToken) =>
+        {
+            if (!Enabled(configuration, environment)) return Disabled();
+            var item = await store.GetAsync(DemoTenantId, id, cancellationToken);
+            if (item is null) return Results.NotFound(new ErrorResponse("Estimate request not found."));
+            var member = CrmFreeTestingAccessMiddleware.Current(context);
+            if (!CanAccess(member, item)) return Forbidden("Estimate request is outside your CRM scope.");
+            var assigned = CrmFreeTestingAccessMiddleware.CanViewAllOwnedRecords(member)
+                ? request.AssignedUserId
+                : member.Id;
+            var validation = await ValidateAssigneeAsync(assigned, team, cancellationToken);
+            if (validation is not null) return validation;
+            try
+            {
+                item.AssignTo(assigned);
+                await store.SaveAsync(item, cancellationToken);
+                await AuditAsync(management, member.Id, "EstimateRequestAssigned", item.Id,
+                    assigned?.ToString() ?? "unassigned", cancellationToken);
+                return Results.Ok(ToResponse(item));
+            }
+            catch (InvalidOperationException ex) { return Results.BadRequest(new ErrorResponse(ex.Message)); }
+        });
+
+        group.MapPost("/estimate-requests/{id:guid}/status", async (
+            Guid id, ChangeCrmEstimateRequestStatusRequest request,
+            IConfiguration configuration, IHostEnvironment environment, HttpContext context,
+            ICrmEstimateRequestStore store, ICrmManagementStore management, CancellationToken cancellationToken) =>
+        {
+            if (!Enabled(configuration, environment)) return Disabled();
+            if (!Enum.TryParse<CrmEstimateRequestStatus>(request.Status, true, out var status))
+                return Results.BadRequest(new ErrorResponse("Status must be New, Reviewing, Converted or Closed."));
+            var item = await store.GetAsync(DemoTenantId, id, cancellationToken);
+            if (item is null) return Results.NotFound(new ErrorResponse("Estimate request not found."));
+            var member = CrmFreeTestingAccessMiddleware.Current(context);
+            if (!CanAccess(member, item)) return Forbidden("Estimate request is outside your CRM scope.");
+            try
+            {
+                item.ChangeStatus(status);
+                await store.SaveAsync(item, cancellationToken);
+                await AuditAsync(management, member.Id, "EstimateRequestStatusChanged", item.Id,
+                    item.Status.ToString(), cancellationToken);
+                return Results.Ok(ToResponse(item));
+            }
+            catch (InvalidOperationException ex) { return Results.BadRequest(new ErrorResponse(ex.Message)); }
         });
 
         group.MapPost("/estimate-requests/{id:guid}/review", async (
@@ -150,12 +215,15 @@ public static class FreeTestingPublicCrmEstimateRequestEndpoints
             try
             {
                 var leadId = Guid.NewGuid();
-                var title = item.ContactName ?? item.Email ?? item.MobileNumber ?? "Estimate request";
+                var title = item.BusinessCompany ?? item.ContactName ?? item.Email ?? item.MobileNumber ?? "Estimate request";
+                var leadNotes = $"Converted from estimate request {item.Id}";
+                if (!string.IsNullOrWhiteSpace(item.BusinessCompany)) leadNotes += $"; Company: {item.BusinessCompany}";
+                if (!string.IsNullOrWhiteSpace(item.Notes)) leadNotes += $"; {item.Notes}";
                 var lead = new Lead(
                     leadId, DemoTenantId, DemoOrganisationId, title,
                     new LeadAttribution(item.Source, null, null, null, null, null),
                     item.ContactName, item.MobileNumber, item.Email, item.Requirement,
-                    $"Converted from estimate request {item.Id}", LeadPriority.Normal,
+                    leadNotes, LeadPriority.Normal,
                     estimatedValue: item.ExpectedValue);
                 lead.AssignOwner(item.AssignedUserId ?? member.Id);
                 await leads.AddAsync(lead, cancellationToken);
@@ -199,9 +267,12 @@ public static class FreeTestingPublicCrmEstimateRequestEndpoints
                 var subject = string.IsNullOrWhiteSpace(request.Subject)
                     ? $"Estimate - {item.Requirement}"
                     : request.Subject.Trim();
+                var sourceNotes = $"Converted from estimate request {item.Id}";
+                if (!string.IsNullOrWhiteSpace(item.BusinessCompany)) sourceNotes += $"; Company: {item.BusinessCompany}";
+                if (!string.IsNullOrWhiteSpace(item.Notes)) sourceNotes += $"; {item.Notes}";
                 var notes = string.IsNullOrWhiteSpace(request.Notes)
-                    ? $"Converted from estimate request {item.Id}"
-                    : $"Converted from estimate request {item.Id}. {request.Notes.Trim()}";
+                    ? sourceNotes
+                    : $"{sourceNotes}. {request.Notes.Trim()}";
                 var document = new SalesDocument(
                     Guid.NewGuid(), DemoTenantId, SalesDocumentKind.Estimate, number,
                     request.AccountId, subject,
@@ -241,8 +312,15 @@ public static class FreeTestingPublicCrmEstimateRequestEndpoints
 
     private static CrmEstimateRequestResponse ToResponse(CrmEstimateRequest item) =>
         new(item.Id, item.Source, item.Requirement, item.ContactName, item.MobileNumber, item.Email,
-            item.ExpectedValue, item.AssignedUserId, item.Status.ToString(), item.ConvertedLeadId,
-            item.ConvertedEstimateId, item.CreatedAtUtc, item.UpdatedAtUtc);
+            item.ExpectedValue, item.AssignedUserId, item.BusinessCompany, item.Notes, item.Status.ToString(),
+            item.ConvertedLeadId, item.ConvertedEstimateId, item.CreatedAtUtc, item.UpdatedAtUtc);
+
+    private static bool Match(string? query, params string?[] values)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return true;
+        var needle = query.Trim();
+        return values.Any(value => value?.Contains(needle, StringComparison.OrdinalIgnoreCase) == true);
+    }
 
     private static string Digits(string? value) => new((value ?? string.Empty).Where(char.IsDigit).ToArray());
     private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToLowerInvariant();
@@ -264,15 +342,21 @@ public static class FreeTestingPublicCrmEstimateRequestEndpoints
 
 public sealed record CreateCrmEstimateRequestRequest(
     string Source, string Requirement, string? ContactName, string? MobileNumber,
-    string? Email, decimal? ExpectedValue, Guid? AssignedUserId);
+    string? Email, decimal? ExpectedValue, Guid? AssignedUserId,
+    string? BusinessCompany, string? Notes);
 
 public sealed record UpdateCrmEstimateRequestRequest(
     string Source, string Requirement, string? ContactName, string? MobileNumber,
-    string? Email, decimal? ExpectedValue, Guid? AssignedUserId);
+    string? Email, decimal? ExpectedValue, Guid? AssignedUserId,
+    string? BusinessCompany, string? Notes);
+
+public sealed record AssignCrmEstimateRequestRequest(Guid? AssignedUserId);
+public sealed record ChangeCrmEstimateRequestStatusRequest(string Status);
 
 public sealed record CrmEstimateRequestResponse(
     Guid Id, string Source, string Requirement, string? ContactName, string? MobileNumber,
-    string? Email, decimal? ExpectedValue, Guid? AssignedUserId, string Status,
+    string? Email, decimal? ExpectedValue, Guid? AssignedUserId,
+    string? BusinessCompany, string? Notes, string Status,
     Guid? ConvertedLeadId, Guid? ConvertedEstimateId,
     DateTimeOffset CreatedAtUtc, DateTimeOffset UpdatedAtUtc);
 

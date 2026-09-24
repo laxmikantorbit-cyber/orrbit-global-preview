@@ -1,4 +1,4 @@
-using BusinessOS.Api.Commerce;
+﻿using BusinessOS.Api.Commerce;
 using BusinessOS.Crm;
 using BusinessOS.Customers;
 using BusinessOS.Sales;
@@ -271,8 +271,8 @@ public static class FreeTestingPublicCrmAdvancedEndpoints
                 .Select(x => new CrmGlobalSearchHit("Account", x.Id, x.Name, x.Status.ToString(), x.PrimaryContact?.Name, x.PrimaryContact?.Phone)));
             hits.AddRange(opportunityItems.Where(x => Match(needle, x.Title, x.Stage.ToString(), x.Forecast.CurrencyCode))
                 .Select(x => new CrmGlobalSearchHit("Opportunity", x.Id, x.Title, x.Stage.ToString(), $"{x.Forecast.CurrencyCode} {x.Forecast.EstimatedValue:0.##}", null)));
-            hits.AddRange(estimateItems.Where(x => Match(needle, x.Source, x.Requirement, x.ContactName, x.MobileNumber, x.Email))
-                .Select(x => new CrmGlobalSearchHit("EstimateRequest", x.Id, x.ContactName ?? x.Email ?? x.MobileNumber ?? "Estimate request",
+            hits.AddRange(estimateItems.Where(x => Match(needle, x.Source, x.Requirement, x.ContactName, x.MobileNumber, x.Email, x.BusinessCompany, x.Notes))
+                .Select(x => new CrmGlobalSearchHit("EstimateRequest", x.Id, x.BusinessCompany ?? x.ContactName ?? x.Email ?? x.MobileNumber ?? "Estimate request",
                     x.Status.ToString(), x.Requirement, x.Source)));
             hits.AddRange(knowledgeItems.Where(x => Match(needle, x.Title, x.Content, x.Status.ToString()))
                 .Select(x => new CrmGlobalSearchHit("KnowledgeArticle", x.Id, x.Title, x.Status.ToString(),

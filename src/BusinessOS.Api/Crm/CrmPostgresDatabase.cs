@@ -373,12 +373,16 @@ CREATE TABLE IF NOT EXISTS businessos_crm.estimate_requests (
     email text NULL,
     expected_value numeric(18,2) NULL,
     assigned_user_id uuid NULL,
+    business_company text NULL,
+    notes text NULL,
     status integer NOT NULL,
     converted_lead_id uuid NULL,
     converted_estimate_id uuid NULL,
     created_at_utc timestamptz NOT NULL,
     updated_at_utc timestamptz NOT NULL
 );
+ALTER TABLE businessos_crm.estimate_requests ADD COLUMN IF NOT EXISTS business_company text NULL;
+ALTER TABLE businessos_crm.estimate_requests ADD COLUMN IF NOT EXISTS notes text NULL;
 CREATE INDEX IF NOT EXISTS ix_businessos_crm_estimate_requests_status
     ON businessos_crm.estimate_requests(tenant_id, status, updated_at_utc DESC);
 CREATE INDEX IF NOT EXISTS ix_businessos_crm_estimate_requests_contact

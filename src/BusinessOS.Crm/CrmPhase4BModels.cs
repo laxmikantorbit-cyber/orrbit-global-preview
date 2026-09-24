@@ -14,7 +14,7 @@ public sealed class CrmEstimateRequest
         Guid id, Guid tenantId, string source, string requirement,
         string? contactName = null, string? mobileNumber = null, string? email = null,
         decimal? expectedValue = null, Guid? assignedUserId = null,
-        DateTimeOffset? createdAtUtc = null)
+        DateTimeOffset? createdAtUtc = null, string? businessCompany = null, string? notes = null)
     {
         if (id == Guid.Empty) throw new ArgumentException("Estimate request id is required.", nameof(id));
         if (tenantId == Guid.Empty) throw new ArgumentException("Tenant id is required.", nameof(tenantId));
@@ -23,7 +23,7 @@ public sealed class CrmEstimateRequest
         CreatedAtUtc = createdAtUtc ?? DateTimeOffset.UtcNow;
         UpdatedAtUtc = CreatedAtUtc;
         Status = CrmEstimateRequestStatus.New;
-        Apply(source, requirement, contactName, mobileNumber, email, expectedValue, assignedUserId, false);
+        Apply(source, requirement, contactName, mobileNumber, email, expectedValue, assignedUserId, businessCompany, notes, false);
     }
 
     public Guid Id { get; }
@@ -35,6 +35,8 @@ public sealed class CrmEstimateRequest
     public string? Email { get; private set; }
     public decimal? ExpectedValue { get; private set; }
     public Guid? AssignedUserId { get; private set; }
+    public string? BusinessCompany { get; private set; }
+    public string? Notes { get; private set; }
     public CrmEstimateRequestStatus Status { get; private set; }
     public Guid? ConvertedLeadId { get; private set; }
     public Guid? ConvertedEstimateId { get; private set; }
@@ -42,11 +44,27 @@ public sealed class CrmEstimateRequest
     public DateTimeOffset UpdatedAtUtc { get; private set; }
 
     public void Update(string source, string requirement, string? contactName, string? mobileNumber,
-        string? email, decimal? expectedValue, Guid? assignedUserId)
+        string? email, decimal? expectedValue, Guid? assignedUserId, string? businessCompany = null, string? notes = null)
     {
         if (Status is CrmEstimateRequestStatus.Converted or CrmEstimateRequestStatus.Closed)
             throw new InvalidOperationException("Converted or closed estimate requests cannot be edited.");
-        Apply(source, requirement, contactName, mobileNumber, email, expectedValue, assignedUserId, true);
+        Apply(source, requirement, contactName, mobileNumber, email, expectedValue, assignedUserId, businessCompany, notes, true);
+    }
+
+    public void AssignTo(Guid? assignedUserId)
+    {
+        if (Status is CrmEstimateRequestStatus.Converted or CrmEstimateRequestStatus.Closed)
+            throw new InvalidOperationException("Converted or closed estimate requests cannot be reassigned.");
+        AssignedUserId = assignedUserId;
+        UpdatedAtUtc = DateTimeOffset.UtcNow;
+    }
+
+    public void ChangeStatus(CrmEstimateRequestStatus status)
+    {
+        if (status == Status) return;
+        if (status == CrmEstimateRequestStatus.Reviewing) { StartReview(); return; }
+        if (status == CrmEstimateRequestStatus.Closed) { Close(); return; }
+        throw new InvalidOperationException("Estimate request status can only move to Reviewing or Closed directly.");
     }
 
     public void StartReview()
@@ -88,10 +106,11 @@ public sealed class CrmEstimateRequest
         string? contactName, string? mobileNumber, string? email, decimal? expectedValue,
         Guid? assignedUserId, CrmEstimateRequestStatus status,
         Guid? convertedLeadId, Guid? convertedEstimateId,
-        DateTimeOffset createdAtUtc, DateTimeOffset updatedAtUtc)
+        DateTimeOffset createdAtUtc, DateTimeOffset updatedAtUtc,
+        string? businessCompany = null, string? notes = null)
     {
         var request = new CrmEstimateRequest(id, tenantId, source, requirement, contactName, mobileNumber,
-            email, expectedValue, assignedUserId, createdAtUtc);
+            email, expectedValue, assignedUserId, createdAtUtc, businessCompany, notes);
         request.Status = status;
         request.ConvertedLeadId = convertedLeadId;
         request.ConvertedEstimateId = convertedEstimateId;
@@ -114,7 +133,7 @@ public sealed class CrmEstimateRequest
     }
 
     private void Apply(string source, string requirement, string? contactName, string? mobileNumber,
-        string? email, decimal? expectedValue, Guid? assignedUserId, bool touch)
+        string? email, decimal? expectedValue, Guid? assignedUserId, string? businessCompany, string? notes, bool touch)
     {
         if (string.IsNullOrWhiteSpace(source)) throw new ArgumentException("Source is required.", nameof(source));
         if (string.IsNullOrWhiteSpace(requirement)) throw new ArgumentException("Requirement is required.", nameof(requirement));
@@ -126,6 +145,8 @@ public sealed class CrmEstimateRequest
         Email = Clean(email)?.ToLowerInvariant();
         ExpectedValue = expectedValue.HasValue ? decimal.Round(expectedValue.Value, 2, MidpointRounding.AwayFromZero) : null;
         AssignedUserId = assignedUserId;
+        BusinessCompany = Clean(businessCompany);
+        Notes = Clean(notes);
         if (touch) UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 
