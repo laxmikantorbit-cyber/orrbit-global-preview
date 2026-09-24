@@ -281,6 +281,16 @@ export function CrmUtilitiesView({
   const [storageReference, setStorageReference] = useState('')
   const [entityType, setEntityType] = useState('')
   const [entityId, setEntityId] = useState('')
+  const [query, setQuery] = useState('')
+
+  const filteredAssets = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    if (!needle) return assets
+    return assets.filter(item => [
+      item.fileName, item.mimeType, item.purpose, item.storageReference,
+      item.entityType, item.entityId, item.active ? 'Active' : 'Inactive',
+    ].some(value => String(value ?? '').toLowerCase().includes(needle)))
+  }, [assets, query])
 
   async function save() {
     try {
@@ -339,8 +349,8 @@ export function CrmUtilitiesView({
       <label>Storage reference<input value={storageReference} onChange={(e) => setStorageReference(e.target.value)} placeholder="R2/Drive/object key or URL" /></label><label>Entity type<input value={entityType} onChange={(e) => setEntityType(e.target.value)} placeholder="Lead / Account / Contract..." /></label>
       <label>Entity id<input value={entityId} onChange={(e) => setEntityId(e.target.value)} placeholder="Optional GUID" /></label>
     </div><div className="crm2-drawer-actions"><button onClick={() => setCreating(false)}>Cancel</button><button className="crm2-primary" onClick={() => void save()} disabled={busy}>Save</button></div></section> : null}
-    <section className="crm2-ref-table-card"><div className="crm2-ref-table-tools"><select><option>25</option><option>50</option></select><button onClick={() => void exportAssets('xlsx')} disabled={busy || assets.length === 0}>Export</button><button onClick={() => void refresh()} disabled={busy}>↻</button><span /><label><b>⌕</b><input placeholder="Search..." /></label></div><div className="crm2-media-head"><span>File</span><span>Purpose</span><span>Type</span><span>Size</span><span>Status</span></div>
-      {assets.length === 0 ? <p className="crm2-reference-empty">No media assets registered</p> : assets.map(item => <div className="crm2-media-row" key={item.id}><span><strong>{item.fileName}</strong><small>{fmtDate(item.createdAtUtc)}</small></span><span>{item.purpose}</span><span>{item.mimeType}</span><span>{Math.max(0, item.sizeBytes / 1024).toFixed(1)} KB</span><span><b>{item.active ? 'Active' : 'Inactive'}</b>{canManage ? <small><button onClick={() => void toggle(item)}>{item.active ? 'Deactivate' : 'Activate'}</button></small> : null}</span></div>)}
+    <section className="crm2-ref-table-card"><div className="crm2-ref-table-tools"><select><option>25</option><option>50</option></select><button onClick={() => void exportAssets('xlsx')} disabled={busy || assets.length === 0}>Export</button><button onClick={() => void refresh()} disabled={busy}>↻</button><span /><label><b>⌕</b><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search..." /></label></div><div className="crm2-media-head"><span>File</span><span>Purpose</span><span>Type</span><span>Size</span><span>Status</span></div>
+      {filteredAssets.length === 0 ? <p className="crm2-reference-empty">No media assets found</p> : filteredAssets.map(item => <div className="crm2-media-row" key={item.id}><span><strong>{item.fileName}</strong><small>{fmtDate(item.createdAtUtc)}</small></span><span>{item.purpose}</span><span>{item.mimeType}</span><span>{Math.max(0, item.sizeBytes / 1024).toFixed(1)} KB</span><span><b>{item.active ? 'Active' : 'Inactive'}</b>{canManage ? <small><button onClick={() => void toggle(item)}>{item.active ? 'Deactivate' : 'Activate'}</button></small> : null}</span></div>)}
     </section>
   </section>
 }
