@@ -1,0 +1,7 @@
+.git
+.gitignore
+Dockerfile
+README.md
+*.b64
+*.b64.txt
+brand-logo.part*
