@@ -1003,7 +1003,7 @@
 .crm2-item-head,.crm2-item-row,.crm2-credit-head,.crm2-credit-row{
   display:grid;align-items:center
 }
-.crm2-item-head,.crm2-item-row{grid-template-columns:120px 1.1fr 1.6fr 120px 90px 100px}
+.crm2-item-head,.crm2-item-row{grid-template-columns:46px 120px 1.1fr 1.6fr 120px 90px 100px}
 .crm2-credit-head,.crm2-credit-row{grid-template-columns:130px 120px 1.1fr 1.4fr 120px 100px}
 .crm2-item-head,.crm2-credit-head{
   background:#f7f9fc;border:1px solid #e1e8f0;color:#51617a;font-size:13px;font-weight:700
