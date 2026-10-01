@@ -96,6 +96,7 @@ export function CrmDemo() {
   const [calendarFilter, setCalendarFilter] = useState<'All' | 'FollowUps' | 'Tasks'>('All')
   const [calendarMode, setCalendarMode] = useState<'Month' | 'Week' | 'Day'>('Month')
   const [calendarExpanded, setCalendarExpanded] = useState(false)
+  const [dashboardOptionsOpen, setDashboardOptionsOpen] = useState(false)
   const [salesSection, setSalesSection] = useState<'proposals' | 'estimates' | 'invoices' | 'payments' | 'credits' | 'items'>('proposals')
   const [salesMenuOpen, setSalesMenuOpen] = useState(false)
   const [utilitiesMenuOpen, setUtilitiesMenuOpen] = useState(false)
@@ -590,7 +591,20 @@ export function CrmDemo() {
         </header>
         {globalHits.length > 0 ? <div className="crm2-global-results">{globalHits.map((hit) => <button key={`${hit.type}-${hit.id}`} onClick={() => openSearchHit(hit)}><strong>{hit.title}</strong><span>{hit.type} · {hit.status}</span><small>{hit.subtitle || hit.secondary || ''}</small></button>)}</div> : null}
         {showNotifications ? <div className="crm2-notification-panel">{notifications.length === 0 ? <p>No notifications right now</p> : notifications.map((item) => <button key={`${item.type}-${item.recordId}`} onClick={() => { if (item.leadId) { setSelectedLeadId(item.leadId); setView('leads') } setShowNotifications(false) }}><strong>{item.title}</strong><span>{item.detail}</span><small>{item.severity}</small></button>)}</div> : null}
-        {view === 'overview' ? <div className="crm2-ref-options"><button onClick={() => setMessage('Dashboard options ready')}>⚙ Dashboard Options</button></div> : null}
+        {view === 'overview' ? <>
+          <div className="crm2-ref-options"><button className={dashboardOptionsOpen ? 'active' : ''} onClick={() => setDashboardOptionsOpen(value => !value)}>⚙ Dashboard Options</button></div>
+          {dashboardOptionsOpen ? <section className="crm2-ref-filter-card">
+            <strong>Dashboard settings</strong>
+            <div className="crm2-ref-filter-grid">
+              <label>Calendar view<select value={calendarMode} onChange={(e) => setCalendarMode(e.target.value as 'Month' | 'Week' | 'Day')}><option>Month</option><option>Week</option><option>Day</option></select></label>
+              <label>Calendar items<select value={calendarFilter} onChange={(e) => setCalendarFilter(e.target.value as 'All' | 'FollowUps' | 'Tasks')}><option value="All">Calls + tasks</option><option value="FollowUps">Calls only</option><option value="Tasks">Tasks only</option></select></label>
+              <label><input type="checkbox" checked={calendarExpanded} onChange={(e) => setCalendarExpanded(e.target.checked)} /> Expanded calendar</label>
+              <button onClick={() => void refresh()} disabled={loading}>Refresh CRM data</button>
+              <button onClick={() => { setCalendarMode('Month'); setCalendarFilter('All'); setCalendarExpanded(false); setCalendarCursor(new Date()); setMessage('Dashboard view reset') }}>Reset dashboard view</button>
+              <button onClick={() => setDashboardOptionsOpen(false)}>Close</button>
+            </div>
+          </section> : null}
+        </> : null}
         <section className="crm2-statusbar"><div><span className={loading ? 'pulse busy' : 'pulse'} />{message}</div><span>{session ? `${session.member.displayName} · ${session.member.role} · ${session.canViewAllOwnedRecords ? 'Team view' : 'My view'} · ` : ''}Testing mode · {storageLabel}</span></section>
         <section className="crm2-workflow-board" aria-label="Simple working process">
           <div className="crm2-workflow-title">
