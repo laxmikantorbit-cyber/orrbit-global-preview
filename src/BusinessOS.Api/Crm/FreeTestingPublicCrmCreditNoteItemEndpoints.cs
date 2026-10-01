@@ -22,6 +22,68 @@ public static class FreeTestingPublicCrmCreditNoteItemEndpoints
             return Results.Ok(new { items = result.Select(ToItemResponse).ToArray() });
         });
 
+        group.MapGet("/sales-item-groups", async (
+            IConfiguration configuration,
+            IHostEnvironment environment,
+            ICrmSalesItemStore items,
+            CancellationToken cancellationToken) =>
+        {
+            if (!Enabled(configuration, environment)) return Disabled();
+            var result = await items.ListGroupsAsync(DemoTenantId, cancellationToken);
+            return Results.Ok(new { groups = result.Select(ToItemGroupResponse).ToArray() });
+        });
+
+        group.MapPost("/sales-item-groups", async (
+            CreateCrmSalesItemGroupRequest request,
+            IConfiguration configuration,
+            IHostEnvironment environment,
+            HttpContext context,
+            ICrmSalesItemStore items,
+            ICrmManagementStore management,
+            CancellationToken cancellationToken) =>
+        {
+            if (!Enabled(configuration, environment)) return Disabled();
+            try
+            {
+                var itemGroup = new SalesItemGroup(Guid.NewGuid(), DemoTenantId, request.Name, request.Active ?? true);
+                await items.AddGroupAsync(itemGroup, cancellationToken);
+                await AuditAsync(management, context, "SalesItemGroupCreated", "SalesItemGroup", itemGroup.Id,
+                    $"{itemGroup.Name}; active={itemGroup.Active}", cancellationToken);
+                return Results.Ok(ToItemGroupResponse(itemGroup));
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+            {
+                return Results.BadRequest(new ErrorResponse(ex.Message));
+            }
+        });
+
+        group.MapPost("/sales-item-groups/{groupId:guid}/profile", async (
+            Guid groupId,
+            UpdateCrmSalesItemGroupRequest request,
+            IConfiguration configuration,
+            IHostEnvironment environment,
+            HttpContext context,
+            ICrmSalesItemStore items,
+            ICrmManagementStore management,
+            CancellationToken cancellationToken) =>
+        {
+            if (!Enabled(configuration, environment)) return Disabled();
+            var itemGroup = await items.GetGroupAsync(DemoTenantId, groupId, cancellationToken);
+            if (itemGroup is null) return Results.NotFound(new ErrorResponse("Sales item group not found."));
+            try
+            {
+                itemGroup.Update(request.Name, request.Active);
+                await items.SaveGroupAsync(itemGroup, cancellationToken);
+                await AuditAsync(management, context, "SalesItemGroupUpdated", "SalesItemGroup", itemGroup.Id,
+                    $"{itemGroup.Name}; active={itemGroup.Active}", cancellationToken);
+                return Results.Ok(ToItemGroupResponse(itemGroup));
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+            {
+                return Results.BadRequest(new ErrorResponse(ex.Message));
+            }
+        });
+
         group.MapPost("/sales-items", async (
             CreateCrmSalesItemRequest request,
             IConfiguration configuration,
@@ -34,10 +96,16 @@ public static class FreeTestingPublicCrmCreditNoteItemEndpoints
             if (!Enabled(configuration, environment)) return Disabled();
             try
             {
+                if (request.GroupId.HasValue)
+                {
+                    var itemGroup = await items.GetGroupAsync(DemoTenantId, request.GroupId.Value, cancellationToken);
+                    if (itemGroup is null || !itemGroup.Active)
+                        return Results.BadRequest(new ErrorResponse("Sales item group was not found or is inactive."));
+                }
                 var item = new SalesItem(
                     Guid.NewGuid(), DemoTenantId, request.Code, request.Name, request.Description,
                     request.DefaultRate, request.DefaultTaxPercent,
-                    ParseItemStatus(request.Status), request.CatalogProductId);
+                    ParseItemStatus(request.Status), request.CatalogProductId, request.GroupId);
                 await items.AddAsync(item, cancellationToken);
                 await AuditAsync(management, context, "SalesItemCreated", "SalesItem", item.Id,
                     $"{item.Code}; rate={item.DefaultRate:0.00}; tax={item.DefaultTaxPercent:0.##}", cancellationToken);
@@ -64,9 +132,15 @@ public static class FreeTestingPublicCrmCreditNoteItemEndpoints
             if (item is null) return Results.NotFound(new ErrorResponse("Sales item not found."));
             try
             {
+                if (request.GroupId.HasValue)
+                {
+                    var itemGroup = await items.GetGroupAsync(DemoTenantId, request.GroupId.Value, cancellationToken);
+                    if (itemGroup is null || !itemGroup.Active)
+                        return Results.BadRequest(new ErrorResponse("Sales item group was not found or is inactive."));
+                }
                 item.Update(
                     request.Name, request.Description, request.DefaultRate,
-                    request.DefaultTaxPercent, ParseItemStatus(request.Status));
+                    request.DefaultTaxPercent, ParseItemStatus(request.Status), request.GroupId);
                 await items.SaveAsync(item, cancellationToken);
                 await AuditAsync(management, context, "SalesItemUpdated", "SalesItem", item.Id,
                     $"{item.Code}; status={item.Status}", cancellationToken);
@@ -244,8 +318,11 @@ public static class FreeTestingPublicCrmCreditNoteItemEndpoints
     private static CrmSalesItemResponse ToItemResponse(SalesItem item) =>
         new(
             item.Id, item.Code, item.Name, item.Description, item.DefaultRate,
-            item.DefaultTaxPercent, item.Status.ToString(), item.CatalogProductId,
+            item.DefaultTaxPercent, item.Status.ToString(), item.CatalogProductId, item.GroupId,
             item.CreatedAtUtc, item.UpdatedAtUtc);
+
+    private static CrmSalesItemGroupResponse ToItemGroupResponse(SalesItemGroup itemGroup) =>
+        new(itemGroup.Id, itemGroup.Name, itemGroup.Active, itemGroup.CreatedAtUtc, itemGroup.UpdatedAtUtc);
 
     private static CrmCreditNoteResponse ToCreditResponse(CreditNote note) =>
         new(
@@ -278,14 +355,16 @@ public sealed record CreateCrmSalesItemRequest(
     decimal DefaultRate,
     decimal DefaultTaxPercent,
     string? Status,
-    Guid? CatalogProductId);
+    Guid? CatalogProductId,
+    Guid? GroupId);
 
 public sealed record UpdateCrmSalesItemRequest(
     string Name,
     string? Description,
     decimal DefaultRate,
     decimal DefaultTaxPercent,
-    string Status);
+    string Status,
+    Guid? GroupId);
 
 public sealed record CrmSalesItemResponse(
     Guid Id,
@@ -296,6 +375,18 @@ public sealed record CrmSalesItemResponse(
     decimal DefaultTaxPercent,
     string Status,
     Guid? CatalogProductId,
+    Guid? GroupId,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset UpdatedAtUtc);
+
+public sealed record CreateCrmSalesItemGroupRequest(string Name, bool? Active);
+
+public sealed record UpdateCrmSalesItemGroupRequest(string Name, bool Active);
+
+public sealed record CrmSalesItemGroupResponse(
+    Guid Id,
+    string Name,
+    bool Active,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc);
 

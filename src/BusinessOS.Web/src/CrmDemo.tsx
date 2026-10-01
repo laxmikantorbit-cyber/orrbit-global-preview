@@ -25,6 +25,7 @@ import {
   listCrmMediaAssets,
   listCrmSubscriptions,
   listCrmSalesItems,
+  listCrmSalesItemGroups,
   listCrmLeads,
   listCrmOpportunities,
   listCrmRoles,
@@ -45,6 +46,7 @@ import {
   type CrmMediaAsset,
   type CrmSubscription,
   type CrmSalesItem,
+  type CrmSalesItemGroup,
   type CrmLead,
   type CrmOpportunity,
   type CrmRole,
@@ -109,6 +111,7 @@ export function CrmDemo() {
   const [subscriptions, setSubscriptions] = useState<CrmSubscription[]>([])
   const [invoices, setInvoices] = useState<CrmInvoice[]>([])
   const [salesItems, setSalesItems] = useState<CrmSalesItem[]>([])
+  const [salesItemGroups, setSalesItemGroups] = useState<CrmSalesItemGroup[]>([])
   const [creditNotes, setCreditNotes] = useState<CrmCreditNote[]>([])
   const [businessRecords, setBusinessRecords] = useState<CrmBusinessRecord[]>([])
   const [estimateRequests, setEstimateRequests] = useState<CrmEstimateRequest[]>([])
@@ -354,7 +357,7 @@ export function CrmDemo() {
       const sessionResult = await getCrmSession()
       setSession(sessionResult)
       const allowed = (permission: string) => sessionResult.member.permissions.includes(permission)
-      const [leadResult, dashResult, followResult, taskResult, workResult, accountResult, opportunityResult, salesResult, subscriptionResult, invoiceResult, salesItemResult, creditNoteResult, businessResult, estimateRequestResult, knowledgeCategoryResult, knowledgeArticleResult, mediaResult, teamResult, roleResult, readyResult] = await Promise.all([
+      const [leadResult, dashResult, followResult, taskResult, workResult, accountResult, opportunityResult, salesResult, subscriptionResult, invoiceResult, salesItemResult, salesItemGroupResult, creditNoteResult, businessResult, estimateRequestResult, knowledgeCategoryResult, knowledgeArticleResult, mediaResult, teamResult, roleResult, readyResult] = await Promise.all([
         allowed('ViewLeads') ? listCrmLeads() : Promise.resolve({ leads: [] as CrmLead[] }),
         allowed('ViewDashboard') ? crmDashboard() : Promise.resolve(initialDashboard()),
         allowed('ManageFollowUps') ? listCrmFollowUps() : Promise.resolve({ followUps: [] as CrmFollowUp[] }),
@@ -366,6 +369,7 @@ export function CrmDemo() {
         allowed('ViewSales') ? listCrmSubscriptions() : Promise.resolve({ subscriptions: [] as CrmSubscription[] }),
         allowed('ViewSales') ? listCrmInvoices() : Promise.resolve({ invoices: [] as CrmInvoice[] }),
         allowed('ViewSales') ? listCrmSalesItems() : Promise.resolve({ items: [] as CrmSalesItem[] }),
+        allowed('ViewSales') ? listCrmSalesItemGroups() : Promise.resolve({ groups: [] as CrmSalesItemGroup[] }),
         allowed('ViewSales') ? listCrmCreditNotes() : Promise.resolve({ creditNotes: [] as CrmCreditNote[] }),
         allowed('ViewDashboard') ? listCrmBusinessRecords() : Promise.resolve({ records: [] as CrmBusinessRecord[] }),
         allowed('ViewLeads') ? listCrmEstimateRequests() : Promise.resolve({ requests: [] as CrmEstimateRequest[] }),
@@ -387,6 +391,7 @@ export function CrmDemo() {
       setSubscriptions(subscriptionResult.subscriptions)
       setInvoices(invoiceResult.invoices)
       setSalesItems(salesItemResult.items)
+      setSalesItemGroups(salesItemGroupResult.groups)
       setCreditNotes(creditNoteResult.creditNotes)
       setBusinessRecords(businessResult.records)
       setEstimateRequests(estimateRequestResult.requests)
@@ -712,7 +717,7 @@ export function CrmDemo() {
         ) : null}
 
         {view === 'sales' && can('ViewSales') ? (
-          <CrmSalesWorkspace section={salesSection} accounts={accounts} opportunities={opportunities} documents={salesDocuments} invoices={invoices} salesItems={salesItems} creditNotes={creditNotes} busy={loading} refresh={refresh} notify={setMessage} canManageSales={can('ManageSales')} />
+          <CrmSalesWorkspace section={salesSection} accounts={accounts} opportunities={opportunities} documents={salesDocuments} invoices={invoices} salesItems={salesItems} salesItemGroups={salesItemGroups} creditNotes={creditNotes} busy={loading} refresh={refresh} notify={setMessage} canManageSales={can('ManageSales')} />
         ) : null}
         {view === 'accounts' || view === 'opportunities' ? (
           <CrmSalesView view={view} accounts={accounts} opportunities={opportunities} busy={loading} refresh={refresh} notify={setMessage} canManageAccounts={can('ManageAccounts')} canManageOpportunities={can('ManageOpportunities')} />

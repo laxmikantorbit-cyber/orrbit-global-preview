@@ -8,6 +8,7 @@ import {
   type CrmOpportunity,
   type CrmSalesDocument,
   type CrmSalesItem,
+  type CrmSalesItemGroup,
 } from './crmApi'
 import { CrmCreditNotesView } from './CrmCreditNotesView'
 import { CrmInvoicesView } from './CrmInvoicesView'
@@ -24,6 +25,7 @@ type Props = {
   documents: CrmSalesDocument[]
   invoices: CrmInvoice[]
   salesItems: CrmSalesItem[]
+  salesItemGroups: CrmSalesItemGroup[]
   creditNotes: CrmCreditNote[]
   busy: boolean
   refresh: () => Promise<void>
@@ -140,7 +142,7 @@ export function CrmSalesWorkspace(props: Props) {
   }
 
   return <CrmSalesItemsView
-    items={props.salesItems} busy={props.busy} refresh={props.refresh}
+    items={props.salesItems} groups={props.salesItemGroups} busy={props.busy} refresh={props.refresh}
     notify={props.notify} canManageSales={props.canManageSales}
   />
 }

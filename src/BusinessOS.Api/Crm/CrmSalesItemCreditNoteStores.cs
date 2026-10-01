@@ -10,6 +10,10 @@ public interface ICrmSalesItemStore
     Task SaveAsync(SalesItem item, CancellationToken cancellationToken = default);
     Task<SalesItem?> GetAsync(Guid tenantId, Guid itemId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<SalesItem>> ListAsync(Guid tenantId, CancellationToken cancellationToken = default);
+    Task AddGroupAsync(SalesItemGroup group, CancellationToken cancellationToken = default);
+    Task SaveGroupAsync(SalesItemGroup group, CancellationToken cancellationToken = default);
+    Task<SalesItemGroup?> GetGroupAsync(Guid tenantId, Guid groupId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<SalesItemGroup>> ListGroupsAsync(Guid tenantId, CancellationToken cancellationToken = default);
 }
 
 public interface ICrmCreditNoteStore
@@ -28,6 +32,7 @@ public interface ICrmCreditNoteStore
 public sealed class InMemoryCrmSalesItemStore : ICrmSalesItemStore
 {
     private readonly Dictionary<Guid, SalesItem> _items = [];
+    private readonly Dictionary<Guid, SalesItemGroup> _groups = [];
     private readonly object _gate = new();
 
     public Task AddAsync(SalesItem item, CancellationToken cancellationToken = default)
@@ -73,6 +78,53 @@ public sealed class InMemoryCrmSalesItemStore : ICrmSalesItemStore
                 _items.Values.Where(x => x.TenantId == tenantId)
                     .OrderBy(x => x.Name).ThenBy(x => x.Code).ToArray());
     }
+
+    public Task AddGroupAsync(SalesItemGroup group, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            if (_groups.ContainsKey(group.Id)) throw new InvalidOperationException("Sales item group already exists.");
+            if (_groups.Values.Any(x => x.TenantId == group.TenantId &&
+                x.Name.Equals(group.Name, StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidOperationException("Sales item group name already exists.");
+            _groups.Add(group.Id, group);
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task SaveGroupAsync(SalesItemGroup group, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            if (!_groups.ContainsKey(group.Id)) throw new InvalidOperationException("Sales item group does not exist.");
+            if (_groups.Values.Any(x => x.Id != group.Id && x.TenantId == group.TenantId &&
+                x.Name.Equals(group.Name, StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidOperationException("Sales item group name already exists.");
+            _groups[group.Id] = group;
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task<SalesItemGroup?> GetGroupAsync(Guid tenantId, Guid groupId, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            var group = _groups.GetValueOrDefault(groupId);
+            return Task.FromResult(group?.TenantId == tenantId ? group : null);
+        }
+    }
+
+    public Task<IReadOnlyList<SalesItemGroup>> ListGroupsAsync(Guid tenantId, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+            return Task.FromResult<IReadOnlyList<SalesItemGroup>>(
+                _groups.Values.Where(x => x.TenantId == tenantId)
+                    .OrderBy(x => x.Name).ToArray());
+    }
 }
 
 public sealed class PostgresCrmSalesItemStore : ICrmSalesItemStore
@@ -85,9 +137,9 @@ public sealed class PostgresCrmSalesItemStore : ICrmSalesItemStore
         await _db.EnsureReadyAsync(cancellationToken);
         await using var command = _db.DataSource.CreateCommand("""
 INSERT INTO businessos_crm.sales_items(
- id,tenant_id,code,name,description,default_rate,default_tax_percent,status,catalog_product_id,created_at_utc,updated_at_utc)
+ id,tenant_id,code,name,description,default_rate,default_tax_percent,status,catalog_product_id,group_id,created_at_utc,updated_at_utc)
 VALUES(
- @id,@tenant,@code,@name,@description,@rate,@tax,@status,@catalog,@created,@updated);
+ @id,@tenant,@code,@name,@description,@rate,@tax,@status,@catalog,@group,@created,@updated);
 """);
         AddParameters(command, item);
         try { await command.ExecuteNonQueryAsync(cancellationToken); }
@@ -101,7 +153,7 @@ VALUES(
         await using var command = _db.DataSource.CreateCommand("""
 UPDATE businessos_crm.sales_items SET
  name=@name,description=@description,default_rate=@rate,default_tax_percent=@tax,
- status=@status,updated_at_utc=@updated
+ status=@status,group_id=@group,updated_at_utc=@updated
 WHERE tenant_id=@tenant AND id=@id;
 """);
         AddParameters(command, item);
@@ -131,9 +183,67 @@ WHERE tenant_id=@tenant AND id=@id;
         return items;
     }
 
+    public async Task AddGroupAsync(SalesItemGroup group, CancellationToken cancellationToken = default)
+    {
+        await _db.EnsureReadyAsync(cancellationToken);
+        await using var command = _db.DataSource.CreateCommand("""
+INSERT INTO businessos_crm.sales_item_groups(
+ id,tenant_id,name,active,created_at_utc,updated_at_utc)
+VALUES(@id,@tenant,@name,@active,@created,@updated);
+""");
+        AddGroupParameters(command, group);
+        try { await command.ExecuteNonQueryAsync(cancellationToken); }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
+        { throw new InvalidOperationException("Sales item group name already exists.", ex); }
+    }
+
+    public async Task SaveGroupAsync(SalesItemGroup group, CancellationToken cancellationToken = default)
+    {
+        await _db.EnsureReadyAsync(cancellationToken);
+        await using var command = _db.DataSource.CreateCommand("""
+UPDATE businessos_crm.sales_item_groups SET
+ name=@name,active=@active,updated_at_utc=@updated
+WHERE tenant_id=@tenant AND id=@id;
+""");
+        AddGroupParameters(command, group);
+        try
+        {
+            if (await command.ExecuteNonQueryAsync(cancellationToken) == 0)
+                throw new InvalidOperationException("Sales item group does not exist.");
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
+        { throw new InvalidOperationException("Sales item group name already exists.", ex); }
+    }
+
+    public async Task<SalesItemGroup?> GetGroupAsync(Guid tenantId, Guid groupId, CancellationToken cancellationToken = default)
+    {
+        await _db.EnsureReadyAsync(cancellationToken);
+        await using var command = _db.DataSource.CreateCommand(GroupSelectSql + " WHERE tenant_id=@tenant AND id=@id LIMIT 1");
+        command.Parameters.AddWithValue("tenant", tenantId);
+        command.Parameters.AddWithValue("id", groupId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken) ? ReadGroup(reader) : null;
+    }
+
+    public async Task<IReadOnlyList<SalesItemGroup>> ListGroupsAsync(Guid tenantId, CancellationToken cancellationToken = default)
+    {
+        await _db.EnsureReadyAsync(cancellationToken);
+        await using var command = _db.DataSource.CreateCommand(GroupSelectSql + " WHERE tenant_id=@tenant ORDER BY name");
+        command.Parameters.AddWithValue("tenant", tenantId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var groups = new List<SalesItemGroup>();
+        while (await reader.ReadAsync(cancellationToken)) groups.Add(ReadGroup(reader));
+        return groups;
+    }
+
     private const string SelectSql = """
-SELECT id,tenant_id,code,name,description,default_rate,default_tax_percent,status,catalog_product_id,created_at_utc,updated_at_utc
+SELECT id,tenant_id,code,name,description,default_rate,default_tax_percent,status,catalog_product_id,group_id,created_at_utc,updated_at_utc
 FROM businessos_crm.sales_items
+""";
+
+    private const string GroupSelectSql = """
+SELECT id,tenant_id,name,active,created_at_utc,updated_at_utc
+FROM businessos_crm.sales_item_groups
 """;
 
     private static void AddParameters(NpgsqlCommand command, SalesItem item)
@@ -147,6 +257,7 @@ FROM businessos_crm.sales_items
         command.Parameters.AddWithValue("tax", item.DefaultTaxPercent);
         command.Parameters.AddWithValue("status", (int)item.Status);
         Nullable(command, "catalog", NpgsqlDbType.Uuid, item.CatalogProductId);
+        Nullable(command, "group", NpgsqlDbType.Uuid, item.GroupId);
         command.Parameters.AddWithValue("created", item.CreatedAtUtc);
         command.Parameters.AddWithValue("updated", item.UpdatedAtUtc);
     }
@@ -156,7 +267,23 @@ FROM businessos_crm.sales_items
             reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2), reader.GetString(3),
             reader.IsDBNull(4) ? null : reader.GetString(4), reader.GetDecimal(5), reader.GetDecimal(6),
             (SalesItemStatus)reader.GetInt32(7), reader.IsDBNull(8) ? null : reader.GetGuid(8),
-            reader.GetFieldValue<DateTimeOffset>(9), reader.GetFieldValue<DateTimeOffset>(10));
+            reader.IsDBNull(9) ? null : reader.GetGuid(9),
+            reader.GetFieldValue<DateTimeOffset>(10), reader.GetFieldValue<DateTimeOffset>(11));
+
+    private static void AddGroupParameters(NpgsqlCommand command, SalesItemGroup group)
+    {
+        command.Parameters.AddWithValue("id", group.Id);
+        command.Parameters.AddWithValue("tenant", group.TenantId);
+        command.Parameters.AddWithValue("name", group.Name);
+        command.Parameters.AddWithValue("active", group.Active);
+        command.Parameters.AddWithValue("created", group.CreatedAtUtc);
+        command.Parameters.AddWithValue("updated", group.UpdatedAtUtc);
+    }
+
+    private static SalesItemGroup ReadGroup(NpgsqlDataReader reader) =>
+        SalesItemGroup.Restore(
+            reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2), reader.GetBoolean(3),
+            reader.GetFieldValue<DateTimeOffset>(4), reader.GetFieldValue<DateTimeOffset>(5));
 
     private static void Nullable(NpgsqlCommand command, string name, NpgsqlDbType type, object? value) =>
         command.Parameters.Add(name, type).Value = value ?? DBNull.Value;

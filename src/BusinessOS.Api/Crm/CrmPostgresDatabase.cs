@@ -325,6 +325,19 @@ CREATE TABLE IF NOT EXISTS businessos_crm.recurring_invoice_templates (
 CREATE INDEX IF NOT EXISTS ix_businessos_crm_recurring_invoice_templates_due
     ON businessos_crm.recurring_invoice_templates(tenant_id, active, next_issue_date);
 
+CREATE TABLE IF NOT EXISTS businessos_crm.sales_item_groups (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    name text NOT NULL,
+    active boolean NOT NULL DEFAULT true,
+    created_at_utc timestamptz NOT NULL,
+    updated_at_utc timestamptz NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_businessos_crm_sales_item_groups_name
+    ON businessos_crm.sales_item_groups(tenant_id, lower(name));
+CREATE INDEX IF NOT EXISTS ix_businessos_crm_sales_item_groups_active
+    ON businessos_crm.sales_item_groups(tenant_id, active, name);
+
 CREATE TABLE IF NOT EXISTS businessos_crm.sales_items (
     id uuid PRIMARY KEY,
     tenant_id uuid NOT NULL,
@@ -335,13 +348,17 @@ CREATE TABLE IF NOT EXISTS businessos_crm.sales_items (
     default_tax_percent numeric(5,2) NOT NULL DEFAULT 0,
     status integer NOT NULL,
     catalog_product_id uuid NULL,
+    group_id uuid NULL,
     created_at_utc timestamptz NOT NULL,
     updated_at_utc timestamptz NOT NULL
 );
+ALTER TABLE businessos_crm.sales_items ADD COLUMN IF NOT EXISTS group_id uuid NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_businessos_crm_sales_items_code
     ON businessos_crm.sales_items(tenant_id, upper(code));
 CREATE INDEX IF NOT EXISTS ix_businessos_crm_sales_items_tenant
     ON businessos_crm.sales_items(tenant_id, status, name);
+CREATE INDEX IF NOT EXISTS ix_businessos_crm_sales_items_group
+    ON businessos_crm.sales_items(tenant_id, group_id, status);
 
 CREATE TABLE IF NOT EXISTS businessos_crm.credit_notes (
     id uuid PRIMARY KEY,

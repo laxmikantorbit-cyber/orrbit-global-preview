@@ -97,6 +97,7 @@ public sealed class CrmFreeTestingAccessMiddleware
             if (relative.Equals("sales-documents", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("sales-documents/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewSales;
             if (relative.Equals("invoices", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("invoices/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewSales;
             if (relative.Equals("sales-items", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("sales-items/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewSales;
+            if (relative.Equals("sales-item-groups", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("sales-item-groups/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewSales;
             if (relative.Equals("credit-notes", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("credit-notes/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewSales;
             if (relative.Equals("subscriptions", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("subscriptions/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewSales;
             if (relative.Equals("business-records", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("business-records/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewDashboard;
@@ -126,6 +127,7 @@ public sealed class CrmFreeTestingAccessMiddleware
             if (relative.Equals("sales-documents", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("sales-documents/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageSales;
             if (relative.Equals("invoices", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("invoices/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageSales;
             if (relative.Equals("sales-items", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("sales-items/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageSales;
+            if (relative.Equals("sales-item-groups", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("sales-item-groups/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageSales;
             if (relative.Equals("credit-notes", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("credit-notes/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageSales;
             if (relative.Equals("business-records", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("business-records/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageTasks;
             if (relative.Equals("estimate-requests", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("estimate-requests/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.EditLead;

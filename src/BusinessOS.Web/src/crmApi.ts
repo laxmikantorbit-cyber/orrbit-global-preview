@@ -799,6 +799,15 @@ export type CrmSalesItem = {
   defaultTaxPercent: number
   status: 'Active' | 'Inactive'
   catalogProductId?: string | null
+  groupId?: string | null
+  createdAtUtc: string
+  updatedAtUtc: string
+}
+
+export type CrmSalesItemGroup = {
+  id: string
+  name: string
+  active: boolean
   createdAtUtc: string
   updatedAtUtc: string
 }
@@ -822,6 +831,29 @@ export async function listCrmSalesItems() {
   return parseResponse<{ items: CrmSalesItem[] }>(response)
 }
 
+export async function listCrmSalesItemGroups() {
+  const response = await crmFetch('/sales-item-groups')
+  return parseResponse<{ groups: CrmSalesItemGroup[] }>(response)
+}
+
+export async function createCrmSalesItemGroup(input: { name: string; active?: boolean }) {
+  const response = await crmFetch('/sales-item-groups', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmSalesItemGroup>(response)
+}
+
+export async function updateCrmSalesItemGroup(groupId: string, input: { name: string; active: boolean }) {
+  const response = await crmFetch(`/sales-item-groups/${groupId}/profile`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmSalesItemGroup>(response)
+}
+
 export async function createCrmSalesItem(input: {
   code: string
   name: string
@@ -830,6 +862,7 @@ export async function createCrmSalesItem(input: {
   defaultTaxPercent: number
   status?: CrmSalesItem['status']
   catalogProductId?: string | null
+  groupId?: string | null
 }) {
   const response = await crmFetch('/sales-items', {
     method: 'POST',
@@ -845,6 +878,7 @@ export async function updateCrmSalesItem(itemId: string, input: {
   defaultRate: number
   defaultTaxPercent: number
   status: CrmSalesItem['status']
+  groupId?: string | null
 }) {
   const response = await crmFetch(`/sales-items/${itemId}/profile`, {
     method: 'POST',
