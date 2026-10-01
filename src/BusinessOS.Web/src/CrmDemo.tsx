@@ -135,6 +135,7 @@ export function CrmDemo() {
   const [extraFilter, setExtraFilter] = useState('All')
   const [tagFilter, setTagFilter] = useState('All')
   const [leadViewMode, setLeadViewMode] = useState<'list' | 'grid'>('list')
+  const [leadPageSize, setLeadPageSize] = useState(25)
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([])
   const [bulkStatus, setBulkStatus] = useState('')
   const [bulkPriority, setBulkPriority] = useState('')
@@ -220,6 +221,7 @@ export function CrmDemo() {
       return matchesStatus && matchesSource && matchesAssigned && matchesTag && matchesExtra && (!search || haystack.includes(search))
     })
   }, [leads, query, statusFilter, sourceFilter, assignedFilter, tagFilter, extraFilter])
+  const visibleLeads = filteredLeads.slice(0, leadPageSize)
 
   const conversionRate = dashboard.totalLeads > 0 ? Math.round((dashboard.converted / dashboard.totalLeads) * 100) : 0
   const can = (permission: string) => session?.member.permissions.includes(permission) ?? false
@@ -653,7 +655,7 @@ export function CrmDemo() {
             </section>
             <section className="crm2-ref-table-card">
               <div className="crm2-ref-table-tools">
-                <select><option>25</option><option>50</option></select>
+                <select value={leadPageSize} onChange={(e) => setLeadPageSize(Number(e.target.value))}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select>
                 <button onClick={() => void exportLeads('xlsx')}>Export</button>
                 {can('EditLead') || can('AssignLead') ? <button disabled={loading || selectedLeadIds.length === 0} onClick={() => setShowLeadBulkActions(value => !value)}>Bulk Actions</button> : null}
                 <button onClick={refresh}>↻</button><span /><label><b>⌕</b><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search..." /></label>
@@ -664,8 +666,8 @@ export function CrmDemo() {
                 {can('AssignLead') ? <select value={bulkOwnerId} onChange={(e) => setBulkOwnerId(e.target.value)}><option value="">Change assignee...</option><option value="__unassigned__">Unassigned</option>{teamMembers.filter((member) => member.active).map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select> : null}
                 <button disabled={loading} onClick={() => void applyBulkLeadUpdate()}>Apply</button><button onClick={() => setShowLeadBulkActions(false)}>Close</button>
               </div> : null}
-              <div className="crm2-ref-leads-head"><span><input type="checkbox" checked={filteredLeads.length > 0 && filteredLeads.every((lead) => selectedLeadIds.includes(lead.id))} onChange={(e) => setSelectedLeadIds((ids) => e.target.checked ? Array.from(new Set([...ids, ...filteredLeads.map((lead) => lead.id)])) : ids.filter((id) => !filteredLeads.some((lead) => lead.id === id)))} /></span><span>#</span><span>Name</span><span>Company</span><span>Email</span><span>Phone</span><span>Value</span><span>Tags</span><span>Assigned</span><span>Status</span></div>
-              {filteredLeads.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : leadViewMode === 'grid' ? <div className="crm2-ref-lead-grid">{filteredLeads.map((lead) => {
+              <div className="crm2-ref-leads-head"><span><input type="checkbox" checked={visibleLeads.length > 0 && visibleLeads.every((lead) => selectedLeadIds.includes(lead.id))} onChange={(e) => setSelectedLeadIds((ids) => e.target.checked ? Array.from(new Set([...ids, ...visibleLeads.map((lead) => lead.id)])) : ids.filter((id) => !visibleLeads.some((lead) => lead.id === id)))} /></span><span>#</span><span>Name</span><span>Company</span><span>Email</span><span>Phone</span><span>Value</span><span>Tags</span><span>Assigned</span><span>Status</span></div>
+              {filteredLeads.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : leadViewMode === 'grid' ? <div className="crm2-ref-lead-grid">{visibleLeads.map((lead) => {
                 const owner = teamMembers.find((member) => member.id === lead.ownerUserId)
                 return <article key={lead.id} onClick={() => setSelectedLeadId(lead.id)}><strong>{lead.contactName || lead.title}</strong><span>{lead.title}</span><small>{lead.mobileNumber || lead.email || 'No contact'}</small><small>{formatLeadValue(lead.estimatedValue)} · {owner?.displayName || 'Unassigned'}</small><div>{(lead.tags || []).map((tag) => <em key={tag}>{tag}</em>)}</div><em>{statusLabels[lead.status] || lead.status}</em></article>
               })}</div> : filteredLeads.map((lead, index) => {
@@ -716,7 +718,7 @@ export function CrmDemo() {
           <CrmSalesView view={view} accounts={accounts} opportunities={opportunities} busy={loading} refresh={refresh} notify={setMessage} canManageAccounts={can('ManageAccounts')} canManageOpportunities={can('ManageOpportunities')} />
         ) : null}
         {view === 'followups' || view === 'tasks' || view === 'reports' ? (
-          <CrmWorkView view={view} leads={leads} followUps={followUps} tasks={tasks} summary={workSummary} dashboard={dashboard} busy={loading} openLead={setSelectedLeadId} completeFollowUp={finishFollowUp} completeTask={finishTask} />
+          <CrmWorkView view={view} leads={leads} followUps={followUps} tasks={tasks} teamMembers={teamMembers} currentUserId={session?.member.id} canViewAllOwnedRecords={session?.canViewAllOwnedRecords} summary={workSummary} dashboard={dashboard} busy={loading} openLead={setSelectedLeadId} completeFollowUp={finishFollowUp} completeTask={finishTask} refresh={refresh} notify={setMessage} />
         ) : null}
         {view === 'team' ? (
           <CrmTeamView members={teamMembers} roles={roles} busy={loading} refresh={refresh} notify={setMessage} canManageTeam={can('ManageTeam')} />

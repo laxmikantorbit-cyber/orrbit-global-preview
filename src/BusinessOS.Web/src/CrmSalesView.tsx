@@ -45,6 +45,7 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
   const [contactDraft, setContactDraft] = useState('')
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([])
   const [customerQuery, setCustomerQuery] = useState('')
+  const [customerPageSize, setCustomerPageSize] = useState(25)
   const [customerStatusFilter, setCustomerStatusFilter] = useState('All')
   const [excludeInactive, setExcludeInactive] = useState(true)
   const [customerGroupFilter, setCustomerGroupFilter] = useState('All')
@@ -86,6 +87,7 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
       return matchesStatus && matchesGroup && (!search || haystack.includes(search))
     })
   }, [accounts, customerGroupFilter, customerQuery, customerStatusFilter, excludeInactive])
+  const visibleAccounts = filteredAccounts.slice(0, customerPageSize)
   const totalPipeline = opportunities
     .filter((item) => !['Won', 'Lost'].includes(item.stage))
     .reduce((sum, item) => sum + item.estimatedValue, 0)
@@ -286,7 +288,7 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
         </div>
         <section className="crm2-ref-table-card">
           <div className="crm2-ref-table-tools">
-            <select><option>25</option><option>50</option></select>
+            <select value={customerPageSize} onChange={(e) => setCustomerPageSize(Number(e.target.value))}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select>
             <button onClick={() => void exportCustomers('xlsx')}>Export</button>
             {canManageAccounts ? <button disabled={busy || selectedAccountIds.length === 0} onClick={() => setShowBulkCustomerActions(value => !value)}>Bulk Actions</button> : null}
             <button onClick={refresh}>↻</button>
@@ -302,8 +304,8 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
             <button disabled={busy} onClick={() => void applyCustomerBulkAction()}>Apply</button>
             <button onClick={() => setShowBulkCustomerActions(false)}>Close</button>
           </div> : null}
-          <div className="crm2-ref-customers-head"><span><input type="checkbox" checked={filteredAccounts.length > 0 && filteredAccounts.every((account) => selectedAccountIds.includes(account.id))} onChange={(e) => setSelectedAccountIds((ids) => e.target.checked ? Array.from(new Set([...ids, ...filteredAccounts.map((account) => account.id)])) : ids.filter((id) => !filteredAccounts.some((account) => account.id === id)))} /></span><span>#</span><span>Company</span><span>Primary Contact</span><span>Primary Email</span><span>Phone</span><span>Active</span><span>Groups</span></div>
-          {filteredAccounts.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : filteredAccounts.map((account, index) => (
+          <div className="crm2-ref-customers-head"><span><input type="checkbox" checked={visibleAccounts.length > 0 && visibleAccounts.every((account) => selectedAccountIds.includes(account.id))} onChange={(e) => setSelectedAccountIds((ids) => e.target.checked ? Array.from(new Set([...ids, ...visibleAccounts.map((account) => account.id)])) : ids.filter((id) => !visibleAccounts.some((account) => account.id === id)))} /></span><span>#</span><span>Company</span><span>Primary Contact</span><span>Primary Email</span><span>Phone</span><span>Active</span><span>Groups</span></div>
+          {filteredAccounts.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : visibleAccounts.map((account, index) => (
             <article className="crm2-ref-customers-row" key={account.id} onClick={() => openAccount(account)}>
               <span><input type="checkbox" checked={selectedAccountIds.includes(account.id)} onClick={(e) => e.stopPropagation()} onChange={(e) => toggleSelectedAccount(account.id, e.target.checked)} /></span><span>{index + 1}</span><span><a>{account.name}</a></span><span>{account.primaryContact?.name || '-'}</span><span><a>{account.primaryContact?.email || '-'}</a></span><span>{account.primaryContact?.phone || '-'}</span><span><label className="crm2-ref-switch" onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={account.status === 'Active'} disabled={busy || !canManageAccounts} onChange={() => void toggleAccountStatus(account)} /><i /></label></span><span>{(account.groups || []).length ? (account.groups || []).map((group) => <em key={group}>{group}</em>) : <small>—</small>}</span>
             </article>

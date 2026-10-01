@@ -43,6 +43,7 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
   const cfg = config[view]
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('All')
+  const [pageSize, setPageSize] = useState(25)
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<CrmBusinessRecord | null>(null)
   const [title, setTitle] = useState('')
@@ -80,6 +81,7 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
       return !search || haystack.includes(search)
     })
   }, [accounts, moduleRecords, query, status, teamMembers])
+  const visibleRecords = filtered.slice(0, pageSize)
 
   const count = (value: string) => moduleRecords.filter(record => record.status === value).length
   const accountName = (record: CrmBusinessRecord) => accounts.find(item => item.id === record.accountId)?.name || '—'
@@ -374,7 +376,7 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
   </section> : null
 
   const toolbar = <div className="crm2-ref-table-tools">
-    <select><option>25</option><option>50</option></select>
+    <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select>
     <button onClick={() => void exportCurrent('xlsx')} disabled={busy || filtered.length === 0}>Export XLSX</button>
     <button onClick={() => void exportCurrent('csv')} disabled={busy || filtered.length === 0}>CSV</button>
     {view === 'expenses' && canManage ? <button onClick={toggleAllFilteredExpenses} disabled={filtered.length === 0}>{filtered.length > 0 && filtered.every(record => selectedExpenseIds.includes(record.id)) ? 'Clear Selection' : 'Select All'}</button> : null}
@@ -402,7 +404,7 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
     {form}
     <section className="crm2-ref-table-card">{toolbar}
       <div className="crm2-expense-head"><span></span><span>Category</span><span>Amount</span><span>Name</span><span>Receipt</span><span>Date</span><span>Project</span><span>Customer</span><span>Invoice</span><span>Reference #</span><span>Payment Mode</span></div>
-      {filtered.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : filtered.map(record => <div className="crm2-expense-row" key={record.id} onDoubleClick={() => canManage && openEdit(record)}>
+      {filtered.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : visibleRecords.map(record => <div className="crm2-expense-row" key={record.id} onDoubleClick={() => canManage && openEdit(record)}>
         <span><input type="checkbox" checked={selectedExpenseIds.includes(record.id)} onChange={() => toggleExpenseSelection(record.id)} disabled={!canManage} /></span><span><a>{record.category || '—'}</a></span><span>{money(record.amount)}</span><span><a>{record.title}</a></span><span>{meta(record,'receipt')}</span><span>{fmtDate(record.startDate || record.createdAtUtc)}</span><span>{meta(record,'project')}</span><span>{accountName(record)}</span><span>{meta(record,'invoice')}</span><span>{meta(record,'reference')}</span><span>{meta(record,'paymentMode')}</span>
       </div>)}
     </section>
@@ -428,7 +430,7 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
         <article><h3>Contracts by Type</h3><div className="crm2-bar-chart">{categories.map(cat => { const n=moduleRecords.filter(r => (r.category||'Uncategorized')===cat).length; return <div key={cat}><span>{cat}</span><i><b style={{width: Math.max(3,Math.round(n/Math.max(1,moduleRecords.length)*100))+'%'}} /></i><strong>{n}</strong></div> })}</div></article>
         <article><h3>Contracts Value by Type (INR)</h3><div className="crm2-bar-chart">{categories.map(cat => { const value=moduleRecords.filter(r => (r.category||'Uncategorized')===cat).reduce((sum,r)=>sum+(r.amount||0),0); const max=Math.max(1,...categories.map(c=>moduleRecords.filter(r=>(r.category||'Uncategorized')===c).reduce((sum,r)=>sum+(r.amount||0),0))); return <div key={cat}><span>{cat}</span><i><b style={{width: Math.max(3,Math.round(value/max*100))+'%'}} /></i><strong>{money(value)}</strong></div> })}</div></article>
       </section>
-      <section className="crm2-ref-table-card">{toolbar}<div className="crm2-business-head"><span>Contract</span><span>Customer</span><span>Value</span><span>Owner</span><span>Status</span></div>{filtered.length===0?<p className="crm2-reference-empty">No entries found</p>:filtered.map(record=><div className="crm2-business-row" key={record.id} onDoubleClick={()=>canManage&&openEdit(record)}><span><a>{record.title}</a><small>{record.category || '—'}{record.metadata?.contractNumber ? ' · #' + record.metadata.contractNumber : ''} · Signed: {record.metadata?.signed || 'No'}</small></span><span>{accountName(record)}</span><span>{money(record.amount)}</span><span>{ownerName(record)}</span><span>{canManage?<select value={record.status} onChange={e=>void move(record,e.target.value)}>{cfg.statuses.map(item=><option key={item}>{item}</option>)}</select>:record.status}</span></div>)}</section>
+      <section className="crm2-ref-table-card">{toolbar}<div className="crm2-business-head"><span>Contract</span><span>Customer</span><span>Value</span><span>Owner</span><span>Status</span></div>{filtered.length===0?<p className="crm2-reference-empty">No entries found</p>:visibleRecords.map(record=><div className="crm2-business-row" key={record.id} onDoubleClick={()=>canManage&&openEdit(record)}><span><a>{record.title}</a><small>{record.category || '—'}{record.metadata?.contractNumber ? ' · #' + record.metadata.contractNumber : ''} · Signed: {record.metadata?.signed || 'No'}</small></span><span>{accountName(record)}</span><span>{money(record.amount)}</span><span>{ownerName(record)}</span><span>{canManage?<select value={record.status} onChange={e=>void move(record,e.target.value)}>{cfg.statuses.map(item=><option key={item}>{item}</option>)}</select>:record.status}</span></div>)}</section>
     </section>
   }
 
@@ -446,7 +448,7 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
       </div>
       {form}
       <section className="crm2-reference-status-summary"><h2>▧ Projects Summary</h2><div><span><b>{count('Planned')}</b><em>Not Started</em></span><span><b>{count('InProgress')}</b><em className="blue">In Progress</em></span><span><b>{count('OnHold')}</b><em className="warn">On Hold</em></span><span><b>{overdueProjects}</b><em className="bad">Overdue</em></span><span><b>{count('Completed')}</b><em className="good">Finished</em></span></div></section>
-      <section className="crm2-ref-table-card">{toolbar}<div className="crm2-project-head"><span>#</span><span>Project Name</span><span>Customer</span><span>Tags</span><span>Start Date</span><span>Deadline</span><span>Members</span><span>Status</span></div>{filtered.length===0?<p className="crm2-reference-empty">No entries found</p>:filtered.map((record,index)=>{
+      <section className="crm2-ref-table-card">{toolbar}<div className="crm2-project-head"><span>#</span><span>Project Name</span><span>Customer</span><span>Tags</span><span>Start Date</span><span>Deadline</span><span>Members</span><span>Status</span></div>{filtered.length===0?<p className="crm2-reference-empty">No entries found</p>:visibleRecords.map((record,index)=>{
         const overdue = !!record.dueDate && !['Completed','Cancelled'].includes(record.status) && new Date(record.dueDate + 'T00:00:00').getTime() < todayMs
         const members = [ownerName(record) === '—' ? '' : ownerName(record), record.metadata?.members || ''].filter(Boolean).join(', ') || '—'
         return <div className={'crm2-project-row' + (overdue ? ' overdue' : '')} key={record.id} onDoubleClick={()=>canManage&&openEdit(record)}><span>{index+1}</span><span><a>{record.title}</a><small>{record.metadata?.progress || '0'}% complete{overdue ? ' · Overdue' : ''}</small></span><span><a>{accountName(record)}</a></span><span>{meta(record,'tags')}</span><span>{fmtDate(record.startDate)}</span><span>{fmtDate(record.dueDate)}</span><span>{members}</span><span>{canManage?<select value={record.status} onChange={e=>void move(record,e.target.value)}>{cfg.statuses.map(item=><option key={item}>{item}</option>)}</select>:record.status}</span></div>
@@ -471,6 +473,6 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
     </div> : null}
     {form}
     <section className="crm2-reference-status-summary"><h2>▧ Tickets Summary</h2><div><span><b>{count('Open')}</b><em className="bad">Open</em></span><span><b>{count('InProgress')}</b><em className="good">In Progress</em></span><span><b>{count('Resolved')}</b><em className="blue">Resolved</em></span><span><b>{count('Cancelled')}</b><em>Cancelled</em></span><span><b>{count('Closed')}</b><em className="blue">Closed</em></span></div></section>
-    <section className="crm2-ref-table-card">{toolbar}<div className="crm2-ticket-head"><span></span><span>#</span><span>Subject</span><span>Tags</span><span>Department</span><span>Service</span><span>Contact</span><span>Status</span><span>Priority</span><span>Last Update</span><span>Created</span></div>{filtered.length===0?<p className="crm2-reference-empty">No entries found</p>:filtered.map((record,index)=><div className="crm2-ticket-row" key={record.id} onDoubleClick={()=>canManage&&openEdit(record)}><span><input type="checkbox" checked={selectedTicketIds.includes(record.id)} onChange={()=>toggleTicketSelection(record.id)} disabled={!canManage} /></span><span>{index+1}</span><span><a>{record.title}</a><small>{ownerName(record) !== '—' ? 'Owner: ' + ownerName(record) : ''}</small></span><span>{meta(record,'tags')}</span><span>{record.category || meta(record,'department')}</span><span>{meta(record,'service')}</span><span>{accountName(record)}</span><span>{canManage?<select value={record.status} onChange={e=>void move(record,e.target.value)}>{cfg.statuses.map(item=><option key={item}>{item}</option>)}</select>:record.status}</span><span>{record.priority||'—'}</span><span>{record.metadata?.lastReply || fmtDate(record.updatedAtUtc)}</span><span>{fmtDate(record.createdAtUtc)}</span></div>)}</section>
+    <section className="crm2-ref-table-card">{toolbar}<div className="crm2-ticket-head"><span></span><span>#</span><span>Subject</span><span>Tags</span><span>Department</span><span>Service</span><span>Contact</span><span>Status</span><span>Priority</span><span>Last Update</span><span>Created</span></div>{filtered.length===0?<p className="crm2-reference-empty">No entries found</p>:visibleRecords.map((record,index)=><div className="crm2-ticket-row" key={record.id} onDoubleClick={()=>canManage&&openEdit(record)}><span><input type="checkbox" checked={selectedTicketIds.includes(record.id)} onChange={()=>toggleTicketSelection(record.id)} disabled={!canManage} /></span><span>{index+1}</span><span><a>{record.title}</a><small>{ownerName(record) !== '—' ? 'Owner: ' + ownerName(record) : ''}</small></span><span>{meta(record,'tags')}</span><span>{record.category || meta(record,'department')}</span><span>{meta(record,'service')}</span><span>{accountName(record)}</span><span>{canManage?<select value={record.status} onChange={e=>void move(record,e.target.value)}>{cfg.statuses.map(item=><option key={item}>{item}</option>)}</select>:record.status}</span><span>{record.priority||'—'}</span><span>{record.metadata?.lastReply || fmtDate(record.updatedAtUtc)}</span><span>{fmtDate(record.createdAtUtc)}</span></div>)}</section>
   </section>
 }

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { cancelCrmFollowUp, cancelCrmTask, rescheduleCrmFollowUp, updateCrmTask } from './crmAdvancedApi'
-import type { CrmDashboard, CrmFollowUp, CrmLead, CrmTask, CrmTeamMember, CrmWorkSummary } from './crmApi'
+import { createCrmTask, type CrmDashboard, type CrmFollowUp, type CrmLead, type CrmTask, type CrmTeamMember, type CrmWorkSummary } from './crmApi'
 import { exportCrmSpreadsheet, type CrmSpreadsheetFormat } from './crmSpreadsheet'
 
 type View = 'followups' | 'tasks' | 'reports'
@@ -38,6 +38,8 @@ type Props = {
   completeTask: (id: string) => Promise<void>
   updateTask?: (id: string, input: TaskUpdate) => Promise<void>
   cancelTask?: (id: string) => Promise<void>
+  refresh?: () => Promise<void>
+  notify?: (message: string) => void
 }
 
 function formatDate(value?: string | null) {
@@ -68,6 +70,7 @@ export function CrmWorkView(props: Props) {
   const [followPurpose, setFollowPurpose] = useState('')
   const [followOwner, setFollowOwner] = useState('')
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
+  const [creatingTask, setCreatingTask] = useState(false)
   const [taskTitle, setTaskTitle] = useState('')
   const [taskDetails, setTaskDetails] = useState('')
   const [taskDue, setTaskDue] = useState('')
@@ -114,7 +117,18 @@ export function CrmWorkView(props: Props) {
     setFollowOwner(item.ownerUserId || props.currentUserId || '')
   }
 
+  function beginTask() {
+    setEditingTaskId(null)
+    setCreatingTask(true)
+    setTaskTitle('')
+    setTaskDetails('')
+    setTaskDue('')
+    setTaskPriority('Normal')
+    setTaskAssignee(props.currentUserId || '')
+  }
+
   function editTask(item: CrmTask) {
+    setCreatingTask(false)
     setEditingTaskId(item.id)
     setTaskTitle(item.title)
     setTaskDetails(item.details || '')
@@ -140,6 +154,27 @@ export function CrmWorkView(props: Props) {
       if (props.cancelFollowUp) await props.cancelFollowUp(id)
       else await cancelCrmFollowUp(id, 'Cancelled from follow-up centre')
       if (!props.cancelFollowUp) window.location.reload()
+    } finally { setLocalBusy(false) }
+  }
+
+  async function createTask() {
+    if (!taskTitle.trim()) return
+    setLocalBusy(true)
+    try {
+      await createCrmTask({
+        title: taskTitle.trim(),
+        details: taskDetails.trim() || undefined,
+        dueAtUtc: utcInput(taskDue),
+        priority: taskPriority,
+        assigneeUserId: taskAssignee || undefined,
+      })
+      setCreatingTask(false)
+      setTaskTitle(''); setTaskDetails(''); setTaskDue(''); setTaskPriority('Normal'); setTaskAssignee('')
+      props.notify?.('Task created')
+      if (props.refresh) await props.refresh()
+      else window.location.reload()
+    } catch (error) {
+      props.notify?.(error instanceof Error ? error.message : String(error))
     } finally { setLocalBusy(false) }
   }
 
@@ -256,12 +291,19 @@ export function CrmWorkView(props: Props) {
     return (
       <section className="crm2-ref-list-page crm2-tasks-reference">
         <div className="crm2-ref-action-row">
-          <button className="crm2-ref-primary" disabled title="Create tasks from a lead workspace">+ New Task</button>
+          <button className="crm2-ref-primary" onClick={beginTask} disabled={busy}>+ New Task</button>
           <button className={taskScope === 'mine' ? 'crm2-ref-square active' : 'crm2-ref-square'} onClick={() => setTaskScope(taskScope === 'mine' ? 'all' : 'mine')} title="My tasks">▦</button>
           <span className="crm2-action-spacer" />
           <button className="crm2-tasks-overview" onClick={() => { setTaskScope('all'); setTaskStatusFilter('All'); setTaskQuery('') }}>Tasks Overview</button>
           <button className={taskScope === 'overdue' ? 'crm2-ref-square active' : 'crm2-ref-square'} onClick={() => setTaskScope(taskScope === 'overdue' ? 'all' : 'overdue')} title="Overdue tasks">▼</button>
         </div>
+        {creatingTask ? <section className="crm2-ref-filter-card"><strong>New Task</strong><div className="crm2-form-grid">
+          <label>Task title<input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="What needs to be done?" /></label>
+          <label>Due date/time<input type="datetime-local" value={taskDue} onChange={(e) => setTaskDue(e.target.value)} /></label>
+          <label>Priority<select value={taskPriority} onChange={(e) => setTaskPriority(e.target.value)}><option>Low</option><option>Normal</option><option>High</option><option>Urgent</option></select></label>
+          {team.length ? <label>Assigned to<select value={taskAssignee} onChange={(e) => setTaskAssignee(e.target.value)}><option value="">Unassigned</option>{assignableUsers.map((user) => <option key={user.id} value={user.id}>{user.displayName} · {user.role}</option>)}</select></label> : null}
+        </div><label>Details<textarea rows={3} value={taskDetails} onChange={(e) => setTaskDetails(e.target.value)} /></label>
+        <div className="crm2-drawer-actions"><button onClick={() => setCreatingTask(false)}>Cancel</button><button className="crm2-primary" disabled={busy || !taskTitle.trim()} onClick={() => void createTask()}>Create Task</button></div></section> : null}
         <section className="crm2-reference-status-summary crm2-task-summary">
           <h2>▧ Tasks Summary</h2>
           <div>
@@ -274,11 +316,11 @@ export function CrmWorkView(props: Props) {
         </section>
         <section className="crm2-ref-table-card">
           <div className="crm2-ref-table-tools">
-            <select value={taskPageSize} onChange={e => setTaskPageSize(Number(e.target.value))}><option value={25}>25</option><option value={50}>50</option></select>
+            <select value={taskPageSize} onChange={e => setTaskPageSize(Number(e.target.value))}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select>
             <button onClick={() => void exportTasks('xlsx')} disabled={busy || filteredTasks.length === 0}>Export XLSX</button>
             <button onClick={() => void exportTasks('csv')} disabled={busy || filteredTasks.length === 0}>CSV</button>
             <button onClick={toggleVisibleTaskSelection} disabled={busy || visibleTasks.length === 0}>{visibleTasks.length > 0 && visibleTasks.every(item => selectedTaskIds.includes(item.id)) ? 'Clear Selection' : 'Select Visible'}</button>
-            <button onClick={() => window.location.reload()} disabled={busy}>↻</button><span />
+            <button onClick={() => props.refresh ? void props.refresh() : window.location.reload()} disabled={busy}>↻</button><span />
             <select value={taskStatusFilter} onChange={e => setTaskStatusFilter(e.target.value)}><option>All</option><option>Open</option><option>InProgress</option><option>Testing</option><option>AwaitingFeedback</option><option>Completed</option><option>Cancelled</option></select>
             <label><b>⌕</b><input value={taskQuery} onChange={e => setTaskQuery(e.target.value)} placeholder="Search..." /></label>
           </div>
