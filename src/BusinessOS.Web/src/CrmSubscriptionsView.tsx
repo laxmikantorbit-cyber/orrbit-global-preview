@@ -6,6 +6,7 @@ type Props = {
   subscriptions: CrmSubscription[]
   busy: boolean
   openSales: () => void
+  refresh: () => Promise<void>
 }
 
 function fmtDate(value?: string | null) {
@@ -14,9 +15,11 @@ function fmtDate(value?: string | null) {
   return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString('en-IN')
 }
 
-export function CrmSubscriptionsView({ subscriptions, busy, openSales }: Props) {
+export function CrmSubscriptionsView({ subscriptions, busy, openSales, refresh }: Props) {
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('All')
+  const [pageSize, setPageSize] = useState(25)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const statuses = useMemo(() => Array.from(new Set(subscriptions.map(x => x.status).filter(Boolean))).sort(), [subscriptions])
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -24,6 +27,7 @@ export function CrmSubscriptionsView({ subscriptions, busy, openSales }: Props) 
       (status === 'All' || item.status === status) &&
       (!needle || [item.accountName, item.productCode, item.subscriptionId, item.licenseId].join(' ').toLowerCase().includes(needle)))
   }, [subscriptions, query, status])
+  const visible = filtered.slice(0, pageSize)
   const countLike = (...names: string[]) => subscriptions.filter(x => names.some(name => x.status.toLowerCase().replace(/\s/g,'') === name.toLowerCase().replace(/\s/g,''))).length
 
   async function exportRows() {
@@ -37,8 +41,12 @@ export function CrmSubscriptionsView({ subscriptions, busy, openSales }: Props) 
     <div className="crm2-ref-action-row">
       <button className="crm2-ref-primary" onClick={openSales}>+ New Subscription</button>
       <span className="crm2-action-spacer" />
-      <button className="crm2-ref-square">▼</button>
+      <button className={filtersOpen ? 'crm2-ref-square active' : 'crm2-ref-square'} onClick={() => setFiltersOpen((value) => !value)}>▼</button>
     </div>
+    {filtersOpen ? <section className="crm2-ref-filter-card"><strong>Filters</strong><div className="crm2-ref-filter-grid">
+      <label>Status<select value={status} onChange={e => setStatus(e.target.value)}><option>All</option>{statuses.map(x => <option key={x}>{x}</option>)}</select></label>
+      <button onClick={() => { setStatus('All'); setQuery('') }}>Clear Filters</button>
+    </div></section> : null}
 
     <section className="crm2-reference-status-summary crm2-subscription-summary">
       <h2><small>stripe</small> Subscriptions Summary</h2>
@@ -56,14 +64,14 @@ export function CrmSubscriptionsView({ subscriptions, busy, openSales }: Props) 
 
     <section className="crm2-ref-table-card">
       <div className="crm2-ref-table-tools">
-        <select><option>25</option><option>50</option></select>
+        <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select>
         <button onClick={() => void exportRows()} disabled={busy || filtered.length === 0}>Export</button>
-        <button>↻</button>
+        <button onClick={() => void refresh()} disabled={busy}>↻</button>
         <select value={status} onChange={e => setStatus(e.target.value)}><option>All</option>{statuses.map(x => <option key={x}>{x}</option>)}</select>
         <span /><label><b>⌕</b><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search..." /></label>
       </div>
       <div className="crm2-subscription-head"><span>#</span><span>Subscription Name</span><span>Customer</span><span>Project</span><span>Status</span><span>Next Billing Cycle</span><span>Date Subscribed</span><span>Last Sent</span></div>
-      {filtered.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : filtered.map((item,index) =>
+      {filtered.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : visible.map((item,index) =>
         <div className="crm2-subscription-row" key={item.subscriptionId}>
           <span>{index+1}</span><span><a>{item.productCode}</a><small>{item.subscriptionId.slice(0,8)}…</small></span><span>{item.accountName}</span><span>—</span>
           <span><em className={'crm2-sales-status '+item.status.toLowerCase().replace(/\s/g,'')}>{item.status}</em></span><span>{fmtDate(item.validUntil)}</span><span>{fmtDate(item.startsOn)}</span><span>—</span>

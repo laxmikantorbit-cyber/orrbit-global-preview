@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { exportCrmSpreadsheet } from './crmSpreadsheet'
 import {
   createCrmCreditNote,
   issueCrmCreditNote,
@@ -29,6 +30,7 @@ export function CrmCreditNotesView({
 }: Props) {
   const [status, setStatus] = useState<'All' | 'Draft' | 'Issued' | 'Void'>('All')
   const [query, setQuery] = useState('')
+  const [pageSize, setPageSize] = useState(25)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -53,6 +55,20 @@ export function CrmCreditNotesView({
       return (status === 'All' || note.status === status) && (!search || haystack.includes(search))
     })
   }, [accounts, creditNotes, invoices, query, status])
+
+  const visible = filtered.slice(0, pageSize)
+
+  async function exportNotes() {
+    await exportCrmSpreadsheet('crm-credit-notes', {
+      headers: ['Credit Note', 'Invoice', 'Customer', 'Issue Date', 'Reason', 'Amount', 'Status', 'Notes'],
+      rows: filtered.map((note) => {
+        const invoice = invoices.find((x) => x.id === note.invoiceId)
+        const account = accounts.find((x) => x.id === note.accountId)
+        return [note.creditNoteNumber, invoice?.invoiceNumber || '', account?.name || '', note.issueDate, note.reason, note.amount, note.status, note.notes || '']
+      }),
+    }, 'xlsx')
+    notify(`Exported ${filtered.length} credit note(s)`)
+  }
 
   function beginNew() {
     const invoice = eligibleInvoices.find((x) => x.balance > 0) || eligibleInvoices[0]
@@ -113,7 +129,7 @@ export function CrmCreditNotesView({
     </div>
     <section className="crm2-ref-table-card">
       <div className="crm2-ref-table-tools">
-        <select><option>25</option><option>50</option></select><button>Export</button><button onClick={() => void refresh()} disabled={busy}>↻</button>
+        <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select><button onClick={() => void exportNotes()} disabled={busy || filtered.length === 0}>Export</button><button onClick={() => void refresh()} disabled={busy}>↻</button>
         <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)}><option>All</option><option>Draft</option><option>Issued</option><option>Void</option></select>
         <span /><label><b>⌕</b><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search..." /></label>
       </div>
@@ -121,7 +137,7 @@ export function CrmCreditNotesView({
         <span>Credit Note</span><span>Invoice</span><span>Customer</span><span>Reason</span><span>Amount</span><span>Status</span>
       </div>
       {filtered.length === 0 ? <p className="crm2-reference-empty">No credit notes found</p> :
-        filtered.map((note) => {
+        visible.map((note) => {
           const invoice = invoices.find((x) => x.id === note.invoiceId)
           const account = accounts.find((x) => x.id === note.accountId)
           return <button className="crm2-credit-row" key={note.id} onClick={() => setSelectedId(note.id)}>

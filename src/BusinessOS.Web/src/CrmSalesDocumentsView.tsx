@@ -50,6 +50,9 @@ export function CrmSalesDocumentsView({
   const [kindFilter, setKindFilter] = useState<'All' | 'Proposal' | 'Estimate'>(initialKind || 'All')
   const [statusFilter, setStatusFilter] = useState<(typeof statuses)[number]>('All')
   const [query, setQuery] = useState('')
+  const [pageSize, setPageSize] = useState(25)
+  const [pipelineOpen, setPipelineOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
   const [draftKind, setDraftKind] = useState<'Proposal' | 'Estimate'>('Proposal')
@@ -80,6 +83,16 @@ export function CrmSalesDocumentsView({
       return matchesKind && matchesStatus && (!search || haystack.includes(search))
     })
   }, [accounts, documents, kindFilter, query, statusFilter])
+
+  const visible = filtered.slice(0, pageSize)
+  const pipelineCounts = useMemo(
+    () => statuses.filter((value) => value !== 'All').map((value) => ({
+      status: value,
+      count: documents.filter((document) =>
+        (kindFilter === 'All' || document.kind === kindFilter) && document.status === value).length,
+    })),
+    [documents, kindFilter],
+  )
 
   const eligibleOpportunities = useMemo(
     () => opportunities.filter((opportunity) => !accountId || opportunity.accountId === accountId),
@@ -227,12 +240,18 @@ export function CrmSalesDocumentsView({
       <div className="crm2-ref-action-row">
         {canManageSales && initialKind !== 'Estimate' ? <button className="crm2-ref-primary" onClick={() => resetDraft('Proposal')}>+ New Proposal</button> : null}
         {canManageSales && initialKind !== 'Proposal' ? <button className="crm2-ref-primary" onClick={() => resetDraft('Estimate')}>+ Create New Estimate</button> : null}
-        <button className="crm2-ref-square" title="Pipeline">▤</button>
-        <button className="crm2-ref-square" title="Filter">▼</button>
+        <button className={pipelineOpen ? 'crm2-ref-square active' : 'crm2-ref-square'} title="Pipeline" onClick={() => setPipelineOpen((value) => !value)}>▤</button>
+        <button className={filtersOpen ? 'crm2-ref-square active' : 'crm2-ref-square'} title="Filter" onClick={() => setFiltersOpen((value) => !value)}>▼</button>
       </div>
+      {pipelineOpen ? <section className="crm2-reference-status-summary"><h2>Sales Document Pipeline</h2><div>{pipelineCounts.map((item) => <span key={item.status}><b>{item.count}</b><em>{item.status}</em></span>)}</div></section> : null}
+      {filtersOpen ? <section className="crm2-ref-filter-card"><strong>Filters</strong><div className="crm2-ref-filter-grid">
+        <label>Status<select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}>{statuses.map((value) => <option key={value}>{value}</option>)}</select></label>
+        {!initialKind ? <label>Type<select value={kindFilter} onChange={(e) => setKindFilter(e.target.value as typeof kindFilter)}><option>All</option><option>Proposal</option><option>Estimate</option></select></label> : null}
+        <button onClick={() => { setStatusFilter('All'); if (!initialKind) setKindFilter('All'); setQuery('') }}>Clear Filters</button>
+      </div></section> : null}
       <section className="crm2-ref-table-card">
         <div className="crm2-ref-table-tools">
-          <select><option>25</option><option>50</option></select>
+          <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select>
           <button onClick={() => void exportDocuments('xlsx')}>Export</button>
           <button onClick={() => void refresh()} disabled={busy}>↻</button>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}>{statuses.map((status) => <option key={status}>{status}</option>)}</select>
@@ -243,7 +262,7 @@ export function CrmSalesDocumentsView({
         <div className="crm2-sales-head">
           <span>Document</span><span>Customer</span><span>Subject</span><span>Amount</span><span>Status</span><span>Issue Date</span>
         </div>
-        {filtered.length === 0 ? <p className="crm2-reference-empty">No proposals or estimates found</p> : filtered.map((document) => {
+        {filtered.length === 0 ? <p className="crm2-reference-empty">No proposals or estimates found</p> : visible.map((document) => {
           const account = accounts.find((item) => item.id === document.accountId)
           return <button className="crm2-sales-row" key={document.id} onClick={() => setSelectedId(document.id)}>
             <span><strong>{document.documentNumber}</strong><small>{document.kind}</small></span>

@@ -687,7 +687,7 @@ export function CrmDemo() {
         {view === 'estimateRequests' ? <CrmEstimateRequestsView requests={estimateRequests} accounts={accounts} teamMembers={teamMembers} busy={loading} refresh={refresh} notify={setMessage} canManage={can('EditLead')} canCreateEstimate={can('ManageSales')} /> : null}
         {view === 'knowledgeBase' ? <CrmKnowledgeBaseView categories={knowledgeCategories} articles={knowledgeArticles} teamMembers={teamMembers} currentRole={session?.member.role} busy={loading} refresh={refresh} notify={setMessage} canManage={can('ManageTasks')} /> : null}
         {view === 'utilities' ? <CrmUtilitiesView assets={mediaAssets} busy={loading} refresh={refresh} notify={setMessage} canManage={can('ManageTasks')} /> : null}
-        {view === 'subscriptions' ? <CrmSubscriptionsView subscriptions={subscriptions} busy={loading} openSales={() => setView('sales')} /> : null}
+        {view === 'subscriptions' ? <CrmSubscriptionsView subscriptions={subscriptions} busy={loading} openSales={() => setView('sales')} refresh={refresh} /> : null}
         {view === 'pipeline' ? (
           <section className="crm2-kanban-wrap">
             {statuses.map((status) => {
