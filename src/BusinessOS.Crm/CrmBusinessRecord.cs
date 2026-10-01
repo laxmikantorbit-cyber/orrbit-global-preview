@@ -106,6 +106,21 @@ public sealed class CrmBusinessRecord
         return record;
     }
 
+    public static void ValidateModuleProfile(
+        CrmBusinessModule module,
+        decimal? amount,
+        string? category,
+        DateOnly? startDate)
+    {
+        if (module != CrmBusinessModule.Expense) return;
+        if (!amount.HasValue || amount.Value <= 0m)
+            throw new ArgumentException("Expense amount must be greater than zero.", nameof(amount));
+        if (string.IsNullOrWhiteSpace(category))
+            throw new ArgumentException("Expense category is required.", nameof(category));
+        if (!startDate.HasValue)
+            throw new ArgumentException("Expense date is required.", nameof(startDate));
+    }
+
     public static string DefaultStatus(CrmBusinessModule module) => module switch
     {
         CrmBusinessModule.Expense => "Draft",

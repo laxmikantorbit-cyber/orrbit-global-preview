@@ -31,6 +31,21 @@ public sealed class CrmBusinessRecordTests
     }
 
     [Fact]
+    public void Expense_Profile_Requires_Positive_Amount_Category_And_Date()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            CrmBusinessRecord.ValidateModuleProfile(CrmBusinessModule.Expense, null, "Travel", new DateOnly(2026, 10, 1)));
+        Assert.Throws<ArgumentException>(() =>
+            CrmBusinessRecord.ValidateModuleProfile(CrmBusinessModule.Expense, 100m, " ", new DateOnly(2026, 10, 1)));
+        Assert.Throws<ArgumentException>(() =>
+            CrmBusinessRecord.ValidateModuleProfile(CrmBusinessModule.Expense, 100m, "Travel", null));
+
+        CrmBusinessRecord.ValidateModuleProfile(
+            CrmBusinessModule.Expense, 100m, "Travel", new DateOnly(2026, 10, 1));
+        CrmBusinessRecord.ValidateModuleProfile(CrmBusinessModule.Project, null, null, null);
+    }
+
+    [Fact]
     public void Invalid_Status_And_Dates_Are_Rejected()
     {
         var record = new CrmBusinessRecord(Guid.NewGuid(), TenantId, CrmBusinessModule.Ticket, "Support");
