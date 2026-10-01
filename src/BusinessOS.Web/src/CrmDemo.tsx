@@ -92,11 +92,9 @@ function calendarKey(value: Date) {
 export function CrmDemo() {
   const [view, setView] = useState<CrmView>('overview')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [calendarCursor, setCalendarCursor] = useState(() => {
-    const now = new Date()
-    return new Date(now.getFullYear(), now.getMonth(), 1)
-  })
+  const [calendarCursor, setCalendarCursor] = useState(() => new Date())
   const [calendarFilter, setCalendarFilter] = useState<'All' | 'FollowUps' | 'Tasks'>('All')
+  const [calendarMode, setCalendarMode] = useState<'Month' | 'Week' | 'Day'>('Month')
   const [calendarExpanded, setCalendarExpanded] = useState(false)
   const [salesSection, setSalesSection] = useState<'proposals' | 'estimates' | 'invoices' | 'payments' | 'credits' | 'items'>('proposals')
   const [salesMenuOpen, setSalesMenuOpen] = useState(false)
@@ -170,16 +168,23 @@ export function CrmDemo() {
   )
 
   const calendarDays = useMemo(() => {
-    const first = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1)
-    const mondayOffset = (first.getDay() + 6) % 7
-    const start = new Date(first)
-    start.setDate(first.getDate() - mondayOffset)
-    return Array.from({ length: 42 }, (_, index) => {
+    if (calendarMode === 'Day') {
+      return [new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), calendarCursor.getDate())]
+    }
+
+    const anchor = calendarMode === 'Month'
+      ? new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1)
+      : new Date(calendarCursor)
+    const mondayOffset = (anchor.getDay() + 6) % 7
+    const start = new Date(anchor)
+    start.setDate(anchor.getDate() - mondayOffset)
+    const length = calendarMode === 'Month' ? 42 : 7
+    return Array.from({ length }, (_, index) => {
       const value = new Date(start)
       value.setDate(start.getDate() + index)
       return value
     })
-  }, [calendarCursor])
+  }, [calendarCursor, calendarMode])
 
   const calendarEvents = useMemo(() => {
     const result: Record<string, Array<{ id: string; label: string; type: 'FollowUp' | 'Task' }>> = {}
@@ -201,10 +206,36 @@ export function CrmDemo() {
     return result
   }, [followUps, tasks, calendarFilter])
 
-  const calendarTitle = useMemo(
-    () => new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric' }).format(calendarCursor),
-    [calendarCursor],
+  const calendarHeaders = useMemo(
+    () => calendarMode === 'Day'
+      ? [new Intl.DateTimeFormat('en-IN', { weekday: 'long' }).format(calendarCursor)]
+      : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    [calendarCursor, calendarMode],
   )
+
+  const calendarTitle = useMemo(() => {
+    if (calendarMode === 'Month') {
+      return new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric' }).format(calendarCursor)
+    }
+    if (calendarMode === 'Day') {
+      return new Intl.DateTimeFormat('en-IN', {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+      }).format(calendarCursor)
+    }
+    const formatter = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' })
+    const first = calendarDays[0]
+    const last = calendarDays[calendarDays.length - 1]
+    return `${formatter.format(first)} – ${formatter.format(last)} ${last.getFullYear()}`
+  }, [calendarCursor, calendarDays, calendarMode])
+
+  function moveCalendar(delta: number) {
+    setCalendarCursor((value) => {
+      if (calendarMode === 'Month') return new Date(value.getFullYear(), value.getMonth() + delta, 1)
+      const next = new Date(value)
+      next.setDate(value.getDate() + delta * (calendarMode === 'Week' ? 7 : 1))
+      return next
+    })
+  }
 
   const filteredLeads = useMemo(() => {
     const search = query.trim().toLowerCase()
@@ -607,33 +638,35 @@ export function CrmDemo() {
             <section className={'crm2-reference-calendar' + (calendarExpanded ? ' expanded' : '')}>
               <div className="crm2-calendar-toolbar">
                 <div className="crm2-calendar-left">
-                  <button aria-label="Previous month" onClick={() => setCalendarCursor(value => new Date(value.getFullYear(), value.getMonth() - 1, 1))}>‹</button>
-                  <button aria-label="Next month" onClick={() => setCalendarCursor(value => new Date(value.getFullYear(), value.getMonth() + 1, 1))}>›</button>
-                  <button onClick={() => { const now = new Date(); setCalendarCursor(new Date(now.getFullYear(), now.getMonth(), 1)) }}>Today</button>
-                  <button onClick={() => setCalendarExpanded(value => !value)}>Expand</button>
+                  <button aria-label="Previous period" onClick={() => moveCalendar(-1)}>‹</button>
+                  <button aria-label="Next period" onClick={() => moveCalendar(1)}>›</button>
+                  <button onClick={() => setCalendarCursor(new Date())}>Today</button>
+                  <button onClick={() => setCalendarExpanded(value => !value)}>{calendarExpanded ? 'Collapse' : 'Expand'}</button>
                 </div>
                 <h2>{calendarTitle}</h2>
                 <div className="crm2-calendar-right">
-                  <button className="active">Month</button>
-                  <button onClick={() => setMessage('Week view uses the same live CRM events')}>Week</button>
-                  <button onClick={() => setMessage('Day view uses the same live CRM events')}>Day</button>
-                  <button onClick={() => setCalendarFilter(value => value === 'All' ? 'FollowUps' : value === 'FollowUps' ? 'Tasks' : 'All')}>Filter By</button>
+                  {(['Month', 'Week', 'Day'] as const).map(mode =>
+                    <button key={mode} className={calendarMode === mode ? 'active' : ''} onClick={() => setCalendarMode(mode)}>{mode}</button>)}
+                  <button onClick={() => setCalendarFilter(value => value === 'All' ? 'FollowUps' : value === 'FollowUps' ? 'Tasks' : 'All')}>
+                    {calendarFilter === 'All' ? 'Show: All' : calendarFilter === 'FollowUps' ? 'Show: Calls' : 'Show: Tasks'}
+                  </button>
                 </div>
               </div>
-              <div className="crm2-calendar-grid">
-                {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(day => <strong key={day}>{day}</strong>)}
+              <div className={`crm2-calendar-grid mode-${calendarMode.toLowerCase()}`}>
+                {calendarHeaders.map(day => <strong key={day}>{day}</strong>)}
                 {calendarDays.map((day) => {
                   const key = calendarKey(day)
                   const isToday = key === calendarKey(new Date())
-                  const isOutside = day.getMonth() !== calendarCursor.getMonth()
+                  const isOutside = calendarMode === 'Month' && day.getMonth() !== calendarCursor.getMonth()
                   const events = calendarEvents[key] || []
+                  const visibleEventCount = calendarMode === 'Day' ? 10 : 3
                   return <article key={key} className={`${isToday ? 'today ' : ''}${isOutside ? 'outside' : ''}`.trim()}>
                     <span>{day.getDate()}</span>
-                    {events.slice(0, 3).map(event =>
+                    {events.slice(0, visibleEventCount).map(event =>
                       <button className="crm2-calendar-event" key={`${event.type}-${event.id}`} title={event.label} onClick={() => setView(event.type === 'Task' ? 'tasks' : 'followups')}>
                         {event.type === 'Task' ? 'Task' : 'Call'} · {event.label}
                       </button>)}
-                    {events.length > 3 ? <small className="crm2-calendar-more">+{events.length - 3} more</small> : null}
+                    {events.length > visibleEventCount ? <small className="crm2-calendar-more">+{events.length - visibleEventCount} more</small> : null}
                   </article>
                 })}
               </div>

@@ -920,6 +920,8 @@
 .crm2-calendar-left button:nth-child(3){background:#697584}.crm2-calendar-left button:first-child{border-radius:4px 0 0 4px}.crm2-calendar-left button:last-child,.crm2-calendar-right button:last-child{border-radius:0 4px 4px 0}
 .crm2-calendar-right button.active{background:#111827!important;}
 .crm2-calendar-grid{padding:0 24px 28px!important;display:grid!important;grid-template-columns:repeat(7,1fr)!important;}
+.crm2-calendar-grid.mode-day{grid-template-columns:1fr!important;min-width:0!important;}
+.crm2-calendar-grid.mode-day article{height:auto!important;min-height:220px!important;border-right:1px solid #ddd!important;}
 .crm2-calendar-grid strong{height:26px;border:1px solid #ddd;border-bottom:0;display:grid;place-items:center;color:#064cff;font-weight:500!important;}
 .crm2-calendar-grid article{height:132px;border:1px solid #ddd;border-right:0;border-bottom:0;background:#fff;position:relative;}
 .crm2-calendar-grid article:nth-child(7n){border-right:1px solid #ddd}.crm2-calendar-grid article.today{background:#fff8d9!important;}
