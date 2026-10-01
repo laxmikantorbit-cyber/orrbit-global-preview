@@ -75,6 +75,17 @@ public sealed class CrmBusinessRecordTests
     }
 
     [Fact]
+    public void Ticket_Profile_Requires_Department()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            CrmBusinessRecord.ValidateModuleProfile(
+                CrmBusinessModule.Ticket, null, null, " ", new DateOnly(2026, 10, 1), null));
+
+        CrmBusinessRecord.ValidateModuleProfile(
+            CrmBusinessModule.Ticket, null, null, "Support", new DateOnly(2026, 10, 1), null);
+    }
+
+    [Fact]
     public void Invalid_Status_And_Dates_Are_Rejected()
     {
         var record = new CrmBusinessRecord(Guid.NewGuid(), TenantId, CrmBusinessModule.Ticket, "Support");

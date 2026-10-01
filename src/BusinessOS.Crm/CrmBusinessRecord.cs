@@ -142,7 +142,11 @@ public sealed class CrmBusinessRecord
                 throw new ArgumentException("Project start date is required.", nameof(startDate));
             if (dueDate.HasValue && dueDate.Value < startDate.Value)
                 throw new ArgumentException("Project deadline cannot be before start date.", nameof(dueDate));
+            return;
         }
+
+        if (module == CrmBusinessModule.Ticket && string.IsNullOrWhiteSpace(category))
+            throw new ArgumentException("Ticket department is required.", nameof(category));
     }
 
     public static string DefaultStatus(CrmBusinessModule module) => module switch
