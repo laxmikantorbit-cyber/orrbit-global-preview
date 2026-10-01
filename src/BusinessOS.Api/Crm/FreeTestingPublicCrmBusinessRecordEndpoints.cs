@@ -53,7 +53,7 @@ public static class FreeTestingPublicCrmBusinessRecordEndpoints
             try
             {
                 var module = ParseModule(request.Module, required: true)!.Value;
-                CrmBusinessRecord.ValidateModuleProfile(module, request.Amount, request.Category, request.StartDate);
+                CrmBusinessRecord.ValidateModuleProfile(module, request.AccountId, request.Amount, request.Category, request.StartDate, request.DueDate);
                 var validation = await ValidateLinksAsync(request.AccountId, request.OwnerUserId, accounts, team, cancellationToken);
                 if (validation is not null) return validation;
 
@@ -94,7 +94,7 @@ public static class FreeTestingPublicCrmBusinessRecordEndpoints
 
             try
             {
-                CrmBusinessRecord.ValidateModuleProfile(record.Module, request.Amount, request.Category, request.StartDate);
+                CrmBusinessRecord.ValidateModuleProfile(record.Module, request.AccountId, request.Amount, request.Category, request.StartDate, request.DueDate);
                 record.UpdateProfile(
                     request.Title, request.AccountId, request.Amount, request.Category,
                     request.Priority, request.StartDate, request.DueDate, request.OwnerUserId,

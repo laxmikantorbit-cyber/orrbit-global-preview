@@ -60,6 +60,8 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
   const [expenseReference, setExpenseReference] = useState('')
   const [expensePaymentMode, setExpensePaymentMode] = useState('')
   const [selectedExpenseIds, setSelectedExpenseIds] = useState<string[]>([])
+  const [contractNumber, setContractNumber] = useState('')
+  const [contractSigned, setContractSigned] = useState('No')
 
   const moduleRecords = useMemo(() => records.filter(record => record.module === cfg.module), [records, cfg.module])
   const filtered = useMemo(() => {
@@ -82,6 +84,7 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
     setCreating(false); setEditing(null); setTitle(''); setAccountId(''); setAmount(''); setCategory('')
     setPriority('Normal'); setStartDate(today()); setDueDate(''); setOwnerUserId(''); setDescription('')
     setExpenseReceipt(''); setExpenseProject(''); setExpenseInvoice(''); setExpenseReference(''); setExpensePaymentMode('')
+    setContractNumber(''); setContractSigned('No')
   }
   function openCreate() { resetForm(); setCreating(true) }
   function openEdit(record: CrmBusinessRecord) {
@@ -92,6 +95,7 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
     setExpenseReceipt(record.metadata?.receipt || ''); setExpenseProject(record.metadata?.project || '')
     setExpenseInvoice(record.metadata?.invoice || ''); setExpenseReference(record.metadata?.reference || '')
     setExpensePaymentMode(record.metadata?.paymentMode || '')
+    setContractNumber(record.metadata?.contractNumber || ''); setContractSigned(record.metadata?.signed || 'No')
   }
   async function save() {
     if (!title.trim()) { notify('Title is required'); return }
@@ -102,6 +106,11 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
       if (!category.trim()) { notify('Expense category is required'); return }
       if (!startDate) { notify('Expense date is required'); return }
     }
+    if (view === 'contracts') {
+      if (!accountId) { notify('Contract customer is required'); return }
+      if (!startDate) { notify('Contract start date is required'); return }
+      if (dueDate && dueDate < startDate) { notify('Contract end date cannot be before start date'); return }
+    }
     const metadata: Record<string, string> = { ...(editing?.metadata || {}) }
     if (view === 'expenses') {
       for (const key of ['receipt', 'project', 'invoice', 'reference', 'paymentMode']) delete metadata[key]
@@ -109,6 +118,12 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
         receipt: expenseReceipt, project: expenseProject, invoice: expenseInvoice,
         reference: expenseReference, paymentMode: expensePaymentMode,
       })) if (value.trim()) metadata[key] = value.trim()
+    }
+    if (view === 'contracts') {
+      delete metadata.contractNumber
+      delete metadata.signed
+      if (contractNumber.trim()) metadata.contractNumber = contractNumber.trim()
+      metadata.signed = contractSigned
     }
     const payload = { title: title.trim(), accountId: accountId || null, amount: parsedAmount, category: category.trim() || null, priority: priority.trim() || null, startDate: startDate || null, dueDate: dueDate || null, ownerUserId: ownerUserId || null, description: description.trim() || null, metadata }
     try {
@@ -149,14 +164,23 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
             record.metadata?.invoice || '', record.metadata?.reference || '', record.metadata?.paymentMode || '', record.status,
           ]),
         }
-      : {
-          headers: ['Module', 'Title', 'Customer', 'Amount', 'Category', 'Priority', 'Start Date', 'Due Date', 'Owner', 'Status', 'Description'],
-          rows: filtered.map(record => [
-            record.module, record.title, accountName(record) === '—' ? '' : accountName(record), record.amount ?? '',
-            record.category || '', record.priority || '', record.startDate || '', record.dueDate || '',
-            ownerName(record) === '—' ? '' : ownerName(record), record.status, record.description || '',
-          ]),
-        }
+      : view === 'contracts'
+        ? {
+            headers: ['Contract #', 'Subject', 'Customer', 'Type', 'Value', 'Start Date', 'End Date', 'Owner', 'Signed', 'Status', 'Description'],
+            rows: filtered.map(record => [
+              record.metadata?.contractNumber || '', record.title, accountName(record) === '—' ? '' : accountName(record),
+              record.category || '', record.amount ?? '', record.startDate || '', record.dueDate || '',
+              ownerName(record) === '—' ? '' : ownerName(record), record.metadata?.signed || 'No', record.status, record.description || '',
+            ]),
+          }
+        : {
+            headers: ['Module', 'Title', 'Customer', 'Amount', 'Category', 'Priority', 'Start Date', 'Due Date', 'Owner', 'Status', 'Description'],
+            rows: filtered.map(record => [
+              record.module, record.title, accountName(record) === '—' ? '' : accountName(record), record.amount ?? '',
+              record.category || '', record.priority || '', record.startDate || '', record.dueDate || '',
+              ownerName(record) === '—' ? '' : ownerName(record), record.status, record.description || '',
+            ]),
+          }
     try {
       await exportCrmSpreadsheet(baseName, table, format)
       notify(`${cfg.title} exported to ${format.toUpperCase()}`)
@@ -261,6 +285,10 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
         <label>Reference #<input value={expenseReference} onChange={e => setExpenseReference(e.target.value)} placeholder="Transaction / voucher reference" /></label>
         <label>Payment Mode<select value={expensePaymentMode} onChange={e => setExpensePaymentMode(e.target.value)}><option value="">Select</option><option>Cash</option><option>Bank Transfer</option><option>UPI</option><option>Card</option><option>Cheque</option><option>Other</option></select></label>
       </> : null}
+      {view === 'contracts' ? <>
+        <label>Contract #<input value={contractNumber} onChange={e => setContractNumber(e.target.value)} placeholder="Contract reference number" /></label>
+        <label>Signed<select value={contractSigned} onChange={e => setContractSigned(e.target.value)}><option>No</option><option>Yes</option></select></label>
+      </> : null}
     </div>
     <label>Description<textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} /></label>
     <div className="crm2-drawer-actions"><button onClick={resetForm}>Cancel</button><button className="crm2-primary" onClick={() => void save()} disabled={busy}>Save</button></div>
@@ -302,18 +330,25 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
 
   if (view === 'contracts') {
     const categories = Array.from(new Set(moduleRecords.map(record => record.category || 'Uncategorized')))
+    const todayMs = new Date(today() + 'T00:00:00').getTime()
+    const soonMs = todayMs + 30 * 86400000
+    const aboutToExpire = moduleRecords.filter(record => {
+      if (!record.dueDate || ['Completed', 'Expired', 'Cancelled'].includes(record.status)) return false
+      const end = new Date(record.dueDate + 'T00:00:00').getTime()
+      return end >= todayMs && end <= soonMs
+    }).length
     return <section className="crm2-ref-list-page crm2-business-records crm2-contracts-reference">
-      <div className="crm2-ref-action-row">{canManage ? <button className="crm2-ref-primary" onClick={openCreate}>+ New Contract</button> : null}<span className="crm2-action-spacer" /><button className="crm2-ref-square">▼</button></div>
+      <div className="crm2-ref-action-row">{canManage ? <button className="crm2-ref-primary" onClick={openCreate}>+ New Contract</button> : null}<span className="crm2-action-spacer" /><button onClick={() => void exportCurrent('xlsx')} disabled={busy || filtered.length === 0}>Export Contracts</button></div>
       {form}
       <section className="crm2-reference-status-summary">
         <h2>▧ Contract Summary</h2>
-        <div><span><b>{count('Active')}</b><em className="good">Active</em></span><span><b>{count('Expired')}</b><em className="bad">Expired</em></span><span><b>{count('Draft')}</b><em className="warn">About to Expire</em></span><span><b>{moduleRecords.filter(r => new Date(r.createdAtUtc).getTime() > Date.now()-30*86400000).length}</b><em className="good">Recently Added</em></span><span><b>{count('Cancelled')}</b><em>Trash</em></span></div>
+        <div><span><b>{count('Active')}</b><em className="good">Active</em></span><span><b>{count('Expired')}</b><em className="bad">Expired</em></span><span><b>{aboutToExpire}</b><em className="warn">About to Expire</em></span><span><b>{moduleRecords.filter(r => new Date(r.createdAtUtc).getTime() > Date.now()-30*86400000).length}</b><em className="good">Recently Added</em></span><span><b>{count('Cancelled')}</b><em>Trash</em></span></div>
       </section>
       <section className="crm2-reference-charts">
         <article><h3>Contracts by Type</h3><div className="crm2-bar-chart">{categories.map(cat => { const n=moduleRecords.filter(r => (r.category||'Uncategorized')===cat).length; return <div key={cat}><span>{cat}</span><i><b style={{width: Math.max(3,Math.round(n/Math.max(1,moduleRecords.length)*100))+'%'}} /></i><strong>{n}</strong></div> })}</div></article>
         <article><h3>Contracts Value by Type (INR)</h3><div className="crm2-bar-chart">{categories.map(cat => { const value=moduleRecords.filter(r => (r.category||'Uncategorized')===cat).reduce((sum,r)=>sum+(r.amount||0),0); const max=Math.max(1,...categories.map(c=>moduleRecords.filter(r=>(r.category||'Uncategorized')===c).reduce((sum,r)=>sum+(r.amount||0),0))); return <div key={cat}><span>{cat}</span><i><b style={{width: Math.max(3,Math.round(value/max*100))+'%'}} /></i><strong>{money(value)}</strong></div> })}</div></article>
       </section>
-      <section className="crm2-ref-table-card">{toolbar}<div className="crm2-business-head"><span>Contract</span><span>Customer</span><span>Value</span><span>Owner</span><span>Status</span></div>{filtered.length===0?<p className="crm2-reference-empty">No entries found</p>:filtered.map(record=><div className="crm2-business-row" key={record.id} onDoubleClick={()=>canManage&&openEdit(record)}><span><a>{record.title}</a><small>{record.category||'—'}</small></span><span>{accountName(record)}</span><span>{money(record.amount)}</span><span>{ownerName(record)}</span><span>{canManage?<select value={record.status} onChange={e=>void move(record,e.target.value)}>{cfg.statuses.map(item=><option key={item}>{item}</option>)}</select>:record.status}</span></div>)}</section>
+      <section className="crm2-ref-table-card">{toolbar}<div className="crm2-business-head"><span>Contract</span><span>Customer</span><span>Value</span><span>Owner</span><span>Status</span></div>{filtered.length===0?<p className="crm2-reference-empty">No entries found</p>:filtered.map(record=><div className="crm2-business-row" key={record.id} onDoubleClick={()=>canManage&&openEdit(record)}><span><a>{record.title}</a><small>{record.category || '—'}{record.metadata?.contractNumber ? ' · #' + record.metadata.contractNumber : ''} · Signed: {record.metadata?.signed || 'No'}</small></span><span>{accountName(record)}</span><span>{money(record.amount)}</span><span>{ownerName(record)}</span><span>{canManage?<select value={record.status} onChange={e=>void move(record,e.target.value)}>{cfg.statuses.map(item=><option key={item}>{item}</option>)}</select>:record.status}</span></div>)}</section>
     </section>
   }
 

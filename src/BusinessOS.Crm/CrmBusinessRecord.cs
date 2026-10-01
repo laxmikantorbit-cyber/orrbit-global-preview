@@ -108,17 +108,32 @@ public sealed class CrmBusinessRecord
 
     public static void ValidateModuleProfile(
         CrmBusinessModule module,
+        Guid? accountId,
         decimal? amount,
         string? category,
-        DateOnly? startDate)
+        DateOnly? startDate,
+        DateOnly? dueDate)
     {
-        if (module != CrmBusinessModule.Expense) return;
-        if (!amount.HasValue || amount.Value <= 0m)
-            throw new ArgumentException("Expense amount must be greater than zero.", nameof(amount));
-        if (string.IsNullOrWhiteSpace(category))
-            throw new ArgumentException("Expense category is required.", nameof(category));
-        if (!startDate.HasValue)
-            throw new ArgumentException("Expense date is required.", nameof(startDate));
+        if (module == CrmBusinessModule.Expense)
+        {
+            if (!amount.HasValue || amount.Value <= 0m)
+                throw new ArgumentException("Expense amount must be greater than zero.", nameof(amount));
+            if (string.IsNullOrWhiteSpace(category))
+                throw new ArgumentException("Expense category is required.", nameof(category));
+            if (!startDate.HasValue)
+                throw new ArgumentException("Expense date is required.", nameof(startDate));
+            return;
+        }
+
+        if (module == CrmBusinessModule.Contract)
+        {
+            if (!accountId.HasValue)
+                throw new ArgumentException("Contract customer is required.", nameof(accountId));
+            if (!startDate.HasValue)
+                throw new ArgumentException("Contract start date is required.", nameof(startDate));
+            if (dueDate.HasValue && dueDate.Value < startDate.Value)
+                throw new ArgumentException("Contract end date cannot be before start date.", nameof(dueDate));
+        }
     }
 
     public static string DefaultStatus(CrmBusinessModule module) => module switch

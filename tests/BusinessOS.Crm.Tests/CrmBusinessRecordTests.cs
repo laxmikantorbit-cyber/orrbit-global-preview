@@ -34,15 +34,28 @@ public sealed class CrmBusinessRecordTests
     public void Expense_Profile_Requires_Positive_Amount_Category_And_Date()
     {
         Assert.Throws<ArgumentException>(() =>
-            CrmBusinessRecord.ValidateModuleProfile(CrmBusinessModule.Expense, null, "Travel", new DateOnly(2026, 10, 1)));
+            CrmBusinessRecord.ValidateModuleProfile(CrmBusinessModule.Expense, null, null, "Travel", new DateOnly(2026, 10, 1), null));
         Assert.Throws<ArgumentException>(() =>
-            CrmBusinessRecord.ValidateModuleProfile(CrmBusinessModule.Expense, 100m, " ", new DateOnly(2026, 10, 1)));
+            CrmBusinessRecord.ValidateModuleProfile(CrmBusinessModule.Expense, null, 100m, " ", new DateOnly(2026, 10, 1), null));
         Assert.Throws<ArgumentException>(() =>
-            CrmBusinessRecord.ValidateModuleProfile(CrmBusinessModule.Expense, 100m, "Travel", null));
+            CrmBusinessRecord.ValidateModuleProfile(CrmBusinessModule.Expense, null, 100m, "Travel", null, null));
 
         CrmBusinessRecord.ValidateModuleProfile(
-            CrmBusinessModule.Expense, 100m, "Travel", new DateOnly(2026, 10, 1));
-        CrmBusinessRecord.ValidateModuleProfile(CrmBusinessModule.Project, null, null, null);
+            CrmBusinessModule.Expense, null, 100m, "Travel", new DateOnly(2026, 10, 1), null);
+        CrmBusinessRecord.ValidateModuleProfile(CrmBusinessModule.Project, null, null, null, null, null);
+    }
+
+    [Fact]
+    public void Contract_Profile_Requires_Customer_And_Start_Date()
+    {
+        var customerId = Guid.NewGuid();
+        Assert.Throws<ArgumentException>(() =>
+            CrmBusinessRecord.ValidateModuleProfile(CrmBusinessModule.Contract, null, 5000m, "AMC", new DateOnly(2026, 10, 1), null));
+        Assert.Throws<ArgumentException>(() =>
+            CrmBusinessRecord.ValidateModuleProfile(CrmBusinessModule.Contract, customerId, 5000m, "AMC", null, null));
+
+        CrmBusinessRecord.ValidateModuleProfile(
+            CrmBusinessModule.Contract, customerId, 5000m, "AMC", new DateOnly(2026, 10, 1), new DateOnly(2026, 12, 31));
     }
 
     [Fact]
