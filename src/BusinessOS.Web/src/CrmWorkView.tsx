@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { cancelCrmFollowUp, cancelCrmTask, rescheduleCrmFollowUp, updateCrmTask } from './crmAdvancedApi'
-import { createCrmTask, type CrmDashboard, type CrmFollowUp, type CrmLead, type CrmTask, type CrmTeamMember, type CrmWorkSummary } from './crmApi'
+import { createCrmTask, type CrmAccount, type CrmBusinessRecord, type CrmCreditNote, type CrmDashboard, type CrmFollowUp, type CrmInvoice, type CrmInvoicePayment, type CrmLead, type CrmSalesDocument, type CrmSalesItem, type CrmSalesItemGroup, type CrmTask, type CrmTeamMember, type CrmWorkSummary } from './crmApi'
 import { exportCrmSpreadsheet, type CrmSpreadsheetFormat } from './crmSpreadsheet'
 
 type View = 'followups' | 'tasks' | 'reports'
@@ -25,6 +25,15 @@ type Props = {
   leads: CrmLead[]
   followUps: CrmFollowUp[]
   tasks: CrmTask[]
+  accounts?: CrmAccount[]
+  salesDocuments?: CrmSalesDocument[]
+  invoices?: CrmInvoice[]
+  invoicePayments?: CrmInvoicePayment[]
+  salesItems?: CrmSalesItem[]
+  salesItemGroups?: CrmSalesItemGroup[]
+  creditNotes?: CrmCreditNote[]
+  businessRecords?: CrmBusinessRecord[]
+  reportSection?: 'sales' | 'expenses' | 'profit'
   teamMembers?: CrmTeamMember[]
   currentUserId?: string
   canViewAllOwnedRecords?: boolean
@@ -47,6 +56,10 @@ function formatDate(value?: string | null) {
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
   return new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(parsed)
+}
+
+function money(value: number) {
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(value)
 }
 
 function localInput(value?: string | null) {
@@ -358,24 +371,215 @@ export function CrmWorkView(props: Props) {
     )
   }
 
+  const reportAccounts = props.accounts ?? []
+  const reportDocuments = props.salesDocuments ?? []
+  const reportInvoices = props.invoices ?? []
+  const reportPayments = props.invoicePayments ?? []
+  const reportItems = props.salesItems ?? []
+  const reportItemGroups = props.salesItemGroups ?? []
+  const reportCredits = props.creditNotes ?? []
+  const accountName = (id: string) => reportAccounts.find(x => x.id === id)?.name || id
+  const invoiceNumber = (id: string) => reportInvoices.find(x => x.id === id)?.invoiceNumber || id
+  const itemGroupName = (id?: string | null) => reportItemGroups.find(x => x.id === id)?.name || 'Ungrouped'
+  const nonVoidInvoices = reportInvoices.filter(x => x.status !== 'Void')
+  const proposals = reportDocuments.filter(x => x.kind === 'Proposal')
+  const estimates = reportDocuments.filter(x => x.kind === 'Estimate')
+  const issuedCredits = reportCredits.filter(x => x.status === 'Issued')
+  const totalInvoiced = nonVoidInvoices.reduce((sum, x) => sum + x.netTotal, 0)
+  const totalReceived = reportPayments.reduce((sum, x) => sum + x.amount, 0)
+  const totalOutstanding = nonVoidInvoices.reduce((sum, x) => sum + x.balance, 0)
+  const totalCredits = issuedCredits.reduce((sum, x) => sum + x.amount, 0)
+  const activeItems = reportItems.filter(x => x.status === 'Active').length
+  const activeCustomers = reportAccounts.filter(x => x.status === 'Active').length
+
+  const paymentModes = Array.from(reportPayments.reduce((map, payment) => {
+    const current = map.get(payment.method) ?? { count: 0, amount: 0 }
+    current.count += 1
+    current.amount += payment.amount
+    map.set(payment.method, current)
+    return map
+  }, new Map<string, { count: number; amount: number }>()).entries())
+    .map(([method, value]) => ({ method, ...value }))
+    .sort((a, b) => b.amount - a.amount)
+
+  const monthlyIncome = Array.from(reportPayments.reduce((map, payment) => {
+    const key = payment.receivedAtUtc.slice(0, 7)
+    map.set(key, (map.get(key) ?? 0) + payment.amount)
+    return map
+  }, new Map<string, number>()).entries())
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([month, amount]) => ({ month, amount }))
+
+  const customerGroupMap = new Map<string, { accountIds: Set<string>; invoiced: number; received: number; outstanding: number }>()
+  for (const account of reportAccounts) {
+    const labels = account.groups.length ? account.groups : ['Ungrouped']
+    const accountInvoices = nonVoidInvoices.filter(invoice => invoice.accountId === account.id)
+    for (const label of labels) {
+      const row = customerGroupMap.get(label) ?? { accountIds: new Set<string>(), invoiced: 0, received: 0, outstanding: 0 }
+      row.accountIds.add(account.id)
+      row.invoiced += accountInvoices.reduce((sum, invoice) => sum + invoice.netTotal, 0)
+      row.received += accountInvoices.reduce((sum, invoice) => sum + invoice.amountPaid, 0)
+      row.outstanding += accountInvoices.reduce((sum, invoice) => sum + invoice.balance, 0)
+      customerGroupMap.set(label, row)
+    }
+  }
+  const customerGroupRows = Array.from(customerGroupMap.entries())
+    .map(([group, value]) => ({ group, accounts: value.accountIds.size, invoiced: value.invoiced, received: value.received, outstanding: value.outstanding }))
+    .sort((a, b) => b.invoiced - a.invoiced)
+
+  async function exportReport(
+    name: string,
+    headers: string[],
+    rows: Array<Array<string | number | boolean | null | undefined>>,
+    format: CrmSpreadsheetFormat,
+  ) {
+    await exportCrmSpreadsheet(`${name}-${new Date().toISOString().slice(0, 10)}`, { headers, rows }, format)
+  }
+
+  const maxMonthlyIncome = Math.max(1, ...monthlyIncome.map(x => x.amount))
+  const maxPaymentMode = Math.max(1, ...paymentModes.map(x => x.amount))
+  const maxCustomerGroup = Math.max(1, ...customerGroupRows.map(x => x.invoiced))
+
+  const reportSection = props.reportSection ?? 'sales'
+  const expenses = (props.businessRecords ?? []).filter(x => x.module === 'Expense')
+  const nonRejectedExpenses = expenses.filter(x => x.status !== 'Rejected')
+  const paidExpenses = expenses.filter(x => x.status === 'Paid')
+  const recordedExpenseTotal = nonRejectedExpenses.reduce((sum, x) => sum + (x.amount ?? 0), 0)
+  const paidExpenseTotal = paidExpenses.reduce((sum, x) => sum + (x.amount ?? 0), 0)
+  const approvedExpenseTotal = expenses.filter(x => x.status === 'Approved').reduce((sum, x) => sum + (x.amount ?? 0), 0)
+  const rejectedExpenseTotal = expenses.filter(x => x.status === 'Rejected').reduce((sum, x) => sum + (x.amount ?? 0), 0)
+  const expenseCategoryRows = Array.from(nonRejectedExpenses.reduce((map, expense) => {
+    const key = expense.category || 'Uncategorized'
+    const current = map.get(key) ?? { count: 0, amount: 0 }
+    current.count += 1
+    current.amount += expense.amount ?? 0
+    map.set(key, current)
+    return map
+  }, new Map<string, { count: number; amount: number }>()).entries())
+    .map(([category, value]) => ({ category, ...value }))
+    .sort((a, b) => b.amount - a.amount)
+
+  const cashFlowMonths = new Map<string, { income: number; expenses: number }>()
+  for (const payment of reportPayments) {
+    const key = payment.receivedAtUtc.slice(0, 7)
+    const row = cashFlowMonths.get(key) ?? { income: 0, expenses: 0 }
+    row.income += payment.amount
+    cashFlowMonths.set(key, row)
+  }
+  for (const expense of paidExpenses) {
+    const date = expense.startDate || expense.createdAtUtc
+    const key = date.slice(0, 7)
+    const row = cashFlowMonths.get(key) ?? { income: 0, expenses: 0 }
+    row.expenses += expense.amount ?? 0
+    cashFlowMonths.set(key, row)
+  }
+  const cashFlowRows = Array.from(cashFlowMonths.entries())
+    .map(([month, value]) => ({ month, ...value, net: value.income - value.expenses }))
+    .sort((a, b) => b.month.localeCompare(a.month))
+
+  if (reportSection === 'expenses') {
+    return (
+      <section className="crm2-ref-list-page crm2-reports-reference">
+        <div className="crm2-ref-action-row">
+          <strong>Expense Report</strong><span className="crm2-action-spacer" />
+          <button disabled={expenses.length === 0} onClick={() => void exportReport('crm-expenses-report', ['Expense', 'Category', 'Status', 'Amount', 'Date', 'Payment Mode', 'Reference'], expenses.map(x => [x.title, x.category || '', x.status, x.amount || 0, x.startDate || x.createdAtUtc, x.metadata?.paymentMode || '', x.metadata?.reference || '']), 'xlsx')}>Export XLSX</button>
+          <button disabled={expenses.length === 0} onClick={() => void exportReport('crm-expenses-report', ['Expense', 'Category', 'Status', 'Amount', 'Date', 'Payment Mode', 'Reference'], expenses.map(x => [x.title, x.category || '', x.status, x.amount || 0, x.startDate || x.createdAtUtc, x.metadata?.paymentMode || '', x.metadata?.reference || '']), 'csv')}>CSV</button>
+        </div>
+        <section className="crm2-metrics">
+          <article><span>Recorded (non-rejected)</span><strong>{money(recordedExpenseTotal)}</strong><small>{nonRejectedExpenses.length} record(s)</small></article>
+          <article><span>Approved, not paid</span><strong>{money(approvedExpenseTotal)}</strong><small>{expenses.filter(x => x.status === 'Approved').length} record(s)</small></article>
+          <article className="accent"><span>Actually paid</span><strong>{money(paidExpenseTotal)}</strong><small>{paidExpenses.length} paid expense(s)</small></article>
+          <article><span>Rejected</span><strong>{money(rejectedExpenseTotal)}</strong><small>{expenses.filter(x => x.status === 'Rejected').length} record(s)</small></article>
+        </section>
+        <div className="crm2-report-columns">
+          <section>
+            <h2>Expenses by category</h2>
+            <div className="crm-advanced-list">{expenseCategoryRows.map(x => <article key={x.category}><div><b>{x.category}</b><strong>{x.count} expense(s)</strong></div><span>{money(x.amount)}</span></article>)}{expenseCategoryRows.length === 0 ? <p>No expense data yet.</p> : null}</div>
+          </section>
+          <section>
+            <h2>Recent expenses</h2>
+            <div className="crm-advanced-list">{[...expenses].sort((a,b) => (b.startDate || b.createdAtUtc).localeCompare(a.startDate || a.createdAtUtc)).slice(0, 15).map(x => <article key={x.id}><div><b>{x.category || 'Uncategorized'} · {x.status}</b><strong>{x.title}</strong><small>{x.startDate || x.createdAtUtc.slice(0,10)} · {x.metadata?.paymentMode || 'Payment mode not set'}</small></div><span>{money(x.amount || 0)}</span></article>)}{expenses.length === 0 ? <p>No expense records yet.</p> : null}</div>
+          </section>
+        </div>
+        <p className="crm2-report-note">ⓘ Cash outflow uses only expenses whose workflow status is Paid. Rejected expenses are excluded from recorded totals.</p>
+      </section>
+    )
+  }
+
+  if (reportSection === 'profit') {
+    const netCash = totalReceived - paidExpenseTotal
+    return (
+      <section className="crm2-ref-list-page crm2-reports-reference">
+        <div className="crm2-ref-action-row">
+          <strong>Expenses vs Income</strong><span className="crm2-action-spacer" />
+          <button disabled={cashFlowRows.length === 0} onClick={() => void exportReport('crm-income-vs-expenses', ['Month', 'Received Income', 'Paid Expenses', 'Net Cash'], cashFlowRows.map(x => [x.month, x.income, x.expenses, x.net]), 'xlsx')}>Export XLSX</button>
+          <button disabled={cashFlowRows.length === 0} onClick={() => void exportReport('crm-income-vs-expenses', ['Month', 'Received Income', 'Paid Expenses', 'Net Cash'], cashFlowRows.map(x => [x.month, x.income, x.expenses, x.net]), 'csv')}>CSV</button>
+        </div>
+        <section className="crm2-metrics">
+          <article><span>Actually received</span><strong>{money(totalReceived)}</strong><small>{reportPayments.length} payment transaction(s)</small></article>
+          <article><span>Actually paid expenses</span><strong>{money(paidExpenseTotal)}</strong><small>{paidExpenses.length} paid expense(s)</small></article>
+          <article className="accent"><span>Net cash movement</span><strong>{money(netCash)}</strong><small>Received minus paid expenses</small></article>
+          <article><span>Outstanding invoices</span><strong>{money(totalOutstanding)}</strong><small>Not counted as received income</small></article>
+        </section>
+        <section className="crm2-table-card">
+          <div className="crm2-section-head"><div><span>CASH FLOW</span><h2>Monthly received income vs paid expenses</h2></div></div>
+          <div className="crm-advanced-list">{cashFlowRows.map(x => <article key={x.month}><div><b>{x.month}</b><strong>Income {money(x.income)} · Expense {money(x.expenses)}</strong><small>Only posted payments and Paid expenses are included.</small></div><span>{money(x.net)} net</span></article>)}{cashFlowRows.length === 0 ? <p>No settled cash-flow data yet.</p> : null}</div>
+        </section>
+        <p className="crm2-report-note">ⓘ This is a cash comparison, not an accrual P&amp;L: invoice balances are excluded until payment is recorded.</p>
+      </section>
+    )
+  }
+
   return (
     <section className="crm2-ref-list-page crm2-reports-reference">
       <div className="crm2-report-columns">
         <section>
           <h2>▧ Sales Report</h2>
-          <details><summary>Invoices Report</summary><p>Open actions: {props.summary.openFollowUps + props.summary.openTasks}</p></details>
-          <details><summary>Items Report</summary><p>CRM reporting workspace</p></details>
-          <details><summary>Payments Received</summary><p>Use Sales → Payments for transaction-level details.</p></details>
-          <details><summary>Credit Notes Report</summary><p>Use Sales → Credit Notes for document details.</p></details>
-          <details><summary>Proposals Report</summary><p>Total leads: {props.dashboard.totalLeads}</p></details>
-          <details><summary>Estimates Report</summary><p>Qualified leads: {props.dashboard.qualified}</p></details>
-          <details><summary>Customers Report</summary><p>Converted leads: {props.dashboard.converted}</p></details>
+          <details open><summary>Invoices Report · {nonVoidInvoices.length} active invoice(s)</summary>
+            <p><b>{money(totalInvoiced)}</b> invoiced · <b>{money(totalReceived)}</b> received · <b>{money(totalOutstanding)}</b> outstanding</p>
+            <div className="crm2-top-actions"><button onClick={() => void exportReport('crm-invoices-report', ['Invoice', 'Customer', 'Status', 'Issue Date', 'Due Date', 'Net Total', 'Paid', 'Balance'], nonVoidInvoices.map(x => [x.invoiceNumber, accountName(x.accountId), x.status, x.issueDate, x.dueDate, x.netTotal, x.amountPaid, x.balance]), 'xlsx')}>Export XLSX</button><button onClick={() => void exportReport('crm-invoices-report', ['Invoice', 'Customer', 'Status', 'Issue Date', 'Due Date', 'Net Total', 'Paid', 'Balance'], nonVoidInvoices.map(x => [x.invoiceNumber, accountName(x.accountId), x.status, x.issueDate, x.dueDate, x.netTotal, x.amountPaid, x.balance]), 'csv')}>CSV</button></div>
+            <div className="crm-advanced-list">{nonVoidInvoices.slice(0, 5).map(x => <article key={x.id}><div><b>{x.invoiceNumber}</b><strong>{accountName(x.accountId)}</strong><small>{x.status} · Due {x.dueDate}</small></div><span>{money(x.balance)} due</span></article>)}{nonVoidInvoices.length === 0 ? <p>No invoice data yet.</p> : null}</div>
+          </details>
+          <details><summary>Items Report · {reportItems.length} item(s)</summary>
+            <p><b>{activeItems}</b> active · <b>{reportItems.length - activeItems}</b> inactive · <b>{reportItemGroups.filter(x => x.active).length}</b> active group(s)</p>
+            <div className="crm2-top-actions"><button onClick={() => void exportReport('crm-items-report', ['Code', 'Name', 'Group', 'Status', 'Rate', 'Tax %'], reportItems.map(x => [x.code, x.name, itemGroupName(x.groupId), x.status, x.defaultRate, x.defaultTaxPercent]), 'xlsx')}>Export XLSX</button><button onClick={() => void exportReport('crm-items-report', ['Code', 'Name', 'Group', 'Status', 'Rate', 'Tax %'], reportItems.map(x => [x.code, x.name, itemGroupName(x.groupId), x.status, x.defaultRate, x.defaultTaxPercent]), 'csv')}>CSV</button></div>
+          </details>
+          <details><summary>Payments Received · {reportPayments.length} transaction(s)</summary>
+            <p><b>{money(totalReceived)}</b> received from the persisted payment ledger.</p>
+            <div className="crm2-top-actions"><button onClick={() => void exportReport('crm-payments-report', ['Payment', 'Invoice', 'Method', 'Amount', 'Reference', 'Received At'], reportPayments.map(x => [x.paymentNumber, invoiceNumber(x.invoiceId), x.method, x.amount, x.reference || '', x.receivedAtUtc]), 'xlsx')}>Export XLSX</button><button onClick={() => void exportReport('crm-payments-report', ['Payment', 'Invoice', 'Method', 'Amount', 'Reference', 'Received At'], reportPayments.map(x => [x.paymentNumber, invoiceNumber(x.invoiceId), x.method, x.amount, x.reference || '', x.receivedAtUtc]), 'csv')}>CSV</button></div>
+            <div className="crm-advanced-list">{reportPayments.slice(0, 5).map(x => <article key={x.id}><div><b>{x.paymentNumber}</b><strong>{invoiceNumber(x.invoiceId)}</strong><small>{x.method} · {formatDate(x.receivedAtUtc)}</small></div><span>{money(x.amount)}</span></article>)}{reportPayments.length === 0 ? <p>No payment transactions yet.</p> : null}</div>
+          </details>
+          <details><summary>Credit Notes Report · {issuedCredits.length} issued</summary>
+            <p><b>{money(totalCredits)}</b> issued credits. Draft and void credit notes are excluded from this total.</p>
+            <div className="crm2-top-actions"><button onClick={() => void exportReport('crm-credit-notes-report', ['Credit Note', 'Invoice', 'Customer', 'Status', 'Issue Date', 'Amount', 'Reason'], reportCredits.map(x => [x.creditNoteNumber, invoiceNumber(x.invoiceId), accountName(x.accountId), x.status, x.issueDate, x.amount, x.reason]), 'xlsx')}>Export XLSX</button><button onClick={() => void exportReport('crm-credit-notes-report', ['Credit Note', 'Invoice', 'Customer', 'Status', 'Issue Date', 'Amount', 'Reason'], reportCredits.map(x => [x.creditNoteNumber, invoiceNumber(x.invoiceId), accountName(x.accountId), x.status, x.issueDate, x.amount, x.reason]), 'csv')}>CSV</button></div>
+          </details>
+          <details><summary>Proposals Report · {proposals.length} proposal(s)</summary>
+            <p><b>{proposals.filter(x => x.status === 'Accepted').length}</b> accepted · accepted value <b>{money(proposals.filter(x => x.status === 'Accepted').reduce((sum, x) => sum + x.total, 0))}</b></p>
+            <div className="crm2-top-actions"><button onClick={() => void exportReport('crm-proposals-report', ['Proposal', 'Customer', 'Subject', 'Status', 'Issue Date', 'Expiry Date', 'Total'], proposals.map(x => [x.documentNumber, accountName(x.accountId), x.subject, x.status, x.issueDate, x.expiryDate || '', x.total]), 'xlsx')}>Export XLSX</button><button onClick={() => void exportReport('crm-proposals-report', ['Proposal', 'Customer', 'Subject', 'Status', 'Issue Date', 'Expiry Date', 'Total'], proposals.map(x => [x.documentNumber, accountName(x.accountId), x.subject, x.status, x.issueDate, x.expiryDate || '', x.total]), 'csv')}>CSV</button></div>
+          </details>
+          <details><summary>Estimates Report · {estimates.length} estimate(s)</summary>
+            <p><b>{estimates.filter(x => x.status === 'Accepted').length}</b> accepted · accepted value <b>{money(estimates.filter(x => x.status === 'Accepted').reduce((sum, x) => sum + x.total, 0))}</b></p>
+            <div className="crm2-top-actions"><button onClick={() => void exportReport('crm-estimates-report', ['Estimate', 'Customer', 'Subject', 'Status', 'Issue Date', 'Expiry Date', 'Total'], estimates.map(x => [x.documentNumber, accountName(x.accountId), x.subject, x.status, x.issueDate, x.expiryDate || '', x.total]), 'xlsx')}>Export XLSX</button><button onClick={() => void exportReport('crm-estimates-report', ['Estimate', 'Customer', 'Subject', 'Status', 'Issue Date', 'Expiry Date', 'Total'], estimates.map(x => [x.documentNumber, accountName(x.accountId), x.subject, x.status, x.issueDate, x.expiryDate || '', x.total]), 'csv')}>CSV</button></div>
+          </details>
+          <details><summary>Customers Report · {reportAccounts.length} customer(s)</summary>
+            <p><b>{activeCustomers}</b> active · <b>{new Set(reportAccounts.flatMap(x => x.groups)).size}</b> customer group(s)</p>
+            <div className="crm2-top-actions"><button onClick={() => void exportReport('crm-customers-report', ['Customer', 'Legal Name', 'GSTIN', 'Code', 'Status', 'Groups', 'Contacts'], reportAccounts.map(x => [x.name, x.legalName || '', x.gstin || '', x.displayCode || '', x.status, x.groups.join(', '), x.contacts.length]), 'xlsx')}>Export XLSX</button><button onClick={() => void exportReport('crm-customers-report', ['Customer', 'Legal Name', 'GSTIN', 'Code', 'Status', 'Groups', 'Contacts'], reportAccounts.map(x => [x.name, x.legalName || '', x.gstin || '', x.displayCode || '', x.status, x.groups.join(', '), x.contacts.length]), 'csv')}>CSV</button></div>
+          </details>
         </section>
         <section>
           <h2>▥ Charts Based Report</h2>
-          <details><summary>Total Income</summary><p>Open the detailed analytics workspace for revenue charts.</p></details>
-          <details><summary>Payment Modes (Transactions)</summary><p>Use Sales → Payments for payment-mode details.</p></details>
-          <details><summary>Total Value By Customer Groups</summary><p>Use Customers and Analytics for customer-group analysis.</p></details>
+          <details open><summary>Total Income · {money(totalReceived)}</summary>
+            <div className="crm-advanced-list">{monthlyIncome.map(x => <article key={x.month}><div><b>{x.month}</b><progress max={maxMonthlyIncome} value={x.amount} /></div><span>{money(x.amount)}</span></article>)}{monthlyIncome.length === 0 ? <p>No received-payment data yet.</p> : null}</div>
+          </details>
+          <details><summary>Payment Modes (Transactions)</summary>
+            <div className="crm-advanced-list">{paymentModes.map(x => <article key={x.method}><div><b>{x.method}</b><progress max={maxPaymentMode} value={x.amount} /><small>{x.count} transaction(s)</small></div><span>{money(x.amount)}</span></article>)}{paymentModes.length === 0 ? <p>No payment-mode data yet.</p> : null}</div>
+            <div className="crm2-top-actions"><button onClick={() => void exportReport('crm-payment-modes-report', ['Payment Mode', 'Transactions', 'Amount'], paymentModes.map(x => [x.method, x.count, x.amount]), 'xlsx')}>Export XLSX</button></div>
+          </details>
+          <details><summary>Total Value By Customer Groups</summary>
+            <div className="crm-advanced-list">{customerGroupRows.map(x => <article key={x.group}><div><b>{x.group}</b><progress max={maxCustomerGroup} value={x.invoiced} /><small>{x.accounts} customer(s) · received {money(x.received)} · outstanding {money(x.outstanding)}</small></div><span>{money(x.invoiced)}</span></article>)}{customerGroupRows.length === 0 ? <p>No customer-group data yet.</p> : null}</div>
+            <div className="crm2-top-actions"><button onClick={() => void exportReport('crm-customer-groups-report', ['Customer Group', 'Customers', 'Invoiced', 'Received', 'Outstanding'], customerGroupRows.map(x => [x.group, x.accounts, x.invoiced, x.received, x.outstanding]), 'xlsx')}>Export XLSX</button></div>
+            <small>Customers assigned to multiple groups are represented in each of their groups.</small>
+          </details>
         </section>
       </div>
       <p className="crm2-report-note">ⓘ Cancelled/void records are excluded where the underlying report applies that rule.</p>

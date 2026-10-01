@@ -769,6 +769,11 @@ export async function runDueCrmRecurringInvoices(asOf?: string) {
   return parseResponse<{ asOf: string; generatedCount: number; invoices: CrmInvoice[] }>(response)
 }
 
+export async function listCrmAllInvoicePayments() {
+  const response = await crmFetch('/invoice-payments')
+  return parseResponse<{ payments: CrmInvoicePayment[] }>(response)
+}
+
 export async function listCrmInvoicePayments(invoiceId: string) {
   const response = await crmFetch(`/invoices/${invoiceId}/payments`)
   return parseResponse<{ payments: CrmInvoicePayment[] }>(response)

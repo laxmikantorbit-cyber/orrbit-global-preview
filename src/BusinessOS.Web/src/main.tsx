@@ -49,8 +49,10 @@ const content = path === '/businessos/admin'
                       ? <CrmPipelineBoard />
                       : path === '/crm/maintenance'
                         ? <CrmDataMaintenanceHub />
-                        : path === '/crm/manage'
-                          ? <CrmManagementHub />
+                        : path === '/crm/audit'
+                          ? <CrmManagementHub initialView="audit" />
+                          : path === '/crm/manage'
+                            ? <CrmManagementHub />
                           : path === '/crm/advanced'
                             ? <CrmAdvancedHub />
                             : path === '/crm'

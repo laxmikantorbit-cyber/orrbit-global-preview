@@ -17,6 +17,7 @@ import {
   listCrmAccounts,
   listCrmFollowUps,
   listCrmInvoices,
+  listCrmAllInvoicePayments,
   listCrmCreditNotes,
   listCrmBusinessRecords,
   listCrmEstimateRequests,
@@ -38,6 +39,7 @@ import {
   type CrmGlobalSearchHit,
   type CrmNotificationItem,
   type CrmInvoice,
+  type CrmInvoicePayment,
   type CrmCreditNote,
   type CrmBusinessRecord,
   type CrmEstimateRequest,
@@ -101,6 +103,7 @@ export function CrmDemo() {
   const [salesMenuOpen, setSalesMenuOpen] = useState(false)
   const [utilitiesMenuOpen, setUtilitiesMenuOpen] = useState(false)
   const [reportsMenuOpen, setReportsMenuOpen] = useState(false)
+  const [reportSection, setReportSection] = useState<'sales' | 'expenses' | 'profit'>('sales')
   const [leads, setLeads] = useState<CrmLead[]>([])
   const [followUps, setFollowUps] = useState<CrmFollowUp[]>([])
   const [tasks, setTasks] = useState<CrmTask[]>([])
@@ -109,6 +112,7 @@ export function CrmDemo() {
   const [salesDocuments, setSalesDocuments] = useState<CrmSalesDocument[]>([])
   const [subscriptions, setSubscriptions] = useState<CrmSubscription[]>([])
   const [invoices, setInvoices] = useState<CrmInvoice[]>([])
+  const [invoicePayments, setInvoicePayments] = useState<CrmInvoicePayment[]>([])
   const [salesItems, setSalesItems] = useState<CrmSalesItem[]>([])
   const [salesItemGroups, setSalesItemGroups] = useState<CrmSalesItemGroup[]>([])
   const [creditNotes, setCreditNotes] = useState<CrmCreditNote[]>([])
@@ -389,7 +393,7 @@ export function CrmDemo() {
       const sessionResult = await getCrmSession()
       setSession(sessionResult)
       const allowed = (permission: string) => sessionResult.member.permissions.includes(permission)
-      const [leadResult, dashResult, followResult, taskResult, workResult, accountResult, opportunityResult, salesResult, subscriptionResult, invoiceResult, salesItemResult, salesItemGroupResult, creditNoteResult, businessResult, estimateRequestResult, knowledgeCategoryResult, knowledgeArticleResult, mediaResult, teamResult, roleResult, readyResult] = await Promise.all([
+      const [leadResult, dashResult, followResult, taskResult, workResult, accountResult, opportunityResult, salesResult, subscriptionResult, invoiceResult, paymentResult, salesItemResult, salesItemGroupResult, creditNoteResult, businessResult, estimateRequestResult, knowledgeCategoryResult, knowledgeArticleResult, mediaResult, teamResult, roleResult, readyResult] = await Promise.all([
         allowed('ViewLeads') ? listCrmLeads() : Promise.resolve({ leads: [] as CrmLead[] }),
         allowed('ViewDashboard') ? crmDashboard() : Promise.resolve(initialDashboard()),
         allowed('ManageFollowUps') ? listCrmFollowUps() : Promise.resolve({ followUps: [] as CrmFollowUp[] }),
@@ -400,6 +404,7 @@ export function CrmDemo() {
         allowed('ViewSales') ? listCrmSalesDocuments() : Promise.resolve({ documents: [] as CrmSalesDocument[] }),
         allowed('ViewSales') ? listCrmSubscriptions() : Promise.resolve({ subscriptions: [] as CrmSubscription[] }),
         allowed('ViewSales') ? listCrmInvoices() : Promise.resolve({ invoices: [] as CrmInvoice[] }),
+        allowed('ViewSales') ? listCrmAllInvoicePayments() : Promise.resolve({ payments: [] as CrmInvoicePayment[] }),
         allowed('ViewSales') ? listCrmSalesItems() : Promise.resolve({ items: [] as CrmSalesItem[] }),
         allowed('ViewSales') ? listCrmSalesItemGroups() : Promise.resolve({ groups: [] as CrmSalesItemGroup[] }),
         allowed('ViewSales') ? listCrmCreditNotes() : Promise.resolve({ creditNotes: [] as CrmCreditNote[] }),
@@ -422,6 +427,7 @@ export function CrmDemo() {
       setSalesDocuments(salesResult.documents)
       setSubscriptions(subscriptionResult.subscriptions)
       setInvoices(invoiceResult.invoices)
+      setInvoicePayments(paymentResult.payments)
       setSalesItems(salesItemResult.items)
       setSalesItemGroups(salesItemGroupResult.groups)
       setCreditNotes(creditNoteResult.creditNotes)
@@ -553,22 +559,22 @@ export function CrmDemo() {
             <button className={view === 'utilities' ? 'active' : ''} onClick={() => setUtilitiesMenuOpen(value => !value)}><span>⚙</span>Utilities <i>{utilitiesMenuOpen || view === 'utilities' ? '⌄' : '‹'}</i></button>
             {utilitiesMenuOpen || view === 'utilities' ? <div className="crm2-nav-sub">
               <button className={view === 'utilities' ? 'active' : ''} onClick={() => setView('utilities')}>Media</button>
-              <a href="/crm/export">Bulk PDF Export</a>
+              <a href="/crm/export">Data Export</a>
               <button onClick={() => setView('overview')}>Calendar</button>
-              <a href="/crm/inbox">Announcements</a>
-              <a href="/crm/advanced">Activity Log</a>
-              <a href="/crm/maintenance">Database Backup</a>
-              <button onClick={() => setView('support')}>Ticket Pipe Log</button>
+              <a href="/crm/inbox">My CRM Day</a>
+              <a href="/crm/audit">Audit Trail</a>
+              <a href="/crm/maintenance">Data Maintenance</a>
+              <button onClick={() => setView('support')}>Support Tickets</button>
             </div> : null}
           </div>
           {can('ViewReports') ? <div className={'crm2-nav-group ' + ((reportsMenuOpen || view === 'reports') ? 'open' : '')}>
             <button className={view === 'reports' ? 'active' : ''} onClick={() => setReportsMenuOpen(value => !value)}><span>≡</span>Reports <i>{reportsMenuOpen || view === 'reports' ? '⌄' : '‹'}</i></button>
             {reportsMenuOpen || view === 'reports' ? <div className="crm2-nav-sub">
-              <button className={view === 'reports' ? 'active' : ''} onClick={() => setView('reports')}>Sales</button>
-              <button onClick={() => setView('reports')}>Expenses</button>
-              <button onClick={() => setView('reports')}>Expenses vs Income</button>
+              <button className={view === 'reports' && reportSection === 'sales' ? 'active' : ''} onClick={() => { setReportSection('sales'); setView('reports') }}>Sales</button>
+              <button className={view === 'reports' && reportSection === 'expenses' ? 'active' : ''} onClick={() => { setReportSection('expenses'); setView('reports') }}>Expenses</button>
+              <button className={view === 'reports' && reportSection === 'profit' ? 'active' : ''} onClick={() => { setReportSection('profit'); setView('reports') }}>Expenses vs Income</button>
               <a href="/crm/analytics">Leads</a>
-              <a href="/crm/analytics">Timesheets overview</a>
+              <a href="/crm/analytics">Team Productivity</a>
               <button onClick={() => setView('knowledgeBase')}>KB Articles</button>
             </div> : null}
           </div> : null}
@@ -770,7 +776,7 @@ export function CrmDemo() {
           <CrmSalesView view={view} accounts={accounts} opportunities={opportunities} busy={loading} refresh={refresh} notify={setMessage} canManageAccounts={can('ManageAccounts')} canManageOpportunities={can('ManageOpportunities')} />
         ) : null}
         {view === 'followups' || view === 'tasks' || view === 'reports' ? (
-          <CrmWorkView view={view} leads={leads} followUps={followUps} tasks={tasks} teamMembers={teamMembers} currentUserId={session?.member.id} canViewAllOwnedRecords={session?.canViewAllOwnedRecords} summary={workSummary} dashboard={dashboard} busy={loading} openLead={setSelectedLeadId} completeFollowUp={finishFollowUp} completeTask={finishTask} refresh={refresh} notify={setMessage} />
+          <CrmWorkView view={view} reportSection={reportSection} leads={leads} followUps={followUps} tasks={tasks} accounts={accounts} salesDocuments={salesDocuments} invoices={invoices} invoicePayments={invoicePayments} salesItems={salesItems} salesItemGroups={salesItemGroups} creditNotes={creditNotes} businessRecords={businessRecords} teamMembers={teamMembers} currentUserId={session?.member.id} canViewAllOwnedRecords={session?.canViewAllOwnedRecords} summary={workSummary} dashboard={dashboard} busy={loading} openLead={setSelectedLeadId} completeFollowUp={finishFollowUp} completeTask={finishTask} refresh={refresh} notify={setMessage} />
         ) : null}
         {view === 'team' ? (
           <CrmTeamView members={teamMembers} roles={roles} busy={loading} refresh={refresh} notify={setMessage} canManageTeam={can('ManageTeam')} />

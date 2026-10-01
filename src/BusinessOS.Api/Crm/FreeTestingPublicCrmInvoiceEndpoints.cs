@@ -22,6 +22,17 @@ public static class FreeTestingPublicCrmInvoiceEndpoints
             return Results.Ok(new { invoices = items.Select(ToResponse).ToArray() });
         });
 
+        group.MapGet("/invoice-payments", async (
+            IConfiguration configuration,
+            IHostEnvironment environment,
+            ICrmInvoiceStore invoices,
+            CancellationToken cancellationToken) =>
+        {
+            if (!Enabled(configuration, environment)) return Disabled();
+            var payments = await invoices.ListPaymentsAsync(DemoTenantId, cancellationToken);
+            return Results.Ok(new { payments = payments.Select(ToPaymentResponse).ToArray() });
+        });
+
         group.MapGet("/invoices/{invoiceId:guid}", async (
             Guid invoiceId,
             IConfiguration configuration,

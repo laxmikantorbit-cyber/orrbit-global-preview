@@ -14,6 +14,8 @@ public interface ICrmInvoiceStore
     Task<string> NextInvoiceNumberAsync(Guid tenantId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<SalesInvoicePayment>> ListPaymentsAsync(
         Guid tenantId, Guid invoiceId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<SalesInvoicePayment>> ListPaymentsAsync(
+        Guid tenantId, CancellationToken cancellationToken = default);
     Task<(SalesInvoice Invoice, SalesInvoicePayment Payment)> RecordPaymentAsync(
         Guid tenantId,
         Guid invoiceId,
@@ -130,6 +132,21 @@ public sealed class InMemoryCrmInvoiceStore : ICrmInvoiceStore
                     .ThenByDescending(x => x.PaymentNumber)
                     .ToArray());
         }
+    }
+
+    public Task<IReadOnlyList<SalesInvoicePayment>> ListPaymentsAsync(
+        Guid tenantId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+            return Task.FromResult<IReadOnlyList<SalesInvoicePayment>>(
+                _payments.Values
+                    .SelectMany(x => x)
+                    .Where(x => x.TenantId == tenantId)
+                    .OrderByDescending(x => x.ReceivedAtUtc)
+                    .ThenByDescending(x => x.PaymentNumber)
+                    .ToArray());
     }
 
     public Task<(SalesInvoice Invoice, SalesInvoicePayment Payment)> RecordPaymentAsync(
@@ -310,6 +327,27 @@ ORDER BY received_at_utc DESC, payment_number DESC;
 """);
         command.Parameters.AddWithValue("tenant", tenantId);
         command.Parameters.AddWithValue("invoice", invoiceId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var payments = new List<SalesInvoicePayment>();
+        while (await reader.ReadAsync(cancellationToken))
+            payments.Add(ReadPayment(reader));
+        return payments;
+    }
+
+    public async Task<IReadOnlyList<SalesInvoicePayment>> ListPaymentsAsync(
+        Guid tenantId,
+        CancellationToken cancellationToken = default)
+    {
+        await _db.EnsureReadyAsync(cancellationToken);
+        await using var command = _db.DataSource.CreateCommand("""
+SELECT id,tenant_id,invoice_id,payment_number,amount,method,reference,notes,
+       received_at_utc,received_by_user_id,created_at_utc
+FROM businessos_crm.invoice_payments
+WHERE tenant_id=@tenant
+ORDER BY received_at_utc DESC, payment_number DESC;
+""");
+        command.Parameters.AddWithValue("tenant", tenantId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         var payments = new List<SalesInvoicePayment>();

@@ -72,8 +72,8 @@ function parseCsv(text: string) {
   return rows
 }
 
-export function CrmManagementHub() {
-  const [view, setView] = useState<View>('saved')
+export function CrmManagementHub({ initialView = 'saved' }: { initialView?: View } = {}) {
+  const [view, setView] = useState<View>(initialView)
   const [session, setSession] = useState<CrmSession | null>(null)
   const [savedViews, setSavedViews] = useState<CrmSavedView[]>([])
   const [masters, setMasters] = useState<CrmMasterItem[]>([])
