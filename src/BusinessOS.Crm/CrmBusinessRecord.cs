@@ -133,6 +133,15 @@ public sealed class CrmBusinessRecord
                 throw new ArgumentException("Contract start date is required.", nameof(startDate));
             if (dueDate.HasValue && dueDate.Value < startDate.Value)
                 throw new ArgumentException("Contract end date cannot be before start date.", nameof(dueDate));
+            return;
+        }
+
+        if (module == CrmBusinessModule.Project)
+        {
+            if (!startDate.HasValue)
+                throw new ArgumentException("Project start date is required.", nameof(startDate));
+            if (dueDate.HasValue && dueDate.Value < startDate.Value)
+                throw new ArgumentException("Project deadline cannot be before start date.", nameof(dueDate));
         }
     }
 

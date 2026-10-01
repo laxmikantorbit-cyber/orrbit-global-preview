@@ -62,6 +62,9 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
   const [selectedExpenseIds, setSelectedExpenseIds] = useState<string[]>([])
   const [contractNumber, setContractNumber] = useState('')
   const [contractSigned, setContractSigned] = useState('No')
+  const [projectTags, setProjectTags] = useState('')
+  const [projectMembers, setProjectMembers] = useState('')
+  const [projectProgress, setProjectProgress] = useState('0')
 
   const moduleRecords = useMemo(() => records.filter(record => record.module === cfg.module), [records, cfg.module])
   const filtered = useMemo(() => {
@@ -85,6 +88,7 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
     setPriority('Normal'); setStartDate(today()); setDueDate(''); setOwnerUserId(''); setDescription('')
     setExpenseReceipt(''); setExpenseProject(''); setExpenseInvoice(''); setExpenseReference(''); setExpensePaymentMode('')
     setContractNumber(''); setContractSigned('No')
+    setProjectTags(''); setProjectMembers(''); setProjectProgress('0')
   }
   function openCreate() { resetForm(); setCreating(true) }
   function openEdit(record: CrmBusinessRecord) {
@@ -96,6 +100,8 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
     setExpenseInvoice(record.metadata?.invoice || ''); setExpenseReference(record.metadata?.reference || '')
     setExpensePaymentMode(record.metadata?.paymentMode || '')
     setContractNumber(record.metadata?.contractNumber || ''); setContractSigned(record.metadata?.signed || 'No')
+    setProjectTags(record.metadata?.tags || ''); setProjectMembers(record.metadata?.members || '')
+    setProjectProgress(record.metadata?.progress || '0')
   }
   async function save() {
     if (!title.trim()) { notify('Title is required'); return }
@@ -111,6 +117,12 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
       if (!startDate) { notify('Contract start date is required'); return }
       if (dueDate && dueDate < startDate) { notify('Contract end date cannot be before start date'); return }
     }
+    if (view === 'projects') {
+      if (!startDate) { notify('Project start date is required'); return }
+      if (dueDate && dueDate < startDate) { notify('Project deadline cannot be before start date'); return }
+      const progress = Number(projectProgress)
+      if (!Number.isFinite(progress) || progress < 0 || progress > 100) { notify('Project progress must be between 0 and 100'); return }
+    }
     const metadata: Record<string, string> = { ...(editing?.metadata || {}) }
     if (view === 'expenses') {
       for (const key of ['receipt', 'project', 'invoice', 'reference', 'paymentMode']) delete metadata[key]
@@ -124,6 +136,12 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
       delete metadata.signed
       if (contractNumber.trim()) metadata.contractNumber = contractNumber.trim()
       metadata.signed = contractSigned
+    }
+    if (view === 'projects') {
+      for (const key of ['tags', 'members', 'progress']) delete metadata[key]
+      if (projectTags.trim()) metadata.tags = projectTags.trim()
+      if (projectMembers.trim()) metadata.members = projectMembers.trim()
+      metadata.progress = String(Math.round(Number(projectProgress)))
     }
     const payload = { title: title.trim(), accountId: accountId || null, amount: parsedAmount, category: category.trim() || null, priority: priority.trim() || null, startDate: startDate || null, dueDate: dueDate || null, ownerUserId: ownerUserId || null, description: description.trim() || null, metadata }
     try {
@@ -173,7 +191,17 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
               ownerName(record) === '—' ? '' : ownerName(record), record.metadata?.signed || 'No', record.status, record.description || '',
             ]),
           }
-        : {
+        : view === 'projects'
+          ? {
+              headers: ['Project', 'Customer', 'Type', 'Budget', 'Tags', 'Start Date', 'Deadline', 'Owner', 'Additional Members', 'Progress %', 'Status', 'Description'],
+              rows: filtered.map(record => [
+                record.title, accountName(record) === '—' ? '' : accountName(record), record.category || '',
+                record.amount ?? '', record.metadata?.tags || '', record.startDate || '', record.dueDate || '',
+                ownerName(record) === '—' ? '' : ownerName(record), record.metadata?.members || '',
+                record.metadata?.progress || '0', record.status, record.description || '',
+              ]),
+            }
+          : {
             headers: ['Module', 'Title', 'Customer', 'Amount', 'Category', 'Priority', 'Start Date', 'Due Date', 'Owner', 'Status', 'Description'],
             rows: filtered.map(record => [
               record.module, record.title, accountName(record) === '—' ? '' : accountName(record), record.amount ?? '',
@@ -289,6 +317,11 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
         <label>Contract #<input value={contractNumber} onChange={e => setContractNumber(e.target.value)} placeholder="Contract reference number" /></label>
         <label>Signed<select value={contractSigned} onChange={e => setContractSigned(e.target.value)}><option>No</option><option>Yes</option></select></label>
       </> : null}
+      {view === 'projects' ? <>
+        <label>Tags<input value={projectTags} onChange={e => setProjectTags(e.target.value)} placeholder="Implementation, Priority, Region..." /></label>
+        <label>Additional Members<input value={projectMembers} onChange={e => setProjectMembers(e.target.value)} placeholder="Comma-separated member names" /></label>
+        <label>Progress %<input type="number" min="0" max="100" value={projectProgress} onChange={e => setProjectProgress(e.target.value)} /></label>
+      </> : null}
     </div>
     <label>Description<textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} /></label>
     <div className="crm2-drawer-actions"><button onClick={resetForm}>Cancel</button><button className="crm2-primary" onClick={() => void save()} disabled={busy}>Save</button></div>
@@ -352,12 +385,27 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
     </section>
   }
 
-  if (view === 'projects') return <section className="crm2-ref-list-page crm2-business-records crm2-projects-reference">
-    <div className="crm2-ref-action-row">{canManage ? <button className="crm2-ref-primary" onClick={openCreate}>+ New Project</button> : null}<button className="crm2-ref-square">≡</button><span className="crm2-action-spacer" /><button className="crm2-ref-square">▼</button></div>
-    {form}
-    <section className="crm2-reference-status-summary"><h2>▧ Projects Summary</h2><div><span><b>{count('Planned')}</b><em>Not Started</em></span><span><b>{count('InProgress')}</b><em className="blue">In Progress</em></span><span><b>{count('OnHold')}</b><em className="warn">On Hold</em></span><span><b>{count('Cancelled')}</b><em>Cancelled</em></span><span><b>{count('Completed')}</b><em className="good">Finished</em></span></div></section>
-    <section className="crm2-ref-table-card">{toolbar}<div className="crm2-project-head"><span>#</span><span>Project Name</span><span>Customer</span><span>Tags</span><span>Start Date</span><span>Deadline</span><span>Members</span><span>Status</span></div>{filtered.length===0?<p className="crm2-reference-empty">No entries found</p>:filtered.map((record,index)=><div className="crm2-project-row" key={record.id} onDoubleClick={()=>canManage&&openEdit(record)}><span>{index+1}</span><span><a>{record.title}</a></span><span><a>{accountName(record)}</a></span><span>{meta(record,'tags')}</span><span>{fmtDate(record.startDate)}</span><span>{fmtDate(record.dueDate)}</span><span>{ownerName(record)}</span><span>{canManage?<select value={record.status} onChange={e=>void move(record,e.target.value)}>{cfg.statuses.map(item=><option key={item}>{item}</option>)}</select>:record.status}</span></div>)}</section>
-  </section>
+  if (view === 'projects') {
+    const todayMs = new Date(today() + 'T00:00:00').getTime()
+    const overdueProjects = moduleRecords.filter(record => {
+      if (!record.dueDate || ['Completed', 'Cancelled'].includes(record.status)) return false
+      return new Date(record.dueDate + 'T00:00:00').getTime() < todayMs
+    }).length
+    return <section className="crm2-ref-list-page crm2-business-records crm2-projects-reference">
+      <div className="crm2-ref-action-row">
+        {canManage ? <button className="crm2-ref-primary" onClick={openCreate}>+ New Project</button> : null}
+        <span className="crm2-action-spacer" />
+        <button onClick={() => void exportCurrent('xlsx')} disabled={busy || filtered.length === 0}>Export Projects</button>
+      </div>
+      {form}
+      <section className="crm2-reference-status-summary"><h2>▧ Projects Summary</h2><div><span><b>{count('Planned')}</b><em>Not Started</em></span><span><b>{count('InProgress')}</b><em className="blue">In Progress</em></span><span><b>{count('OnHold')}</b><em className="warn">On Hold</em></span><span><b>{overdueProjects}</b><em className="bad">Overdue</em></span><span><b>{count('Completed')}</b><em className="good">Finished</em></span></div></section>
+      <section className="crm2-ref-table-card">{toolbar}<div className="crm2-project-head"><span>#</span><span>Project Name</span><span>Customer</span><span>Tags</span><span>Start Date</span><span>Deadline</span><span>Members</span><span>Status</span></div>{filtered.length===0?<p className="crm2-reference-empty">No entries found</p>:filtered.map((record,index)=>{
+        const overdue = !!record.dueDate && !['Completed','Cancelled'].includes(record.status) && new Date(record.dueDate + 'T00:00:00').getTime() < todayMs
+        const members = [ownerName(record) === '—' ? '' : ownerName(record), record.metadata?.members || ''].filter(Boolean).join(', ') || '—'
+        return <div className={'crm2-project-row' + (overdue ? ' overdue' : '')} key={record.id} onDoubleClick={()=>canManage&&openEdit(record)}><span>{index+1}</span><span><a>{record.title}</a><small>{record.metadata?.progress || '0'}% complete{overdue ? ' · Overdue' : ''}</small></span><span><a>{accountName(record)}</a></span><span>{meta(record,'tags')}</span><span>{fmtDate(record.startDate)}</span><span>{fmtDate(record.dueDate)}</span><span>{members}</span><span>{canManage?<select value={record.status} onChange={e=>void move(record,e.target.value)}>{cfg.statuses.map(item=><option key={item}>{item}</option>)}</select>:record.status}</span></div>
+      })}</section>
+    </section>
+  }
 
   return <section className="crm2-ref-list-page crm2-business-records crm2-support-reference">
     <div className="crm2-ref-action-row">{canManage ? <button className="crm2-ref-primary" onClick={openCreate}>+ New Ticket</button> : null}<button className="crm2-ref-square">▤</button><span className="crm2-action-spacer" /><button className="crm2-ref-square">▼</button></div>

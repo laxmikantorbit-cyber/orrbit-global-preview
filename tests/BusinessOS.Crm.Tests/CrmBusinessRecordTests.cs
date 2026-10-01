@@ -42,7 +42,8 @@ public sealed class CrmBusinessRecordTests
 
         CrmBusinessRecord.ValidateModuleProfile(
             CrmBusinessModule.Expense, null, 100m, "Travel", new DateOnly(2026, 10, 1), null);
-        CrmBusinessRecord.ValidateModuleProfile(CrmBusinessModule.Project, null, null, null, null, null);
+        CrmBusinessRecord.ValidateModuleProfile(
+            CrmBusinessModule.Project, null, null, null, new DateOnly(2026, 10, 1), null);
     }
 
     [Fact]
@@ -56,6 +57,21 @@ public sealed class CrmBusinessRecordTests
 
         CrmBusinessRecord.ValidateModuleProfile(
             CrmBusinessModule.Contract, customerId, 5000m, "AMC", new DateOnly(2026, 10, 1), new DateOnly(2026, 12, 31));
+    }
+
+    [Fact]
+    public void Project_Profile_Requires_Start_Date_And_Valid_Deadline()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            CrmBusinessRecord.ValidateModuleProfile(CrmBusinessModule.Project, null, 50000m, "Implementation", null, null));
+        Assert.Throws<ArgumentException>(() =>
+            CrmBusinessRecord.ValidateModuleProfile(
+                CrmBusinessModule.Project, null, 50000m, "Implementation",
+                new DateOnly(2026, 10, 10), new DateOnly(2026, 10, 1)));
+
+        CrmBusinessRecord.ValidateModuleProfile(
+            CrmBusinessModule.Project, null, 50000m, "Implementation",
+            new DateOnly(2026, 10, 1), new DateOnly(2026, 12, 31));
     }
 
     [Fact]
