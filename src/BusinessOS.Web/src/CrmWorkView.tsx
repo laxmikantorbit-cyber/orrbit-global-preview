@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { cancelCrmFollowUp, cancelCrmTask, rescheduleCrmFollowUp, updateCrmTask } from './crmAdvancedApi'
 import type { CrmDashboard, CrmFollowUp, CrmLead, CrmTask, CrmTeamMember, CrmWorkSummary } from './crmApi'
+import { exportCrmSpreadsheet, type CrmSpreadsheetFormat } from './crmSpreadsheet'
 
 type View = 'followups' | 'tasks' | 'reports'
 
@@ -72,6 +73,11 @@ export function CrmWorkView(props: Props) {
   const [taskDue, setTaskDue] = useState('')
   const [taskPriority, setTaskPriority] = useState('Normal')
   const [taskAssignee, setTaskAssignee] = useState('')
+  const [taskQuery, setTaskQuery] = useState('')
+  const [taskStatusFilter, setTaskStatusFilter] = useState('All')
+  const [taskScope, setTaskScope] = useState<'all' | 'mine' | 'overdue'>('all')
+  const [taskPageSize, setTaskPageSize] = useState(25)
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([])
   const [localBusy, setLocalBusy] = useState(false)
 
   const busy = props.busy || localBusy
@@ -80,6 +86,25 @@ export function CrmWorkView(props: Props) {
   const assignableUsers = props.canViewAllOwnedRecords
     ? team.filter((x) => x.active)
     : team.filter((x) => x.active && (!props.currentUserId || x.id === props.currentUserId))
+
+  const filteredTasks = useMemo(() => {
+    const search = taskQuery.trim().toLowerCase()
+    const now = Date.now()
+    return props.tasks.filter((item) => {
+      if (taskStatusFilter !== 'All' && item.status !== taskStatusFilter) return false
+      if (taskScope === 'mine' && props.currentUserId && item.assigneeUserId !== props.currentUserId) return false
+      if (taskScope === 'overdue') {
+        if (!item.dueAtUtc || ['Completed', 'Cancelled'].includes(item.status)) return false
+        if (new Date(item.dueAtUtc).getTime() >= now) return false
+      }
+      if (!search) return true
+      const assignee = team.find(user => user.id === item.assigneeUserId)
+      const haystack = [item.title, item.details, item.status, item.priority, assignee?.displayName, leadTitle(item.leadId)]
+        .filter(Boolean).join(' ').toLowerCase()
+      return haystack.includes(search)
+    })
+  }, [leadTitle, props.currentUserId, props.tasks, taskQuery, taskScope, taskStatusFilter, team])
+  const visibleTasks = filteredTasks.slice(0, taskPageSize)
 
   function editFollowUp(item: CrmFollowUp) {
     setEditingFollowUpId(item.id)
@@ -138,6 +163,62 @@ export function CrmWorkView(props: Props) {
     } finally { setLocalBusy(false) }
   }
 
+  function toggleTaskSelection(id: string) {
+    setSelectedTaskIds(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id])
+  }
+
+  function toggleVisibleTaskSelection() {
+    const ids = visibleTasks.map(item => item.id)
+    const allSelected = ids.length > 0 && ids.every(id => selectedTaskIds.includes(id))
+    setSelectedTaskIds(allSelected
+      ? selectedTaskIds.filter(id => !ids.includes(id))
+      : Array.from(new Set([...selectedTaskIds, ...ids])))
+  }
+
+  async function exportTasks(format: CrmSpreadsheetFormat) {
+    const table = {
+      headers: ['Task', 'Lead / Customer', 'Status', 'Created', 'Due', 'Assigned To', 'Priority', 'Details'],
+      rows: filteredTasks.map(item => {
+        const assignee = team.find(user => user.id === item.assigneeUserId)
+        return [
+          item.title, leadTitle(item.leadId), item.status, item.createdAtUtc,
+          item.dueAtUtc || '', assignee?.displayName || '', item.priority, item.details || '',
+        ]
+      }),
+    }
+    await exportCrmSpreadsheet(`crm-tasks-${new Date().toISOString().slice(0, 10)}`, table, format)
+  }
+
+  async function bulkCompleteTasks() {
+    const ids = selectedTaskIds.filter(id => {
+      const item = props.tasks.find(task => task.id === id)
+      return item && !['Completed', 'Cancelled'].includes(item.status)
+    })
+    if (ids.length === 0) return
+    setLocalBusy(true)
+    try {
+      for (const id of ids) await props.completeTask(id)
+      setSelectedTaskIds(current => current.filter(id => !ids.includes(id)))
+    } finally { setLocalBusy(false) }
+  }
+
+  async function bulkCancelTasks() {
+    const ids = selectedTaskIds.filter(id => {
+      const item = props.tasks.find(task => task.id === id)
+      return item && !['Completed', 'Cancelled'].includes(item.status)
+    })
+    if (ids.length === 0) return
+    setLocalBusy(true)
+    try {
+      for (const id of ids) {
+        if (props.cancelTask) await props.cancelTask(id)
+        else await cancelCrmTask(id)
+      }
+      setSelectedTaskIds(current => current.filter(id => !ids.includes(id)))
+      if (!props.cancelTask) window.location.reload()
+    } finally { setLocalBusy(false) }
+  }
+
   if (props.view === 'followups') {
     const open = props.followUps.filter((x) => x.status === 'Open')
     return (
@@ -176,10 +257,10 @@ export function CrmWorkView(props: Props) {
       <section className="crm2-ref-list-page crm2-tasks-reference">
         <div className="crm2-ref-action-row">
           <button className="crm2-ref-primary" disabled title="Create tasks from a lead workspace">+ New Task</button>
-          <button className="crm2-ref-square">▦</button>
+          <button className={taskScope === 'mine' ? 'crm2-ref-square active' : 'crm2-ref-square'} onClick={() => setTaskScope(taskScope === 'mine' ? 'all' : 'mine')} title="My tasks">▦</button>
           <span className="crm2-action-spacer" />
-          <button className="crm2-tasks-overview">Tasks Overview</button>
-          <button className="crm2-ref-square">▼</button>
+          <button className="crm2-tasks-overview" onClick={() => { setTaskScope('all'); setTaskStatusFilter('All'); setTaskQuery('') }}>Tasks Overview</button>
+          <button className={taskScope === 'overdue' ? 'crm2-ref-square active' : 'crm2-ref-square'} onClick={() => setTaskScope(taskScope === 'overdue' ? 'all' : 'overdue')} title="Overdue tasks">▼</button>
         </div>
         <section className="crm2-reference-status-summary crm2-task-summary">
           <h2>▧ Tasks Summary</h2>
@@ -193,17 +274,28 @@ export function CrmWorkView(props: Props) {
         </section>
         <section className="crm2-ref-table-card">
           <div className="crm2-ref-table-tools">
-            <select><option>25</option><option>50</option></select><button>Export</button><button>Bulk Actions</button><button>↻</button><span />
-            <label><b>⌕</b><input placeholder="Search..." /></label>
+            <select value={taskPageSize} onChange={e => setTaskPageSize(Number(e.target.value))}><option value={25}>25</option><option value={50}>50</option></select>
+            <button onClick={() => void exportTasks('xlsx')} disabled={busy || filteredTasks.length === 0}>Export XLSX</button>
+            <button onClick={() => void exportTasks('csv')} disabled={busy || filteredTasks.length === 0}>CSV</button>
+            <button onClick={toggleVisibleTaskSelection} disabled={busy || visibleTasks.length === 0}>{visibleTasks.length > 0 && visibleTasks.every(item => selectedTaskIds.includes(item.id)) ? 'Clear Selection' : 'Select Visible'}</button>
+            <button onClick={() => window.location.reload()} disabled={busy}>↻</button><span />
+            <select value={taskStatusFilter} onChange={e => setTaskStatusFilter(e.target.value)}><option>All</option><option>Open</option><option>InProgress</option><option>Testing</option><option>AwaitingFeedback</option><option>Completed</option><option>Cancelled</option></select>
+            <label><b>⌕</b><input value={taskQuery} onChange={e => setTaskQuery(e.target.value)} placeholder="Search..." /></label>
           </div>
+          {selectedTaskIds.length > 0 ? <div className="crm2-ref-action-row">
+            <strong>{selectedTaskIds.length} selected</strong>
+            <button onClick={() => void bulkCompleteTasks()} disabled={busy}>Mark Complete</button>
+            <button onClick={() => void bulkCancelTasks()} disabled={busy}>Cancel Tasks</button>
+            <button onClick={() => setSelectedTaskIds([])} disabled={busy}>Clear</button>
+          </div> : null}
           <div className="crm2-task-head"><span></span><span>#</span><span>Name</span><span>Status</span><span>Start Date</span><span>Due Date</span><span>Assigned to</span><span>Tags</span><span>Priority</span></div>
-          {props.tasks.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : props.tasks.map((item, index) => {
-            const overdue = item.status === 'Open' && !!item.dueAtUtc && new Date(item.dueAtUtc) < new Date()
+          {filteredTasks.length === 0 ? <p className="crm2-reference-empty">No entries found</p> : visibleTasks.map((item, index) => {
+            const overdue = !['Completed', 'Cancelled'].includes(item.status) && !!item.dueAtUtc && new Date(item.dueAtUtc) < new Date()
             const editing = editingTaskId === item.id
             const assignee = team.find(user => user.id === item.assigneeUserId)
             return <div className={'crm2-task-row-wrap' + (overdue ? ' overdue' : '')} key={item.id}>
               <div className="crm2-task-row">
-                <span><input type="checkbox" /></span><span>{index + 1}</span>
+                <span><input type="checkbox" checked={selectedTaskIds.includes(item.id)} onChange={() => toggleTaskSelection(item.id)} /></span><span>{index + 1}</span>
                 <span><a onClick={() => item.leadId && props.openLead(item.leadId)}>{item.title}</a>{item.status === 'Open' ? <small><button disabled={busy} onClick={() => editTask(item)}>Edit</button><button disabled={busy} onClick={() => void props.completeTask(item.id)}>Complete</button><button disabled={busy} onClick={() => void cancelTask(item.id)}>Cancel</button></small> : null}</span>
                 <span><em className={'crm2-task-status ' + item.status.toLowerCase()}>{item.status === 'Open' ? 'Not Started' : item.status}</em></span>
                 <span>{new Date(item.createdAtUtc).toLocaleDateString('en-IN')}</span><span>{item.dueAtUtc ? new Date(item.dueAtUtc).toLocaleDateString('en-IN') : '—'}</span>
