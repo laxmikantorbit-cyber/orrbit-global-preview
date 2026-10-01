@@ -1,18 +1,24 @@
 import { useMemo, useState } from 'react'
 import {
   changeCrmInvoiceStatus,
+  changeCrmRecurringInvoiceStatus,
   convertCrmSalesDocumentToInvoice,
   createCrmInvoice,
+  createCrmRecurringInvoiceFromInvoice,
   getCrmInvoice,
+  listCrmRecurringInvoices,
   recordCrmInvoicePayment,
+  runDueCrmRecurringInvoices,
   updateCrmInvoice,
   type CrmAccount,
   type CrmInvoice,
   type CrmInvoicePayment,
+  type CrmRecurringInvoiceTemplate,
   type CrmOpportunity,
   type CrmSalesDocument,
   type CrmSalesItem,
 } from './crmApi'
+import { exportCrmSpreadsheet, type CrmSpreadsheetFormat } from './crmSpreadsheet'
 
 type Props = {
   accounts: CrmAccount[]
@@ -79,18 +85,39 @@ export function CrmInvoicesView({
   const [paymentMethod, setPaymentMethod] = useState('UPI')
   const [paymentReference, setPaymentReference] = useState('')
   const [paymentNotes, setPaymentNotes] = useState('')
+  const [pageSize, setPageSize] = useState(25)
+  const [customerFilter, setCustomerFilter] = useState('')
+  const [outstandingOnly, setOutstandingOnly] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([])
+  const [batchOpen, setBatchOpen] = useState(false)
+  const [batchMethod, setBatchMethod] = useState('UPI')
+  const [batchReference, setBatchReference] = useState('')
+  const [batchNotes, setBatchNotes] = useState('')
+  const [recurringOpen, setRecurringOpen] = useState(false)
+  const [recurringTemplates, setRecurringTemplates] = useState<CrmRecurringInvoiceTemplate[]>([])
+  const [recurringSourceId, setRecurringSourceId] = useState('')
+  const [recurringName, setRecurringName] = useState('')
+  const [recurringFrequency, setRecurringFrequency] = useState<CrmRecurringInvoiceTemplate['frequency']>('Monthly')
+  const [recurringNextDate, setRecurringNextDate] = useState(addDays(today(), 30))
+  const [recurringDueDays, setRecurringDueDays] = useState('7')
+  const [localBusy, setLocalBusy] = useState(false)
 
+  const working = busy || localBusy
   const selected = useMemo(() => invoices.find((invoice) => invoice.id === selectedId) ?? null, [invoices, selectedId])
   const filtered = useMemo(() => {
     const search = query.trim().toLowerCase()
     return invoices.filter((invoice) => {
       const account = accounts.find((item) => item.id === invoice.accountId)
       const matchesStatus = statusFilter === 'All' || invoice.status === statusFilter
+      const matchesCustomer = !customerFilter || invoice.accountId === customerFilter
+      const matchesOutstanding = !outstandingOnly || invoice.balance > 0
       const haystack = [invoice.invoiceNumber, invoice.subject, invoice.status, account?.name]
         .filter(Boolean).join(' ').toLowerCase()
-      return matchesStatus && (!search || haystack.includes(search))
+      return matchesStatus && matchesCustomer && matchesOutstanding && (!search || haystack.includes(search))
     })
-  }, [accounts, invoices, query, statusFilter])
+  }, [accounts, customerFilter, invoices, outstandingOnly, query, statusFilter])
+  const visible = filtered.slice(0, pageSize)
 
   const availableDocuments = useMemo(() => {
     const used = new Set(invoices.map((invoice) => invoice.sourceDocumentId).filter(Boolean))
@@ -251,6 +278,157 @@ export function CrmInvoicesView({
     }
   }
 
+  function toggleInvoiceSelection(id: string) {
+    setSelectedInvoiceIds(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id])
+  }
+
+  function toggleVisibleInvoiceSelection() {
+    const ids = visible.map(invoice => invoice.id)
+    const allSelected = ids.length > 0 && ids.every(id => selectedInvoiceIds.includes(id))
+    setSelectedInvoiceIds(allSelected
+      ? selectedInvoiceIds.filter(id => !ids.includes(id))
+      : Array.from(new Set([...selectedInvoiceIds, ...ids])))
+  }
+
+  async function exportInvoices(format: CrmSpreadsheetFormat) {
+    try {
+      await exportCrmSpreadsheet(`crm-invoices-${today()}`, {
+        headers: ['Invoice', 'Customer', 'Subject', 'Issue Date', 'Due Date', 'Total', 'Paid', 'Balance', 'Status'],
+        rows: filtered.map(invoice => [
+          invoice.invoiceNumber,
+          accounts.find(account => account.id === invoice.accountId)?.name || '',
+          invoice.subject,
+          invoice.issueDate,
+          invoice.dueDate,
+          invoice.total,
+          invoice.amountPaid,
+          invoice.balance,
+          invoice.status,
+        ]),
+      }, format)
+      notify(`Invoices exported to ${format.toUpperCase()}`)
+    } catch (error) {
+      notify(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  function openBatchPayments() {
+    const payable = invoices.filter(invoice =>
+      selectedInvoiceIds.includes(invoice.id) &&
+      invoice.balance > 0 &&
+      !['Draft', 'Void', 'Paid'].includes(invoice.status))
+    if (payable.length === 0) {
+      notify('Select at least one payable invoice')
+      return
+    }
+    setBatchMethod('UPI')
+    setBatchReference('')
+    setBatchNotes('')
+    setBatchOpen(true)
+  }
+
+  async function saveBatchPayments() {
+    const payable = invoices.filter(invoice =>
+      selectedInvoiceIds.includes(invoice.id) &&
+      invoice.balance > 0 &&
+      !['Draft', 'Void', 'Paid'].includes(invoice.status))
+    if (payable.length === 0) { notify('No payable invoices selected'); return }
+    setLocalBusy(true)
+    let completed = 0
+    try {
+      for (const invoice of payable) {
+        await recordCrmInvoicePayment(invoice.id, {
+          amount: invoice.balance,
+          method: batchMethod,
+          reference: batchReference.trim() || undefined,
+          notes: batchNotes.trim() || undefined,
+        })
+        completed += 1
+      }
+      setSelectedInvoiceIds([])
+      setBatchOpen(false)
+      await refresh()
+      notify(`${completed} invoice payment(s) recorded`)
+    } catch (error) {
+      await refresh()
+      notify(`Batch payments stopped after ${completed}: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setLocalBusy(false)
+    }
+  }
+
+  async function loadRecurringTemplates() {
+    const result = await listCrmRecurringInvoices()
+    setRecurringTemplates(result.templates)
+  }
+
+  async function openRecurringManager() {
+    setLocalBusy(true)
+    try {
+      await loadRecurringTemplates()
+      const source = (selected && selected.status !== 'Void' ? selected : invoices.find(invoice => invoice.status !== 'Void')) || null
+      setRecurringSourceId(source?.id || '')
+      setRecurringName(source ? `${source.subject} recurring` : '')
+      setRecurringFrequency('Monthly')
+      setRecurringNextDate(addDays(today(), 30))
+      setRecurringDueDays('7')
+      setRecurringOpen(true)
+    } catch (error) {
+      notify(error instanceof Error ? error.message : String(error))
+    } finally {
+      setLocalBusy(false)
+    }
+  }
+
+  async function saveRecurringTemplate() {
+    const dueDays = Number(recurringDueDays)
+    if (!recurringSourceId) { notify('Select a source invoice'); return }
+    if (!recurringName.trim()) { notify('Recurring template name is required'); return }
+    if (!Number.isInteger(dueDays) || dueDays < 0 || dueDays > 365) { notify('Due days must be between 0 and 365'); return }
+    setLocalBusy(true)
+    try {
+      await createCrmRecurringInvoiceFromInvoice({
+        sourceInvoiceId: recurringSourceId,
+        name: recurringName.trim(),
+        frequency: recurringFrequency,
+        nextIssueDate: recurringNextDate,
+        dueDays,
+      })
+      await loadRecurringTemplates()
+      notify('Recurring invoice template created')
+    } catch (error) {
+      notify(error instanceof Error ? error.message : String(error))
+    } finally {
+      setLocalBusy(false)
+    }
+  }
+
+  async function toggleRecurringTemplate(template: CrmRecurringInvoiceTemplate) {
+    setLocalBusy(true)
+    try {
+      await changeCrmRecurringInvoiceStatus(template.id, !template.active)
+      await loadRecurringTemplates()
+      notify(`Recurring template ${template.active ? 'paused' : 'activated'}`)
+    } catch (error) {
+      notify(error instanceof Error ? error.message : String(error))
+    } finally {
+      setLocalBusy(false)
+    }
+  }
+
+  async function runDueRecurring() {
+    setLocalBusy(true)
+    try {
+      const result = await runDueCrmRecurringInvoices(today())
+      await Promise.all([refresh(), loadRecurringTemplates()])
+      notify(`${result.generatedCount} recurring invoice(s) generated`)
+    } catch (error) {
+      notify(error instanceof Error ? error.message : String(error))
+    } finally {
+      setLocalBusy(false)
+    }
+  }
+
   const actions = selected ? (
     selected.status === 'Draft' ? ['Sent', 'Void'] :
     selected.status === 'Sent' ? ['Draft', 'Overdue', 'Void'] :
@@ -261,33 +439,99 @@ export function CrmInvoicesView({
     <section className="crm2-ref-list-page crm2-invoices">
       <div className="crm2-ref-action-row">
         {canManageSales ? <button className="crm2-ref-primary" onClick={resetDraft}>+ New Invoice</button> : null}
-        <button>Batch Payments</button>
-        <button>Recurring Invoices</button>
+        {canManageSales ? <button onClick={openBatchPayments} disabled={working || selectedInvoiceIds.length === 0}>Batch Payments</button> : null}
+        {canManageSales ? <button onClick={() => void openRecurringManager()} disabled={working}>Recurring Invoices</button> : null}
         {canManageSales ? <button onClick={() => { setConvertDocumentId(availableDocuments[0]?.id || ''); setConvertDueDate(addDays(today(), 7)); setConverting(true) }}>Convert Accepted Document</button> : null}
-        <button className="crm2-ref-square" title="Filter">▼</button>
+        <button className={filtersOpen ? 'crm2-ref-square active' : 'crm2-ref-square'} title="Filter" onClick={() => setFiltersOpen(value => !value)}>▼</button>
       </div>
+      {filtersOpen ? <section className="crm2-ref-filter-card">
+        <div className="crm2-form-grid">
+          <label>Customer<select value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}><option value="">All customers</option>{accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
+          <label>Status<select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}>{statuses.map((status) => <option key={status}>{status}</option>)}</select></label>
+          <label><span>Outstanding only</span><input type="checkbox" checked={outstandingOnly} onChange={(e) => setOutstandingOnly(e.target.checked)} /></label>
+        </div>
+        <button onClick={() => { setCustomerFilter(''); setStatusFilter('All'); setOutstandingOnly(false); setQuery('') }}>Clear Filters</button>
+      </section> : null}
+      {selectedInvoiceIds.length > 0 ? <div className="crm2-ref-action-row">
+        <strong>{selectedInvoiceIds.length} selected</strong>
+        {canManageSales ? <button onClick={openBatchPayments} disabled={working}>Record Full Balance Payments</button> : null}
+        <button onClick={() => setSelectedInvoiceIds([])} disabled={working}>Clear</button>
+      </div> : null}
       <section className="crm2-ref-table-card">
         <div className="crm2-ref-table-tools">
-          <select><option>25</option><option>50</option></select>
-          <button>Export</button><button onClick={() => void refresh()} disabled={busy}>↻</button>
+          <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}><option value={25}>25</option><option value={50}>50</option></select>
+          <button onClick={() => void exportInvoices('xlsx')} disabled={working || filtered.length === 0}>Export XLSX</button>
+          <button onClick={() => void exportInvoices('csv')} disabled={working || filtered.length === 0}>CSV</button>
+          {canManageSales ? <button onClick={toggleVisibleInvoiceSelection} disabled={working || visible.length === 0}>{visible.length > 0 && visible.every(invoice => selectedInvoiceIds.includes(invoice.id)) ? 'Clear Selection' : 'Select Visible'}</button> : null}
+          <button onClick={() => void refresh()} disabled={working}>↻</button>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}>{statuses.map((status) => <option key={status}>{status}</option>)}</select>
           <span />
           <label><b>⌕</b><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search..." /></label>
         </div>
         <div className="crm2-invoice-head">
-          <span>Invoice</span><span>Customer</span><span>Subject</span><span>Total</span><span>Paid</span><span>Balance</span><span>Status</span><span>Due</span>
+          <span></span><span>Invoice</span><span>Customer</span><span>Subject</span><span>Total</span><span>Paid</span><span>Balance</span><span>Status</span><span>Due</span>
         </div>
-        {filtered.length === 0 ? <p className="crm2-reference-empty">No invoices found</p> : filtered.map((invoice) => {
+        {filtered.length === 0 ? <p className="crm2-reference-empty">No invoices found</p> : visible.map((invoice) => {
           const account = accounts.find((item) => item.id === invoice.accountId)
-          return <button className="crm2-invoice-row" key={invoice.id} onClick={() => void openDetail(invoice.id)}>
-            <span><strong>{invoice.invoiceNumber}</strong></span>
+          return <div className="crm2-invoice-row" key={invoice.id} onDoubleClick={() => void openDetail(invoice.id)}>
+            <span><input type="checkbox" checked={selectedInvoiceIds.includes(invoice.id)} onChange={() => toggleInvoiceSelection(invoice.id)} disabled={!canManageSales} /></span>
+            <span><button className="crm2-link-button" onClick={() => void openDetail(invoice.id)}><strong>{invoice.invoiceNumber}</strong></button></span>
             <span>{account?.name || 'Unknown customer'}</span>
             <span>{invoice.subject}</span><span>{money(invoice.total)}</span><span>{money(invoice.amountPaid)}</span>
             <span>{money(invoice.balance)}</span><span><em className={`crm2-sales-status ${invoice.status.toLowerCase()}`}>{invoice.status}</em></span>
             <span>{invoice.dueDate}</span>
-          </button>
+          </div>
         })}
       </section>
+
+      {batchOpen ? <div className="crm2-overlay" onMouseDown={() => setBatchOpen(false)}>
+        <section className="crm2-drawer" onMouseDown={(e) => e.stopPropagation()}>
+          <div className="crm2-drawer-head">
+            <div><span className="crm2-kicker">BATCH PAYMENTS</span><h2>Record Full Balances</h2><p>{invoices.filter(invoice => selectedInvoiceIds.includes(invoice.id) && invoice.balance > 0 && !['Draft','Void','Paid'].includes(invoice.status)).length} payable invoice(s)</p></div>
+            <button onClick={() => setBatchOpen(false)}>×</button>
+          </div>
+          <div className="crm2-sales-total-box">
+            <strong>Total to record <b>{money(invoices.filter(invoice => selectedInvoiceIds.includes(invoice.id) && invoice.balance > 0 && !['Draft','Void','Paid'].includes(invoice.status)).reduce((sum, invoice) => sum + invoice.balance, 0))}</b></strong>
+          </div>
+          <label>Method<select value={batchMethod} onChange={(e) => setBatchMethod(e.target.value)}>{methods.map(method => <option key={method}>{method}</option>)}</select></label>
+          <label>Reference<input value={batchReference} onChange={(e) => setBatchReference(e.target.value)} placeholder="Common bank / UPI / cheque reference" /></label>
+          <label>Notes<textarea rows={2} value={batchNotes} onChange={(e) => setBatchNotes(e.target.value)} /></label>
+          <div className="crm2-drawer-actions">
+            <button onClick={() => setBatchOpen(false)}>Cancel</button>
+            <button className="crm2-primary" disabled={working} onClick={() => void saveBatchPayments()}>Record Batch Payments</button>
+          </div>
+        </section>
+      </div> : null}
+
+      {recurringOpen ? <div className="crm2-overlay" onMouseDown={() => setRecurringOpen(false)}>
+        <section className="crm2-drawer crm2-wide-drawer" onMouseDown={(e) => e.stopPropagation()}>
+          <div className="crm2-drawer-head">
+            <div><span className="crm2-kicker">RECURRING INVOICES</span><h2>Recurring Templates</h2><p>Generate draft invoices from saved billing schedules.</p></div>
+            <button onClick={() => setRecurringOpen(false)}>×</button>
+          </div>
+          <div className="crm2-form-grid">
+            <label>Source invoice<select value={recurringSourceId} onChange={(e) => { const id=e.target.value; setRecurringSourceId(id); const src=invoices.find(invoice=>invoice.id===id); if(src) setRecurringName(`${src.subject} recurring`) }}><option value="">Select invoice</option>{invoices.filter(invoice => invoice.status !== 'Void').map(invoice => <option key={invoice.id} value={invoice.id}>{invoice.invoiceNumber} — {invoice.subject}</option>)}</select></label>
+            <label>Template name<input value={recurringName} onChange={(e) => setRecurringName(e.target.value)} /></label>
+            <label>Frequency<select value={recurringFrequency} onChange={(e) => setRecurringFrequency(e.target.value as CrmRecurringInvoiceTemplate['frequency'])}><option>Monthly</option><option>Quarterly</option><option>Yearly</option></select></label>
+            <label>Next issue date<input type="date" value={recurringNextDate} onChange={(e) => setRecurringNextDate(e.target.value)} /></label>
+            <label>Due after days<input type="number" min="0" max="365" value={recurringDueDays} onChange={(e) => setRecurringDueDays(e.target.value)} /></label>
+          </div>
+          <div className="crm2-ref-action-row">
+            <button className="crm2-primary" disabled={working || !recurringSourceId} onClick={() => void saveRecurringTemplate()}>+ Create Template</button>
+            <button disabled={working} onClick={() => void runDueRecurring()}>Run Due Now</button>
+          </div>
+          <section className="crm2-payment-history">
+            <div className="crm2-sales-edit-head"><strong>Schedules</strong><span>{recurringTemplates.length} template(s)</span></div>
+            {recurringTemplates.length === 0 ? <p>No recurring templates yet.</p> : recurringTemplates.map(template => <div key={template.id}>
+              <strong>{template.name}</strong>
+              <span>{template.frequency}</span>
+              <span>Next: {template.nextIssueDate}</span>
+              <span>{accounts.find(account => account.id === template.accountId)?.name || 'Customer'}</span>
+              <button disabled={working} onClick={() => void toggleRecurringTemplate(template)}>{template.active ? 'Pause' : 'Activate'}</button>
+            </div>)}
+          </section>
+        </section>
+      </div> : null}
 
       {selected && !editing ? <div className="crm2-overlay" onMouseDown={() => setSelectedId(null)}>
         <section className="crm2-drawer crm2-wide-drawer" onMouseDown={(e) => e.stopPropagation()}>

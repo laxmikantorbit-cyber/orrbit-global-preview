@@ -54,6 +54,7 @@ if (string.IsNullOrWhiteSpace(crmConnection))
     builder.Services.AddSingleton<ICrmOpportunityStore, InMemoryCrmOpportunityStore>();
     builder.Services.AddSingleton<ICrmSalesDocumentStore, InMemoryCrmSalesDocumentStore>();
     builder.Services.AddSingleton<ICrmInvoiceStore, InMemoryCrmInvoiceStore>();
+    builder.Services.AddSingleton<ICrmRecurringInvoiceStore, InMemoryCrmRecurringInvoiceStore>();
     builder.Services.AddSingleton<ICrmSalesItemStore, InMemoryCrmSalesItemStore>();
     builder.Services.AddSingleton<ICrmCreditNoteStore, InMemoryCrmCreditNoteStore>();
     builder.Services.AddSingleton<ICrmBusinessRecordStore, InMemoryCrmBusinessRecordStore>();
@@ -77,6 +78,7 @@ else
     builder.Services.AddSingleton<ICrmOpportunityStore, PostgresCrmOpportunityStore>();
     builder.Services.AddSingleton<ICrmSalesDocumentStore, PostgresCrmSalesDocumentStore>();
     builder.Services.AddSingleton<ICrmInvoiceStore, PostgresCrmInvoiceStore>();
+    builder.Services.AddSingleton<ICrmRecurringInvoiceStore, PostgresCrmRecurringInvoiceStore>();
     builder.Services.AddSingleton<ICrmSalesItemStore, PostgresCrmSalesItemStore>();
     builder.Services.AddSingleton<ICrmCreditNoteStore, PostgresCrmCreditNoteStore>();
     builder.Services.AddSingleton<ICrmBusinessRecordStore, PostgresCrmBusinessRecordStore>();

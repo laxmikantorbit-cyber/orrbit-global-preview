@@ -263,8 +263,144 @@ public static class FreeTestingPublicCrmInvoiceEndpoints
             }
         });
 
+        group.MapGet("/recurring-invoices", async (
+            IConfiguration configuration,
+            IHostEnvironment environment,
+            ICrmRecurringInvoiceStore recurring,
+            CancellationToken cancellationToken) =>
+        {
+            if (!Enabled(configuration, environment)) return Disabled();
+            var items = await recurring.ListAsync(DemoTenantId, cancellationToken);
+            return Results.Ok(new { templates = items.Select(ToRecurringResponse).ToArray() });
+        });
+
+        group.MapPost("/recurring-invoices/from-invoice", async (
+            CreateCrmRecurringInvoiceRequest request,
+            IConfiguration configuration,
+            IHostEnvironment environment,
+            HttpContext context,
+            ICrmInvoiceStore invoices,
+            ICrmRecurringInvoiceStore recurring,
+            ICrmManagementStore management,
+            CancellationToken cancellationToken) =>
+        {
+            if (!Enabled(configuration, environment)) return Disabled();
+            var source = await invoices.GetAsync(DemoTenantId, request.SourceInvoiceId, cancellationToken);
+            if (source is null) return Results.NotFound(new ErrorResponse("Source invoice not found."));
+            try
+            {
+                var template = CrmRecurringInvoiceRules.Create(
+                    DemoTenantId,
+                    request.Name,
+                    source,
+                    request.Frequency,
+                    request.NextIssueDate,
+                    request.DueDays);
+                await recurring.AddAsync(template, cancellationToken);
+                await AuditAsync(management, context, "RecurringInvoiceCreated", "RecurringInvoice", template.Id,
+                    $"{template.Name}; {template.Frequency}; next={template.NextIssueDate:yyyy-MM-dd}", cancellationToken);
+                return Results.Ok(ToRecurringResponse(template));
+            }
+            catch (Exception ex) when (ex is ArgumentException or ArgumentOutOfRangeException or InvalidOperationException)
+            {
+                return Results.BadRequest(new ErrorResponse(ex.Message));
+            }
+        });
+
+        group.MapPost("/recurring-invoices/{templateId:guid}/status", async (
+            Guid templateId,
+            ChangeCrmRecurringInvoiceStatusRequest request,
+            IConfiguration configuration,
+            IHostEnvironment environment,
+            HttpContext context,
+            ICrmRecurringInvoiceStore recurring,
+            ICrmManagementStore management,
+            CancellationToken cancellationToken) =>
+        {
+            if (!Enabled(configuration, environment)) return Disabled();
+            var template = await recurring.GetAsync(DemoTenantId, templateId, cancellationToken);
+            if (template is null) return Results.NotFound(new ErrorResponse("Recurring invoice template not found."));
+            var updated = template with { Active = request.Active, UpdatedAtUtc = DateTimeOffset.UtcNow };
+            await recurring.SaveAsync(updated, cancellationToken);
+            await AuditAsync(management, context, "RecurringInvoiceStatusChanged", "RecurringInvoice", templateId,
+                $"active={updated.Active}", cancellationToken);
+            return Results.Ok(ToRecurringResponse(updated));
+        });
+
+        group.MapPost("/recurring-invoices/run-due", async (
+            RunDueCrmRecurringInvoicesRequest? request,
+            IConfiguration configuration,
+            IHostEnvironment environment,
+            HttpContext context,
+            ICrmInvoiceStore invoices,
+            ICrmRecurringInvoiceStore recurring,
+            ICrmManagementStore management,
+            CancellationToken cancellationToken) =>
+        {
+            if (!Enabled(configuration, environment)) return Disabled();
+            var asOf = request?.AsOf ?? DateOnly.FromDateTime(DateTime.UtcNow);
+            var templates = await recurring.ListAsync(DemoTenantId, cancellationToken);
+            var generated = new List<CrmInvoiceResponse>();
+
+            foreach (var item in templates.Where(x => x.Active && x.NextIssueDate <= asOf))
+            {
+                var current = item;
+                var generatedForTemplate = 0;
+                while (current.Active && current.NextIssueDate <= asOf && generatedForTemplate < 24)
+                {
+                    var number = await invoices.NextInvoiceNumberAsync(DemoTenantId, cancellationToken);
+                    var issueDate = current.NextIssueDate;
+                    var invoice = new SalesInvoice(
+                        Guid.NewGuid(),
+                        DemoTenantId,
+                        number,
+                        current.AccountId,
+                        current.Subject,
+                        current.Lines.Select(line => line with { Id = Guid.NewGuid() }),
+                        current.CurrencyCode,
+                        issueDate,
+                        issueDate.AddDays(current.DueDays),
+                        current.DiscountPercent,
+                        current.OpportunityId,
+                        null,
+                        current.Notes,
+                        current.Terms);
+                    await invoices.AddAsync(invoice, cancellationToken);
+                    generated.Add(ToResponse(invoice));
+                    generatedForTemplate += 1;
+                    current = current with
+                    {
+                        NextIssueDate = CrmRecurringInvoiceRules.NextDate(current.NextIssueDate, current.Frequency),
+                        UpdatedAtUtc = DateTimeOffset.UtcNow
+                    };
+                    await recurring.SaveAsync(current, cancellationToken);
+                }
+            }
+
+            await AuditAsync(management, context, "RecurringInvoicesRunDue", "RecurringInvoice", Guid.Empty,
+                $"asOf={asOf:yyyy-MM-dd}; generated={generated.Count}", cancellationToken);
+            return Results.Ok(new { asOf, generatedCount = generated.Count, invoices = generated.ToArray() });
+        });
+
         return app;
     }
+
+    private static CrmRecurringInvoiceResponse ToRecurringResponse(CrmRecurringInvoiceTemplate item) =>
+        new(
+            item.Id,
+            item.Name,
+            item.AccountId,
+            item.OpportunityId,
+            item.Subject,
+            item.CurrencyCode,
+            item.DueDays,
+            item.DiscountPercent,
+            item.Frequency,
+            item.NextIssueDate,
+            item.Active,
+            item.Lines.Count,
+            item.CreatedAtUtc,
+            item.UpdatedAtUtc);
 
     private static async Task<IResult?> ValidateOpportunityAsync(
         Guid? opportunityId,
@@ -407,6 +543,33 @@ public sealed record CreateCrmInvoicePaymentRequest(
     string? Reference,
     string? Notes,
     DateTimeOffset? ReceivedAtUtc);
+
+public sealed record CreateCrmRecurringInvoiceRequest(
+    Guid SourceInvoiceId,
+    string Name,
+    string Frequency,
+    DateOnly NextIssueDate,
+    int DueDays);
+
+public sealed record ChangeCrmRecurringInvoiceStatusRequest(bool Active);
+
+public sealed record RunDueCrmRecurringInvoicesRequest(DateOnly? AsOf);
+
+public sealed record CrmRecurringInvoiceResponse(
+    Guid Id,
+    string Name,
+    Guid AccountId,
+    Guid? OpportunityId,
+    string Subject,
+    string CurrencyCode,
+    int DueDays,
+    decimal DiscountPercent,
+    string Frequency,
+    DateOnly NextIssueDate,
+    bool Active,
+    int LineCount,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset UpdatedAtUtc);
 
 public sealed record CrmInvoiceResponse(
     Guid Id,

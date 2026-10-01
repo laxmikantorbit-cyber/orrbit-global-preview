@@ -185,6 +185,28 @@ CREATE INDEX IF NOT EXISTS ix_businessos_crm_invoice_payments_invoice
 ALTER TABLE businessos_crm.invoices
     ADD COLUMN IF NOT EXISTS amount_credited numeric(18,2) NOT NULL DEFAULT 0;
 
+CREATE TABLE IF NOT EXISTS businessos_crm.recurring_invoice_templates (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    name text NOT NULL,
+    account_id uuid NOT NULL,
+    opportunity_id uuid NULL,
+    subject text NOT NULL,
+    currency_code varchar(3) NOT NULL,
+    due_days integer NOT NULL DEFAULT 7,
+    discount_percent numeric(5,2) NOT NULL DEFAULT 0,
+    notes text NULL,
+    terms text NULL,
+    lines jsonb NOT NULL DEFAULT '[]'::jsonb,
+    frequency text NOT NULL,
+    next_issue_date date NOT NULL,
+    active boolean NOT NULL DEFAULT true,
+    created_at_utc timestamptz NOT NULL,
+    updated_at_utc timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_businessos_crm_recurring_invoice_templates_due
+    ON businessos_crm.recurring_invoice_templates(tenant_id, active, next_issue_date);
+
 CREATE TABLE IF NOT EXISTS businessos_crm.sales_items (
     id uuid PRIMARY KEY,
     tenant_id uuid NOT NULL,

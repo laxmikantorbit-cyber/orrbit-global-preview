@@ -714,6 +714,61 @@ export async function convertCrmSalesDocumentToInvoice(documentId: string, input
   return parseResponse<CrmInvoice>(response)
 }
 
+export type CrmRecurringInvoiceTemplate = {
+  id: string
+  name: string
+  accountId: string
+  opportunityId?: string | null
+  subject: string
+  currencyCode: string
+  dueDays: number
+  discountPercent: number
+  frequency: 'Monthly' | 'Quarterly' | 'Yearly'
+  nextIssueDate: string
+  active: boolean
+  lineCount: number
+  createdAtUtc: string
+  updatedAtUtc: string
+}
+
+export async function listCrmRecurringInvoices() {
+  const response = await crmFetch('/recurring-invoices')
+  return parseResponse<{ templates: CrmRecurringInvoiceTemplate[] }>(response)
+}
+
+export async function createCrmRecurringInvoiceFromInvoice(input: {
+  sourceInvoiceId: string
+  name: string
+  frequency: CrmRecurringInvoiceTemplate['frequency']
+  nextIssueDate: string
+  dueDays: number
+}) {
+  const response = await crmFetch('/recurring-invoices/from-invoice', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmRecurringInvoiceTemplate>(response)
+}
+
+export async function changeCrmRecurringInvoiceStatus(templateId: string, active: boolean) {
+  const response = await crmFetch(`/recurring-invoices/${templateId}/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ active }),
+  })
+  return parseResponse<CrmRecurringInvoiceTemplate>(response)
+}
+
+export async function runDueCrmRecurringInvoices(asOf?: string) {
+  const response = await crmFetch('/recurring-invoices/run-due', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ asOf }),
+  })
+  return parseResponse<{ asOf: string; generatedCount: number; invoices: CrmInvoice[] }>(response)
+}
+
 export async function listCrmInvoicePayments(invoiceId: string) {
   const response = await crmFetch(`/invoices/${invoiceId}/payments`)
   return parseResponse<{ payments: CrmInvoicePayment[] }>(response)
