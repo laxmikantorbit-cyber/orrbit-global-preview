@@ -275,8 +275,8 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
       <section className="crm2-ref-list-page">
         <div className="crm2-ref-action-row">
           {canManageAccounts ? <button className="crm2-ref-primary" onClick={() => setShowAccount(true)}>+ New Customer</button> : null}
-          <button className="crm2-ref-primary" onClick={importCustomers}>Import CSV / Excel</button>
-          <button className="crm2-ref-outline" onClick={() => accounts[0] && openAccount(accounts[0])}>Contacts</button>
+          {canManageAccounts ? <button className="crm2-ref-primary" onClick={importCustomers}>Import CSV / Excel</button> : null}
+          <button className="crm2-ref-outline" onClick={() => { window.location.href = '/crm/contacts' }}>Contacts</button>
         </div>
         <section className="crm2-ref-summary-card">
           <h2>Customers Summary</h2>
