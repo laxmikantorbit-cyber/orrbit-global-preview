@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import {
   changeCrmTeamRole,
   changeCrmTeamStatus,
@@ -14,14 +14,19 @@ type Props = {
   refresh: () => Promise<void>
   notify: (message: string) => void
   canManageTeam: boolean
+  quickCreateToken?: number
 }
 
-export function CrmTeamView({ members, roles, busy, refresh, notify, canManageTeam }: Props) {
+export function CrmTeamView({ members, roles, busy, refresh, notify, canManageTeam, quickCreateToken }: Props) {
   const [showAdd, setShowAdd] = useState(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [mobile, setMobile] = useState('')
   const [role, setRole] = useState('SalesExecutive')
+
+  useEffect(() => {
+    if (quickCreateToken && canManageTeam) setShowAdd(true)
+  }, [quickCreateToken, canManageTeam])
 
   async function run(action: () => Promise<unknown>, success: string) {
     try { await action(); notify(success); await refresh() }

@@ -31,6 +31,7 @@ type Props = {
   refresh: () => Promise<void>
   notify: (message: string) => void
   canManageSales: boolean
+  quickCreateToken?: number
 }
 
 function money(value: number) {
@@ -128,6 +129,7 @@ export function CrmSalesWorkspace(props: Props) {
       documents={props.documents} invoices={props.invoices} salesItems={props.salesItems}
       busy={props.busy} refresh={props.refresh} notify={props.notify}
       canManageSales={props.canManageSales}
+      quickCreateToken={props.quickCreateToken}
     />
   }
 

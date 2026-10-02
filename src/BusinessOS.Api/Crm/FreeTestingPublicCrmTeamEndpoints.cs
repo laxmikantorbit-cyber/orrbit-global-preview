@@ -29,6 +29,26 @@ public static class FreeTestingPublicCrmTeamEndpoints
             var roles=Enum.GetValues<CrmRoleCode>().Select(role=>new CrmRoleResponse(role.ToString(),CrmRolePolicy.Permissions(role).Select(x=>x.ToString()).ToArray())).ToArray();
             return Results.Ok(new{roles});
         });
+        group.MapPost("/profile",async(UpdateCrmProfileRequest request,IConfiguration config,IHostEnvironment env,HttpContext context,ICrmTeamRepository repo,CancellationToken ct)=>
+        {
+            if(!Enabled(config,env))return Disabled();
+            var current=CrmFreeTestingAccessMiddleware.Current(context);
+            var member=await repo.GetAsync(DemoTenantId,current.Id,ct);
+            if(member is null)return Results.NotFound(new ErrorResponse("CRM profile not found."));
+            var email=(request.Email??string.Empty).Trim();
+            var duplicate=(await repo.ListAsync(DemoTenantId,ct)).Any(x=>x.Id!=member.Id&&x.Email.Equals(email,StringComparison.OrdinalIgnoreCase));
+            if(duplicate)return Results.Conflict(new ErrorResponse("Another CRM user already uses this email."));
+            try
+            {
+                member.UpdateProfile(request.DisplayName,email,request.MobileNumber);
+                await repo.SaveAsync(member,ct);
+                return Results.Ok(ToResponse(member));
+            }
+            catch(Exception ex) when(ex is ArgumentException or InvalidOperationException)
+            {
+                return Results.BadRequest(new ErrorResponse(ex.Message));
+            }
+        });
         group.MapGet("/team",async(IConfiguration config,IHostEnvironment env,ICrmTeamRepository repo,CancellationToken ct)=>
         {
             if(!Enabled(config,env))return Disabled(); await EnsureSeedAsync(repo,ct); var items=await repo.ListAsync(DemoTenantId,ct); return Results.Ok(new{members=items.Select(ToResponse).ToArray()});
@@ -59,6 +79,7 @@ public static class FreeTestingPublicCrmTeamEndpoints
     private static CrmTeamMemberResponse ToResponse(CrmTeamMember x)=>new(x.Id,x.DisplayName,x.Email,x.MobileNumber,x.Role.ToString(),x.Active,x.CreatedAtUtc,CrmRolePolicy.Permissions(x.Role).Select(p=>p.ToString()).ToArray());
 }
 
+public sealed record UpdateCrmProfileRequest(string DisplayName,string Email,string? MobileNumber);
 public sealed record CreateCrmTeamMemberRequest(string DisplayName,string Email,string? MobileNumber,string Role);
 public sealed record ChangeCrmTeamRoleRequest(string Role);
 public sealed record ChangeCrmTeamStatusRequest(bool Active);

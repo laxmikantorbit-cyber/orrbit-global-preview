@@ -417,6 +417,15 @@ export async function getCrmSession() {
   return parseResponse<CrmSession>(response)
 }
 
+export async function updateCrmProfile(input: { displayName: string; email: string; mobileNumber?: string }) {
+  const response = await crmFetch('/profile', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmTeamMember>(response)
+}
+
 export async function listCrmRoles() {
   const response = await crmFetch(`/roles`)
   return parseResponse<{ roles: CrmRole[] }>(response)

@@ -112,6 +112,7 @@ public sealed class CrmFreeTestingAccessMiddleware
 
         if (HttpMethods.IsPost(request.Method))
         {
+            if (relative.Equals("profile", StringComparison.OrdinalIgnoreCase)) return null;
             if (relative.Equals("saved-views", StringComparison.OrdinalIgnoreCase) ||
                 relative.StartsWith("saved-views/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewDashboard;
             if (relative.Equals("masters", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageTeam;

@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import {
   changeCrmBusinessRecordStatus,
   createCrmBusinessRecord,
@@ -19,6 +19,7 @@ type Props = {
   refresh: () => Promise<void>
   notify: (message: string) => void
   canManage: boolean
+  quickCreateToken?: number
 }
 
 const config: Record<Props['view'], { module: CrmBusinessModule; title: string; primary: string; statuses: string[]; amountLabel: string }> = {
@@ -39,7 +40,7 @@ function fmtDate(value?: string | null) {
   return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString('en-IN')
 }
 
-export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, busy, refresh, notify, canManage }: Props) {
+export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, busy, refresh, notify, canManage, quickCreateToken }: Props) {
   const cfg = config[view]
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('All')
@@ -97,6 +98,9 @@ export function CrmBusinessRecordsView({ view, accounts, records, teamMembers, b
     setTicketTags(''); setTicketService('')
   }
   function openCreate() { resetForm(); setCreating(true) }
+  useEffect(() => {
+    if (quickCreateToken && canManage) openCreate()
+  }, [quickCreateToken])
   function openEdit(record: CrmBusinessRecord) {
     setCreating(false); setEditing(record); setTitle(record.title); setAccountId(record.accountId || '')
     setAmount(record.amount == null ? '' : String(record.amount)); setCategory(record.category || '')

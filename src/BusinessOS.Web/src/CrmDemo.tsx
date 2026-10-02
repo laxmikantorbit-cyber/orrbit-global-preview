@@ -72,9 +72,11 @@ import { CrmSubscriptionsView } from './CrmSubscriptionsView'
 import { CrmTeamView } from './CrmTeamView'
 import { CrmTimesheetsView } from './CrmTimesheetsView'
 import { CrmTaskTimerPanel } from './CrmTaskTimerPanel'
+import { CrmProfilePanel } from './CrmProfilePanel'
 import { exportCrmSpreadsheet, pickCrmSpreadsheet, type CrmSpreadsheetFormat } from './crmSpreadsheet'
 
 type CrmView = 'overview' | 'leads' | 'pipeline' | 'accounts' | 'sales' | 'subscriptions' | 'expenses' | 'contracts' | 'projects' | 'support' | 'estimateRequests' | 'knowledgeBase' | 'utilities' | 'opportunities' | 'followups' | 'tasks' | 'timesheets' | 'reports' | 'team'
+type QuickCreateKind = 'lead' | 'customer' | 'task' | 'expense' | 'project' | 'ticket' | 'proposal' | 'estimate' | 'invoice' | 'staff'
 const statuses = ['New', 'Contacted', 'Qualified', 'Converted', 'Unqualified']
 const statusLabels: Record<string, string> = { New: 'New enquiry', Contacted: 'Talked once', Qualified: 'Interested customer', Converted: 'Became customer', Unqualified: 'Not interested now' }
 
@@ -144,6 +146,10 @@ export function CrmDemo() {
   const [notifications, setNotifications] = useState<CrmNotificationItem[]>([])
   const [showNotifications, setShowNotifications] = useState(false)
   const [showTaskTimer, setShowTaskTimer] = useState(false)
+  const [showProfile, setShowProfile] = useState(false)
+  const [showQuickCreate, setShowQuickCreate] = useState(false)
+  const [quickCreateKind, setQuickCreateKind] = useState<QuickCreateKind | null>(null)
+  const [quickCreateSeq, setQuickCreateSeq] = useState(0)
   const [statusFilter, setStatusFilter] = useState('All')
   const [sourceFilter, setSourceFilter] = useState('All')
   const [assignedFilter, setAssignedFilter] = useState('All')
@@ -390,10 +396,37 @@ export function CrmDemo() {
       const result = await getCrmNotifications()
       setNotifications(result.items)
       setShowTaskTimer(false)
+      setShowProfile(false)
+      setShowQuickCreate(false)
       setShowNotifications((value) => !value)
       setMessage(`Loaded ${result.items.length} notification(s)`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  function requestQuickCreate(kind: QuickCreateKind) {
+    setShowQuickCreate(false)
+    setShowNotifications(false)
+    setShowTaskTimer(false)
+    setShowProfile(false)
+
+    if (kind === 'lead') {
+      setShowAddLead(true)
+      return
+    }
+
+    setQuickCreateKind(kind)
+    setQuickCreateSeq(value => value + 1)
+    if (kind === 'customer') setView('accounts')
+    else if (kind === 'task') setView('tasks')
+    else if (kind === 'expense') setView('expenses')
+    else if (kind === 'project') setView('projects')
+    else if (kind === 'ticket') setView('support')
+    else if (kind === 'staff') setView('team')
+    else {
+      setSalesSection(kind === 'proposal' ? 'proposals' : kind === 'estimate' ? 'estimates' : 'invoices')
+      setView('sales')
     }
   }
 
@@ -602,14 +635,28 @@ export function CrmDemo() {
         <header className="crm2-topbar crm2-ref-topbar">
           <button className="crm2-ref-menu" aria-label="Toggle menu" aria-expanded={!sidebarCollapsed} onClick={() => setSidebarCollapsed(value => !value)}>☰</button>
           <label className="crm2-ref-search"><input value={globalQuery} onChange={(e) => setGlobalQuery(e.target.value)} placeholder="Search..." /><span>{globalSearching ? '...' : '⌕'}</span></label>
-          {can('CreateLead') ? <button className="crm2-ref-plus" onClick={() => setShowAddLead(true)} aria-label="Add new lead">+</button> : null}
+          {can('CreateLead') || can('ManageAccounts') || can('ManageTasks') || can('ManageSales') || can('ManageTeam') ? <button className="crm2-ref-plus" onClick={() => { setShowQuickCreate(value => !value); setShowNotifications(false); setShowTaskTimer(false); setShowProfile(false) }} aria-label="Quick create" title="Quick create">+</button> : null}
           <div className="crm2-ref-toolbar-spacer" />
           <button className="crm2-ref-icon" title="Export leads CSV" onClick={() => void exportLeads('csv')}>⌯</button>
           <button className="crm2-ref-icon" title="Tasks" onClick={() => setView('tasks')}>✓</button>
-          <button className="crm2-ref-avatar" title={session ? `${session.member.displayName} · Team / profile` : 'Team / profile'} onClick={() => setView('team')}></button>
+          <button className="crm2-ref-avatar" title={session ? `${session.member.displayName} · My profile` : 'My profile'} onClick={() => { setShowProfile(value => !value); setShowQuickCreate(false); setShowNotifications(false); setShowTaskTimer(false) }}></button>
           {can('ManageTasks') ? <button className="crm2-ref-icon" title="Task timer" onClick={() => { setShowTaskTimer(value => !value); setShowNotifications(false) }}>◷</button> : null}
           <button className="crm2-ref-icon crm2-ref-bell" title="Notifications" onClick={() => void openNotifications()}>♢<b>{notifications.length}</b></button>
         </header>
+        {showQuickCreate ? <section className="crm2-notification-panel crm2-quick-create-panel">
+          <div className="crm2-drawer-head"><div><span className="crm2-kicker">QUICK CREATE</span><h3>Create new</h3></div><button onClick={() => setShowQuickCreate(false)}>×</button></div>
+          {can('CreateLead') ? <button onClick={() => requestQuickCreate('lead')}><strong>Lead</strong><span>New customer enquiry</span></button> : null}
+          {can('ManageAccounts') ? <button onClick={() => requestQuickCreate('customer')}><strong>Customer</strong><span>Add customer account</span></button> : null}
+          {can('ManageTasks') ? <button onClick={() => requestQuickCreate('task')}><strong>Task</strong><span>Create work task</span></button> : null}
+          {can('ManageTasks') ? <button onClick={() => requestQuickCreate('expense')}><strong>Expense</strong><span>Record business expense</span></button> : null}
+          {can('ManageTasks') ? <button onClick={() => requestQuickCreate('project')}><strong>Project</strong><span>Create project</span></button> : null}
+          {can('ManageTasks') ? <button onClick={() => requestQuickCreate('ticket')}><strong>Support Ticket</strong><span>Create support ticket</span></button> : null}
+          {can('ManageSales') ? <button onClick={() => requestQuickCreate('proposal')}><strong>Proposal</strong><span>Create sales proposal</span></button> : null}
+          {can('ManageSales') ? <button onClick={() => requestQuickCreate('estimate')}><strong>Estimate</strong><span>Create estimate</span></button> : null}
+          {can('ManageSales') ? <button onClick={() => requestQuickCreate('invoice')}><strong>Invoice</strong><span>Create invoice</span></button> : null}
+          {can('ManageTeam') ? <button onClick={() => requestQuickCreate('staff')}><strong>Staff</strong><span>Add CRM team member</span></button> : null}
+        </section> : null}
+        {showProfile && session ? <CrmProfilePanel member={session.member} busy={loading} close={() => setShowProfile(false)} refresh={refresh} notify={setMessage} /> : null}
         {showTaskTimer ? <CrmTaskTimerPanel
           timers={taskTimers}
           tasks={tasks}
@@ -769,7 +816,7 @@ export function CrmDemo() {
           </section>
         ) : null}
         {(['expenses', 'contracts', 'projects', 'support'].includes(view)) ? (
-          <CrmBusinessRecordsView view={view as 'expenses' | 'contracts' | 'projects' | 'support'} accounts={accounts} records={businessRecords} teamMembers={teamMembers} busy={loading} refresh={refresh} notify={setMessage} canManage={can('ManageTasks')} />
+          <CrmBusinessRecordsView view={view as 'expenses' | 'contracts' | 'projects' | 'support'} accounts={accounts} records={businessRecords} teamMembers={teamMembers} busy={loading} refresh={refresh} notify={setMessage} canManage={can('ManageTasks')} quickCreateToken={((quickCreateKind === 'expense' && view === 'expenses') || (quickCreateKind === 'project' && view === 'projects') || (quickCreateKind === 'ticket' && view === 'support')) ? quickCreateSeq : undefined} />
         ) : null}
         {view === 'estimateRequests' ? <CrmEstimateRequestsView requests={estimateRequests} accounts={accounts} teamMembers={teamMembers} busy={loading} refresh={refresh} notify={setMessage} canManage={can('EditLead')} canCreateEstimate={can('ManageSales')} /> : null}
         {view === 'knowledgeBase' ? <CrmKnowledgeBaseView categories={knowledgeCategories} articles={knowledgeArticles} teamMembers={teamMembers} currentRole={session?.member.role} busy={loading} refresh={refresh} notify={setMessage} canManage={can('ManageTasks')} /> : null}
@@ -797,19 +844,19 @@ export function CrmDemo() {
         ) : null}
 
         {view === 'sales' && can('ViewSales') ? (
-          <CrmSalesWorkspace section={salesSection} accounts={accounts} opportunities={opportunities} documents={salesDocuments} invoices={invoices} salesItems={salesItems} salesItemGroups={salesItemGroups} creditNotes={creditNotes} busy={loading} refresh={refresh} notify={setMessage} canManageSales={can('ManageSales')} />
+          <CrmSalesWorkspace section={salesSection} accounts={accounts} opportunities={opportunities} documents={salesDocuments} invoices={invoices} salesItems={salesItems} salesItemGroups={salesItemGroups} creditNotes={creditNotes} busy={loading} refresh={refresh} notify={setMessage} canManageSales={can('ManageSales')} quickCreateToken={(['proposal', 'estimate', 'invoice'] as QuickCreateKind[]).includes(quickCreateKind as QuickCreateKind) ? quickCreateSeq : undefined} />
         ) : null}
         {view === 'accounts' || view === 'opportunities' ? (
-          <CrmSalesView view={view} accounts={accounts} opportunities={opportunities} busy={loading} refresh={refresh} notify={setMessage} canManageAccounts={can('ManageAccounts')} canManageOpportunities={can('ManageOpportunities')} />
+          <CrmSalesView view={view} accounts={accounts} opportunities={opportunities} busy={loading} refresh={refresh} notify={setMessage} canManageAccounts={can('ManageAccounts')} canManageOpportunities={can('ManageOpportunities')} quickCreateToken={quickCreateKind === 'customer' && view === 'accounts' ? quickCreateSeq : undefined} />
         ) : null}
         {view === 'followups' || view === 'tasks' || view === 'reports' ? (
-          <CrmWorkView view={view} reportSection={reportSection} leads={leads} followUps={followUps} tasks={tasks} accounts={accounts} salesDocuments={salesDocuments} invoices={invoices} invoicePayments={invoicePayments} salesItems={salesItems} salesItemGroups={salesItemGroups} creditNotes={creditNotes} businessRecords={businessRecords} teamMembers={teamMembers} currentUserId={session?.member.id} canViewAllOwnedRecords={session?.canViewAllOwnedRecords} summary={workSummary} dashboard={dashboard} busy={loading} openLead={setSelectedLeadId} completeFollowUp={finishFollowUp} completeTask={finishTask} refresh={refresh} notify={setMessage} />
+          <CrmWorkView view={view} reportSection={reportSection} leads={leads} followUps={followUps} tasks={tasks} accounts={accounts} salesDocuments={salesDocuments} invoices={invoices} invoicePayments={invoicePayments} salesItems={salesItems} salesItemGroups={salesItemGroups} creditNotes={creditNotes} businessRecords={businessRecords} teamMembers={teamMembers} currentUserId={session?.member.id} canViewAllOwnedRecords={session?.canViewAllOwnedRecords} summary={workSummary} dashboard={dashboard} busy={loading} openLead={setSelectedLeadId} completeFollowUp={finishFollowUp} completeTask={finishTask} refresh={refresh} notify={setMessage} quickCreateToken={quickCreateKind === 'task' && view === 'tasks' ? quickCreateSeq : undefined} />
         ) : null}
         {view === 'timesheets' ? (
           <CrmTimesheetsView timesheets={timesheets} accounts={accounts} businessRecords={businessRecords} tasks={tasks} teamMembers={teamMembers} currentUserId={session?.member.id} canManage={can('ManageTasks')} canReview={session?.canViewAllOwnedRecords ?? false} busy={loading} refresh={refresh} notify={setMessage} />
         ) : null}
         {view === 'team' ? (
-          <CrmTeamView members={teamMembers} roles={roles} busy={loading} refresh={refresh} notify={setMessage} canManageTeam={can('ManageTeam')} />
+          <CrmTeamView members={teamMembers} roles={roles} busy={loading} refresh={refresh} notify={setMessage} canManageTeam={can('ManageTeam')} quickCreateToken={quickCreateKind === 'staff' ? quickCreateSeq : undefined} />
         ) : null}
         {showAddLead ? (
           <div className="crm2-overlay" onMouseDown={() => setShowAddLead(false)}>

@@ -68,7 +68,7 @@ public sealed class CrmMutationAuditMiddleware
         if (relative.StartsWith("timesheets", StringComparison.OrdinalIgnoreCase)) return "Timesheet";
         if (relative.StartsWith("accounts", StringComparison.OrdinalIgnoreCase)) return "Account";
         if (relative.StartsWith("opportunities", StringComparison.OrdinalIgnoreCase)) return "Opportunity";
-        if (relative.StartsWith("team", StringComparison.OrdinalIgnoreCase)) return "TeamMember";
+        if (relative.StartsWith("team", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("profile", StringComparison.OrdinalIgnoreCase)) return "TeamMember";
         if (relative.StartsWith("masters", StringComparison.OrdinalIgnoreCase)) return "CrmMaster";
         if (relative.StartsWith("saved-views", StringComparison.OrdinalIgnoreCase)) return "SavedView";
         return "CRM";

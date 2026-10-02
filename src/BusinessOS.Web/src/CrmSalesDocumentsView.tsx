@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   changeCrmSalesDocumentStatus,
   createCrmSalesDocument,
@@ -20,6 +20,7 @@ type Props = {
   refresh: () => Promise<void>
   notify: (message: string) => void
   canManageSales: boolean
+  quickCreateToken?: number
 }
 
 type DraftLine = {
@@ -45,7 +46,7 @@ function lineSubtotal(line: DraftLine) {
 }
 
 export function CrmSalesDocumentsView({
-  initialKind, accounts, opportunities, documents, salesItems, busy, refresh, notify, canManageSales,
+  initialKind, accounts, opportunities, documents, salesItems, busy, refresh, notify, canManageSales, quickCreateToken,
 }: Props) {
   const [kindFilter, setKindFilter] = useState<'All' | 'Proposal' | 'Estimate'>(initialKind || 'All')
   const [statusFilter, setStatusFilter] = useState<(typeof statuses)[number]>('All')
@@ -107,6 +108,10 @@ export function CrmSalesDocumentsView({
       sum + lineSubtotal(line) * factor * Math.min(100, Math.max(0, Number(line.taxPercent) || 0)) / 100, 0)
     return { subtotal, discount, tax, total: subtotal - discount + tax }
   }, [discountPercent, lines])
+
+  useEffect(() => {
+    if (quickCreateToken && initialKind && canManageSales) resetDraft(initialKind)
+  }, [quickCreateToken, initialKind, canManageSales])
 
   function resetDraft(kind: 'Proposal' | 'Estimate') {
     setDraftKind(kind)

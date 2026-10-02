@@ -20,7 +20,15 @@ public sealed class PostgresCrmTeamRepository : ICrmTeamRepository
     {
         await _db.EnsureReadyAsync(ct);
         const string sql="UPDATE businessos_crm.team_members SET display_name=@name,email=@email,mobile_number=@mobile,role=@role,active=@active WHERE tenant_id=@tenant AND id=@id";
-        await using var c=_db.DataSource.CreateCommand(sql); Add(c,x); if(await c.ExecuteNonQueryAsync(ct)==0)throw new InvalidOperationException("Team member does not exist.");
+        await using var c=_db.DataSource.CreateCommand(sql); Add(c,x);
+        try
+        {
+            if(await c.ExecuteNonQueryAsync(ct)==0)throw new InvalidOperationException("Team member does not exist.");
+        }
+        catch(PostgresException ex) when(ex.SqlState==PostgresErrorCodes.UniqueViolation)
+        {
+            throw new InvalidOperationException("Team member email already exists.",ex);
+        }
     }
     public async Task<CrmTeamMember?> GetAsync(Guid tenantId,Guid id,CancellationToken ct=default)
     {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   addCrmContact,
   bulkUpdateCrmAccounts,
@@ -20,6 +20,7 @@ type Props = {
   notify: (message: string) => void
   canManageAccounts: boolean
   canManageOpportunities: boolean
+  quickCreateToken?: number
 }
 
 const stages = ['Discovery', 'SolutionFit', 'Proposal', 'Negotiation', 'Won', 'Lost']
@@ -33,7 +34,7 @@ function parseGroups(value: string) {
   return Array.from(new Set(value.split(/[;,|]/).map((group) => group.trim()).filter(Boolean)))
 }
 
-export function CrmSalesView({ view, accounts, opportunities, busy, refresh, notify, canManageAccounts, canManageOpportunities }: Props) {
+export function CrmSalesView({ view, accounts, opportunities, busy, refresh, notify, canManageAccounts, canManageOpportunities, quickCreateToken }: Props) {
   const [showAccount, setShowAccount] = useState(false)
   const [showOpportunity, setShowOpportunity] = useState(false)
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null)
@@ -88,6 +89,10 @@ export function CrmSalesView({ view, accounts, opportunities, busy, refresh, not
     })
   }, [accounts, customerGroupFilter, customerQuery, customerStatusFilter, excludeInactive])
   const visibleAccounts = filteredAccounts.slice(0, customerPageSize)
+  useEffect(() => {
+    if (quickCreateToken && view === 'accounts' && canManageAccounts) setShowAccount(true)
+  }, [quickCreateToken, view, canManageAccounts])
+
   const totalPipeline = opportunities
     .filter((item) => !['Won', 'Lost'].includes(item.stage))
     .reduce((sum, item) => sum + item.estimatedValue, 0)

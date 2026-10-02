@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   changeCrmInvoiceStatus,
   changeCrmRecurringInvoiceStatus,
@@ -30,6 +30,7 @@ type Props = {
   refresh: () => Promise<void>
   notify: (message: string) => void
   canManageSales: boolean
+  quickCreateToken?: number
 }
 
 type DraftLine = {
@@ -61,7 +62,7 @@ function lineSubtotal(line: DraftLine) {
 }
 
 export function CrmInvoicesView({
-  accounts, opportunities, documents, invoices, salesItems, busy, refresh, notify, canManageSales,
+  accounts, opportunities, documents, invoices, salesItems, busy, refresh, notify, canManageSales, quickCreateToken,
 }: Props) {
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<(typeof statuses)[number]>('All')
@@ -163,6 +164,10 @@ export function CrmInvoicesView({
     setLines([emptyLine()])
     setEditing(true)
   }
+
+  useEffect(() => {
+    if (quickCreateToken && canManageSales) resetDraft()
+  }, [quickCreateToken, canManageSales])
 
   function editInvoice(invoice: CrmInvoice) {
     if (invoice.status !== 'Draft') { notify('Only draft invoices can be edited'); return }

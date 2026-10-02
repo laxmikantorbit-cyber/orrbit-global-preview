@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { cancelCrmFollowUp, cancelCrmTask, rescheduleCrmFollowUp, updateCrmTask } from './crmAdvancedApi'
 import { createCrmTask, type CrmAccount, type CrmBusinessRecord, type CrmCreditNote, type CrmDashboard, type CrmFollowUp, type CrmInvoice, type CrmInvoicePayment, type CrmLead, type CrmSalesDocument, type CrmSalesItem, type CrmSalesItemGroup, type CrmTask, type CrmTeamMember, type CrmWorkSummary } from './crmApi'
 import { exportCrmSpreadsheet, type CrmSpreadsheetFormat } from './crmSpreadsheet'
@@ -49,6 +49,7 @@ type Props = {
   cancelTask?: (id: string) => Promise<void>
   refresh?: () => Promise<void>
   notify?: (message: string) => void
+  quickCreateToken?: number
 }
 
 function formatDate(value?: string | null) {
@@ -139,6 +140,10 @@ export function CrmWorkView(props: Props) {
     setTaskPriority('Normal')
     setTaskAssignee(props.currentUserId || '')
   }
+
+  useEffect(() => {
+    if (props.quickCreateToken && props.view === 'tasks') beginTask()
+  }, [props.quickCreateToken, props.view])
 
   function editTask(item: CrmTask) {
     setCreatingTask(false)
