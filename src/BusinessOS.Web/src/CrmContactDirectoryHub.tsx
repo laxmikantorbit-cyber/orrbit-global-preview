@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import './CrmDemo.css'
 import './CrmAdvancedHub.css'
 import { listCrmContactDirectory, updateCrmContactDesignation, type CrmContactDirectoryItem } from './crmContactsApi'
+import { getCrmSession } from './crmApi'
 
 export function CrmContactDirectoryHub() {
   const [contacts, setContacts] = useState<CrmContactDirectoryItem[]>([])
@@ -10,12 +11,14 @@ export function CrmContactDirectoryHub() {
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
   const [designation, setDesignation] = useState('')
+  const [canManageContacts, setCanManageContacts] = useState(false)
 
   async function refresh() {
     setBusy(true)
     try {
-      const result = await listCrmContactDirectory()
+      const [result, session] = await Promise.all([listCrmContactDirectory(), getCrmSession()])
       setContacts(result.contacts)
+      setCanManageContacts(session.member.permissions.includes('ManageAccounts'))
       setMessage(`${result.contacts.length} contact(s) loaded`)
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)) }
     finally { setBusy(false) }
@@ -54,7 +57,7 @@ export function CrmContactDirectoryHub() {
         <div className="crm-advanced-list">
           {visible.map(item => <article key={item.contactId}>
             <div><b>{item.accountName}{item.isPrimary ? ' · Primary' : ''}</b><strong>{item.name}</strong><small>{item.designation || 'Designation not set'} · {item.phone || 'No mobile'} · {item.email || 'No email'}</small></div>
-            {editing === item.contactId ? <div className="crm2-top-actions"><input value={designation} onChange={e => setDesignation(e.target.value)} placeholder="Designation"/><button className="crm2-primary" disabled={busy} onClick={() => void save(item)}>Save</button><button onClick={() => setEditing(null)}>Cancel</button></div> : <button onClick={() => { setEditing(item.contactId); setDesignation(item.designation || '') }}>Edit designation</button>}
+            {canManageContacts ? (editing === item.contactId ? <div className="crm2-top-actions"><input value={designation} onChange={e => setDesignation(e.target.value)} placeholder="Designation"/><button className="crm2-primary" disabled={busy} onClick={() => void save(item)}>Save</button><button onClick={() => setEditing(null)}>Cancel</button></div> : <button onClick={() => { setEditing(item.contactId); setDesignation(item.designation || '') }}>Edit designation</button>) : <span className="crm2-readonly-badge">Read only</span>}
           </article>)}
           {!visible.length ? <p>No matching contacts.</p> : null}
         </div>
