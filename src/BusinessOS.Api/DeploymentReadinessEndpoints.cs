@@ -99,8 +99,11 @@ public sealed record DeploymentReadinessReport(
         checks.Add($"payments_mode:{paymentsMode}");
         if (string.Equals(storageMode, "Postgres", StringComparison.OrdinalIgnoreCase))
         {
-            Require(configuration, "ConnectionStrings:Commerce", missing);
-            if (!missing.Contains("ConnectionStrings:Commerce"))
+            var commerceConnection = configuration.GetConnectionString("Commerce");
+            var crmConnection = configuration.GetConnectionString("Crm");
+            if (string.IsNullOrWhiteSpace(commerceConnection) && string.IsNullOrWhiteSpace(crmConnection))
+                missing.Add("ConnectionStrings:CommerceOrCrm");
+            else
                 checks.Add("commerce_database_configured");
         }
         checks.Add(string.Equals(storageMode, "Postgres", StringComparison.OrdinalIgnoreCase)

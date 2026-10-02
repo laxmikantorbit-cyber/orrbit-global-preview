@@ -112,6 +112,8 @@ builder.Services.AddHttpClient<IRazorpayPaymentClient, RazorpayHttpPaymentClient
 builder.Services.AddScoped<RazorpayCheckoutService>();
 builder.Services.AddScoped<RazorpayAutoPayService>();
 var commerceConnection = builder.Configuration.GetConnectionString("Commerce");
+if (string.IsNullOrWhiteSpace(commerceConnection) && useFreeTestingPostgres)
+    commerceConnection = builder.Configuration.GetConnectionString("Crm");
 if (string.IsNullOrWhiteSpace(commerceConnection))
 {
     builder.Services.AddSingleton<IPaymentEventStore, InMemoryPaymentEventStore>();
