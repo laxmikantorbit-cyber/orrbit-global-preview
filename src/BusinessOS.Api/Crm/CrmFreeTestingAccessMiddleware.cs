@@ -92,6 +92,8 @@ public sealed class CrmFreeTestingAccessMiddleware
             if (relative.Equals("leads", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("leads/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewLeads;
             if (relative.Equals("follow-ups", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageFollowUps;
             if (relative.Equals("tasks", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageTasks;
+            if (relative.Equals("timesheets", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("timesheets/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewReports;
+            if (relative.Equals("task-timers", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("task-timers/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageTasks;
             if (relative.Equals("accounts", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("accounts/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewAccounts;
             if (relative.Equals("opportunities", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("opportunities/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewOpportunities;
             if (relative.Equals("sales-documents", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("sales-documents/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ViewSales;
@@ -123,6 +125,8 @@ public sealed class CrmFreeTestingAccessMiddleware
             }
             if (relative.StartsWith("follow-ups/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageFollowUps;
             if (relative.Equals("tasks", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("tasks/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageTasks;
+            if (relative.Equals("timesheets", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("timesheets/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageTasks;
+            if (relative.Equals("task-timers", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("task-timers/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageTasks;
             if (relative.Equals("accounts", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("accounts/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageAccounts;
             if (relative.Equals("opportunities", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("opportunities/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageOpportunities;
             if (relative.Equals("sales-documents", StringComparison.OrdinalIgnoreCase) || relative.StartsWith("sales-documents/", StringComparison.OrdinalIgnoreCase)) return CrmPermission.ManageSales;

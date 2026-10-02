@@ -284,6 +284,47 @@ CREATE INDEX IF NOT EXISTS ix_businessos_crm_business_records_module
 CREATE INDEX IF NOT EXISTS ix_businessos_crm_business_records_account
     ON businessos_crm.business_records(tenant_id, account_id, module);
 
+CREATE TABLE IF NOT EXISTS businessos_crm.timesheet_entries (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    work_date date NOT NULL,
+    minutes integer NOT NULL CHECK (minutes BETWEEN 1 AND 1440),
+    activity text NOT NULL,
+    billable boolean NOT NULL DEFAULT false,
+    project_id uuid NULL,
+    task_id uuid NULL,
+    account_id uuid NULL,
+    notes text NULL,
+    status text NOT NULL,
+    created_at_utc timestamptz NOT NULL,
+    updated_at_utc timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_businessos_crm_timesheets_date
+    ON businessos_crm.timesheet_entries(tenant_id, work_date DESC, status);
+CREATE INDEX IF NOT EXISTS ix_businessos_crm_timesheets_user
+    ON businessos_crm.timesheet_entries(tenant_id, user_id, work_date DESC);
+CREATE INDEX IF NOT EXISTS ix_businessos_crm_timesheets_project
+    ON businessos_crm.timesheet_entries(tenant_id, project_id, work_date DESC)
+    WHERE project_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS businessos_crm.task_timer_entries (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    task_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    started_at_utc timestamptz NOT NULL,
+    stopped_at_utc timestamptz NULL,
+    note text NULL,
+    created_at_utc timestamptz NOT NULL,
+    updated_at_utc timestamptz NOT NULL,
+    CHECK (stopped_at_utc IS NULL OR stopped_at_utc >= started_at_utc)
+);
+CREATE INDEX IF NOT EXISTS ix_businessos_crm_task_timers_user
+    ON businessos_crm.task_timer_entries(tenant_id, user_id, started_at_utc DESC);
+CREATE INDEX IF NOT EXISTS ix_businessos_crm_task_timers_task
+    ON businessos_crm.task_timer_entries(tenant_id, task_id, started_at_utc DESC);
+
 CREATE TABLE IF NOT EXISTS businessos_crm.estimate_requests (
     id uuid PRIMARY KEY,
     tenant_id uuid NOT NULL,

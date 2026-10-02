@@ -32,6 +32,8 @@ import {
   listCrmRoles,
   listCrmSalesDocuments,
   listCrmTasks,
+  listCrmTaskTimers,
+  listCrmTimesheets,
   listCrmTeam,
   type CrmAccount,
   type CrmDashboard,
@@ -55,6 +57,8 @@ import {
   type CrmSalesDocument,
   type CrmSession,
   type CrmTask,
+  type CrmTaskTimer,
+  type CrmTimesheet,
   type CrmTeamMember,
   type CrmWorkSummary,
 } from './crmApi'
@@ -66,9 +70,11 @@ import { CrmBusinessRecordsView } from './CrmBusinessRecordsView'
 import { CrmEstimateRequestsView, CrmKnowledgeBaseView, CrmUtilitiesView } from './CrmPhase4BViews'
 import { CrmSubscriptionsView } from './CrmSubscriptionsView'
 import { CrmTeamView } from './CrmTeamView'
+import { CrmTimesheetsView } from './CrmTimesheetsView'
+import { CrmTaskTimerPanel } from './CrmTaskTimerPanel'
 import { exportCrmSpreadsheet, pickCrmSpreadsheet, type CrmSpreadsheetFormat } from './crmSpreadsheet'
 
-type CrmView = 'overview' | 'leads' | 'pipeline' | 'accounts' | 'sales' | 'subscriptions' | 'expenses' | 'contracts' | 'projects' | 'support' | 'estimateRequests' | 'knowledgeBase' | 'utilities' | 'opportunities' | 'followups' | 'tasks' | 'reports' | 'team'
+type CrmView = 'overview' | 'leads' | 'pipeline' | 'accounts' | 'sales' | 'subscriptions' | 'expenses' | 'contracts' | 'projects' | 'support' | 'estimateRequests' | 'knowledgeBase' | 'utilities' | 'opportunities' | 'followups' | 'tasks' | 'timesheets' | 'reports' | 'team'
 const statuses = ['New', 'Contacted', 'Qualified', 'Converted', 'Unqualified']
 const statusLabels: Record<string, string> = { New: 'New enquiry', Contacted: 'Talked once', Qualified: 'Interested customer', Converted: 'Became customer', Unqualified: 'Not interested now' }
 
@@ -107,6 +113,8 @@ export function CrmDemo() {
   const [leads, setLeads] = useState<CrmLead[]>([])
   const [followUps, setFollowUps] = useState<CrmFollowUp[]>([])
   const [tasks, setTasks] = useState<CrmTask[]>([])
+  const [taskTimers, setTaskTimers] = useState<CrmTaskTimer[]>([])
+  const [timesheets, setTimesheets] = useState<CrmTimesheet[]>([])
   const [accounts, setAccounts] = useState<CrmAccount[]>([])
   const [opportunities, setOpportunities] = useState<CrmOpportunity[]>([])
   const [salesDocuments, setSalesDocuments] = useState<CrmSalesDocument[]>([])
@@ -135,6 +143,7 @@ export function CrmDemo() {
   const [globalSearching, setGlobalSearching] = useState(false)
   const [notifications, setNotifications] = useState<CrmNotificationItem[]>([])
   const [showNotifications, setShowNotifications] = useState(false)
+  const [showTaskTimer, setShowTaskTimer] = useState(false)
   const [statusFilter, setStatusFilter] = useState('All')
   const [sourceFilter, setSourceFilter] = useState('All')
   const [assignedFilter, setAssignedFilter] = useState('All')
@@ -380,6 +389,7 @@ export function CrmDemo() {
     try {
       const result = await getCrmNotifications()
       setNotifications(result.items)
+      setShowTaskTimer(false)
       setShowNotifications((value) => !value)
       setMessage(`Loaded ${result.items.length} notification(s)`)
     } catch (error) {
@@ -393,11 +403,13 @@ export function CrmDemo() {
       const sessionResult = await getCrmSession()
       setSession(sessionResult)
       const allowed = (permission: string) => sessionResult.member.permissions.includes(permission)
-      const [leadResult, dashResult, followResult, taskResult, workResult, accountResult, opportunityResult, salesResult, subscriptionResult, invoiceResult, paymentResult, salesItemResult, salesItemGroupResult, creditNoteResult, businessResult, estimateRequestResult, knowledgeCategoryResult, knowledgeArticleResult, mediaResult, teamResult, roleResult, readyResult] = await Promise.all([
+      const [leadResult, dashResult, followResult, taskResult, taskTimerResult, timesheetResult, workResult, accountResult, opportunityResult, salesResult, subscriptionResult, invoiceResult, paymentResult, salesItemResult, salesItemGroupResult, creditNoteResult, businessResult, estimateRequestResult, knowledgeCategoryResult, knowledgeArticleResult, mediaResult, teamResult, roleResult, readyResult] = await Promise.all([
         allowed('ViewLeads') ? listCrmLeads() : Promise.resolve({ leads: [] as CrmLead[] }),
         allowed('ViewDashboard') ? crmDashboard() : Promise.resolve(initialDashboard()),
         allowed('ManageFollowUps') ? listCrmFollowUps() : Promise.resolve({ followUps: [] as CrmFollowUp[] }),
         allowed('ManageTasks') ? listCrmTasks() : Promise.resolve({ tasks: [] as CrmTask[] }),
+        allowed('ManageTasks') ? listCrmTaskTimers() : Promise.resolve({ timers: [] as CrmTaskTimer[] }),
+        allowed('ViewReports') ? listCrmTimesheets() : Promise.resolve({ timesheets: [] as CrmTimesheet[] }),
         allowed('ViewDashboard') ? crmWorkSummary() : Promise.resolve(initialWorkSummary()),
         allowed('ViewAccounts') ? listCrmAccounts() : Promise.resolve({ accounts: [] as CrmAccount[] }),
         allowed('ViewOpportunities') ? listCrmOpportunities() : Promise.resolve({ opportunities: [] as CrmOpportunity[] }),
@@ -421,6 +433,8 @@ export function CrmDemo() {
       setDashboard(dashResult)
       setFollowUps(followResult.followUps)
       setTasks(taskResult.tasks)
+      setTaskTimers(taskTimerResult.timers)
+      setTimesheets(timesheetResult.timesheets)
       setWorkSummary(workResult)
       setAccounts(accountResult.accounts)
       setOpportunities(opportunityResult.opportunities)
@@ -567,13 +581,14 @@ export function CrmDemo() {
               <button onClick={() => setView('support')}>Support Tickets</button>
             </div> : null}
           </div>
-          {can('ViewReports') ? <div className={'crm2-nav-group ' + ((reportsMenuOpen || view === 'reports') ? 'open' : '')}>
-            <button className={view === 'reports' ? 'active' : ''} onClick={() => setReportsMenuOpen(value => !value)}><span>≡</span>Reports <i>{reportsMenuOpen || view === 'reports' ? '⌄' : '‹'}</i></button>
-            {reportsMenuOpen || view === 'reports' ? <div className="crm2-nav-sub">
+          {can('ViewReports') ? <div className={'crm2-nav-group ' + ((reportsMenuOpen || view === 'reports' || view === 'timesheets') ? 'open' : '')}>
+            <button className={view === 'reports' || view === 'timesheets' ? 'active' : ''} onClick={() => setReportsMenuOpen(value => !value)}><span>≡</span>Reports <i>{reportsMenuOpen || view === 'reports' || view === 'timesheets' ? '⌄' : '‹'}</i></button>
+            {reportsMenuOpen || view === 'reports' || view === 'timesheets' ? <div className="crm2-nav-sub">
               <button className={view === 'reports' && reportSection === 'sales' ? 'active' : ''} onClick={() => { setReportSection('sales'); setView('reports') }}>Sales</button>
               <button className={view === 'reports' && reportSection === 'expenses' ? 'active' : ''} onClick={() => { setReportSection('expenses'); setView('reports') }}>Expenses</button>
               <button className={view === 'reports' && reportSection === 'profit' ? 'active' : ''} onClick={() => { setReportSection('profit'); setView('reports') }}>Expenses vs Income</button>
               <a href="/crm/analytics">Leads</a>
+              <button className={view === 'timesheets' ? 'active' : ''} onClick={() => setView('timesheets')}>Timesheets</button>
               <a href="/crm/analytics">Team Productivity</a>
               <button onClick={() => setView('knowledgeBase')}>KB Articles</button>
             </div> : null}
@@ -592,9 +607,21 @@ export function CrmDemo() {
           <button className="crm2-ref-icon" title="Export leads CSV" onClick={() => void exportLeads('csv')}>⌯</button>
           <button className="crm2-ref-icon" title="Tasks" onClick={() => setView('tasks')}>✓</button>
           <button className="crm2-ref-avatar" title={session ? `${session.member.displayName} · Team / profile` : 'Team / profile'} onClick={() => setView('team')}></button>
-          <button className="crm2-ref-icon" title="Follow-up schedule" onClick={() => setView('followups')}>◷</button>
+          {can('ManageTasks') ? <button className="crm2-ref-icon" title="Task timer" onClick={() => { setShowTaskTimer(value => !value); setShowNotifications(false) }}>◷</button> : null}
           <button className="crm2-ref-icon crm2-ref-bell" title="Notifications" onClick={() => void openNotifications()}>♢<b>{notifications.length}</b></button>
         </header>
+        {showTaskTimer ? <CrmTaskTimerPanel
+          timers={taskTimers}
+          tasks={tasks}
+          currentUserId={session?.member.id}
+          canViewAll={session?.canViewAllOwnedRecords ?? false}
+          canViewTimesheets={can('ViewReports')}
+          busy={loading}
+          close={() => setShowTaskTimer(false)}
+          refresh={refresh}
+          openTimesheets={() => { setShowTaskTimer(false); setView('timesheets') }}
+          notify={setMessage}
+        /> : null}
         {globalHits.length > 0 ? <div className="crm2-global-results">{globalHits.map((hit) => <button key={`${hit.type}-${hit.id}`} onClick={() => openSearchHit(hit)}><strong>{hit.title}</strong><span>{hit.type} · {hit.status}</span><small>{hit.subtitle || hit.secondary || ''}</small></button>)}</div> : null}
         {showNotifications ? <div className="crm2-notification-panel">{notifications.length === 0 ? <p>No notifications right now</p> : notifications.map((item) => <button key={`${item.type}-${item.recordId}`} onClick={() => { if (item.leadId) { setSelectedLeadId(item.leadId); setView('leads') } setShowNotifications(false) }}><strong>{item.title}</strong><span>{item.detail}</span><small>{item.severity}</small></button>)}</div> : null}
         {view === 'overview' ? <>
@@ -777,6 +804,9 @@ export function CrmDemo() {
         ) : null}
         {view === 'followups' || view === 'tasks' || view === 'reports' ? (
           <CrmWorkView view={view} reportSection={reportSection} leads={leads} followUps={followUps} tasks={tasks} accounts={accounts} salesDocuments={salesDocuments} invoices={invoices} invoicePayments={invoicePayments} salesItems={salesItems} salesItemGroups={salesItemGroups} creditNotes={creditNotes} businessRecords={businessRecords} teamMembers={teamMembers} currentUserId={session?.member.id} canViewAllOwnedRecords={session?.canViewAllOwnedRecords} summary={workSummary} dashboard={dashboard} busy={loading} openLead={setSelectedLeadId} completeFollowUp={finishFollowUp} completeTask={finishTask} refresh={refresh} notify={setMessage} />
+        ) : null}
+        {view === 'timesheets' ? (
+          <CrmTimesheetsView timesheets={timesheets} accounts={accounts} businessRecords={businessRecords} tasks={tasks} teamMembers={teamMembers} currentUserId={session?.member.id} canManage={can('ManageTasks')} canReview={session?.canViewAllOwnedRecords ?? false} busy={loading} refresh={refresh} notify={setMessage} />
         ) : null}
         {view === 'team' ? (
           <CrmTeamView members={teamMembers} roles={roles} busy={loading} refresh={refresh} notify={setMessage} canManageTeam={can('ManageTeam')} />

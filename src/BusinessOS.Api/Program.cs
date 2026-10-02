@@ -58,6 +58,8 @@ if (string.IsNullOrWhiteSpace(crmConnection))
     builder.Services.AddSingleton<ICrmSalesItemStore, InMemoryCrmSalesItemStore>();
     builder.Services.AddSingleton<ICrmCreditNoteStore, InMemoryCrmCreditNoteStore>();
     builder.Services.AddSingleton<ICrmBusinessRecordStore, InMemoryCrmBusinessRecordStore>();
+    builder.Services.AddSingleton<ICrmTimesheetStore, InMemoryCrmTimesheetStore>();
+    builder.Services.AddSingleton<ICrmTaskTimerStore, InMemoryCrmTaskTimerStore>();
     builder.Services.AddSingleton<ICrmEstimateRequestStore, InMemoryCrmEstimateRequestStore>();
     builder.Services.AddSingleton<ICrmKnowledgeStore, InMemoryCrmKnowledgeStore>();
     builder.Services.AddSingleton<ICrmMediaStore, InMemoryCrmMediaStore>();
@@ -82,6 +84,8 @@ else
     builder.Services.AddSingleton<ICrmSalesItemStore, PostgresCrmSalesItemStore>();
     builder.Services.AddSingleton<ICrmCreditNoteStore, PostgresCrmCreditNoteStore>();
     builder.Services.AddSingleton<ICrmBusinessRecordStore, PostgresCrmBusinessRecordStore>();
+    builder.Services.AddSingleton<ICrmTimesheetStore, PostgresCrmTimesheetStore>();
+    builder.Services.AddSingleton<ICrmTaskTimerStore, PostgresCrmTaskTimerStore>();
     builder.Services.AddSingleton<ICrmEstimateRequestStore, PostgresCrmEstimateRequestStore>();
     builder.Services.AddSingleton<ICrmKnowledgeStore, PostgresCrmKnowledgeStore>();
     builder.Services.AddSingleton<ICrmMediaStore, PostgresCrmMediaStore>();
@@ -198,6 +202,8 @@ app.MapFreeTestingPublicCrmSalesDocumentEndpoints();
 app.MapFreeTestingPublicCrmInvoiceEndpoints();
 app.MapFreeTestingPublicCrmCreditNoteItemEndpoints();
 app.MapFreeTestingPublicCrmBusinessRecordEndpoints();
+app.MapFreeTestingPublicCrmTimesheetEndpoints();
+app.MapFreeTestingPublicCrmTaskTimerEndpoints();
 app.MapFreeTestingPublicCrmEstimateRequestEndpoints();
 app.MapFreeTestingPublicCrmKnowledgeMediaEndpoints();
 app.MapFreeTestingPublicCrmAddressEndpoints();

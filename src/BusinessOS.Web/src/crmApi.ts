@@ -1014,6 +1014,100 @@ export async function changeCrmBusinessRecordStatus(recordId: string, status: st
   return parseResponse<CrmBusinessRecord>(response)
 }
 
+export type CrmTimesheet = {
+  id: string
+  userId: string
+  projectId?: string | null
+  taskId?: string | null
+  accountId?: string | null
+  workDate: string
+  minutes: number
+  activity: string
+  billable: boolean
+  notes?: string | null
+  status: 'Draft' | 'Submitted' | 'Approved' | 'Rejected'
+  createdAtUtc: string
+  updatedAtUtc: string
+}
+
+export type CrmTimesheetDraft = {
+  userId?: string | null
+  workDate: string
+  minutes: number
+  activity: string
+  billable: boolean
+  projectId?: string | null
+  taskId?: string | null
+  accountId?: string | null
+  notes?: string
+}
+
+export async function listCrmTimesheets() {
+  const response = await crmFetch('/timesheets')
+  return parseResponse<{ timesheets: CrmTimesheet[] }>(response)
+}
+
+export async function createCrmTimesheet(input: CrmTimesheetDraft) {
+  const response = await crmFetch('/timesheets', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmTimesheet>(response)
+}
+
+export async function updateCrmTimesheet(entryId: string, input: CrmTimesheetDraft & { userId: string }) {
+  const response = await crmFetch(`/timesheets/${entryId}/profile`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseResponse<CrmTimesheet>(response)
+}
+
+export async function changeCrmTimesheetStatus(entryId: string, status: CrmTimesheet['status']) {
+  const response = await crmFetch(`/timesheets/${entryId}/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  })
+  return parseResponse<CrmTimesheet>(response)
+}
+
+export type CrmTaskTimer = {
+  id: string
+  taskId: string
+  userId: string
+  startedAtUtc: string
+  stoppedAtUtc?: string | null
+  note?: string | null
+  isRunning: boolean
+  durationSeconds: number
+  createdAtUtc: string
+  updatedAtUtc: string
+}
+
+export async function listCrmTaskTimers() {
+  const response = await crmFetch('/task-timers')
+  return parseResponse<{ timers: CrmTaskTimer[] }>(response)
+}
+
+export async function startCrmTaskTimer(taskId: string, note?: string) {
+  const response = await crmFetch('/task-timers/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ taskId, note: note?.trim() || null }),
+  })
+  return parseResponse<CrmTaskTimer>(response)
+}
+
+export async function stopCrmTaskTimer(timerId: string) {
+  const response = await crmFetch(`/task-timers/${timerId}/stop`, {
+    method: 'POST',
+  })
+  return parseResponse<CrmTaskTimer>(response)
+}
+
 export type CrmEstimateRequest = {
   id: string
   source: string
