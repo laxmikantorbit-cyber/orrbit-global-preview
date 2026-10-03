@@ -1,6 +1,13 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AI Permission Cleanup Planner — Research Preview</title>
+<title>NTFS Permission Cleanup & Effective Access Planner | Research Preview</title>
+<meta name="description" content="Research preview for a local Windows tool that audits NTFS and Active Directory permissions, explains effective access, flags risky ACLs, and builds a safe cleanup plan.">
+<meta name="robots" content="index,follow">
+<link rel="canonical" href="https://ai-permission-cleanup-smoke.onrender.com/">
+<meta property="og:title" content="AI Permission Cleanup Planner">
+<meta property="og:description" content="See who really has access to Windows file shares and plan a safer NTFS permission cleanup before changing production ACLs.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://ai-permission-cleanup-smoke.onrender.com/">
 <style>
 body{font-family:Arial,sans-serif;background:#0b1020;color:#eef2ff;margin:0;line-height:1.55}
 .wrap{max-width:980px;margin:auto;padding:48px 24px}.badge{display:inline-block;padding:7px 11px;border:1px solid #334155;border-radius:999px;color:#a5b4fc}
@@ -21,11 +28,17 @@ small,.muted{color:#94a3b8}h2{margin-top:48px}
 <div class="card"><h3>Plan before touching</h3><p>Preview the impact of proposed changes and generate a reversible, evidence-backed remediation plan.</p></div>
 <div class="card"><h3>Local AI explanations</h3><p>Ask “Why can this user reach Finance?” or “How do I move direct permissions into groups safely?”</p></div>
 </section>
+<h2>Windows NTFS permissions audit and cleanup planning</h2>
+<p>Designed for Active Directory file shares where inherited ACLs, nested security groups, direct-user permissions, orphaned SIDs and years of exceptions make effective access hard to trust.</p>
 <h2>Not another permissions report.</h2>
 <p class="lead">Low-cost tools show what exists. Enterprise platforms can remediate, but are expensive and heavy. This concept targets the middle: local, explainable cleanup planning for SMB IT teams and MSPs.</p>
 <h2>Safety model</h2>
 <p>V1 is <strong>read-only by default</strong>. Deterministic Windows permission logic calculates access. AI explains, prioritizes and drafts a cleanup plan; it does not silently change ACLs.</p>
 <h2>Who it is for</h2>
 <p>Windows sysadmins, MSP technicians, IT consultants and SMB security teams inheriting years of mixed direct permissions, nested groups and undocumented access.</p>
+<h2>FAQ</h2>
+<div class="card"><strong>Does it change permissions automatically?</strong><p>No. The research concept is read-only by default. It calculates access and prepares a reviewable cleanup plan.</p></div>
+<div class="card"><strong>Is AI deciding Windows permissions?</strong><p>No. Deterministic Windows ACL logic is authoritative; local AI explains findings, prioritizes risks and helps draft safer remediation steps.</p></div>
+<div class="card"><strong>Who is this for?</strong><p>Windows sysadmins, MSPs and IT consultants cleaning up SMB or mid-market file-server permissions.</p></div>
 <p class="muted">This page is a market-research preview, not a released product.</p>
 </main></body></html>
