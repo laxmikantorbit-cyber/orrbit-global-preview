@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://ai-permission-cleanup-smoke.onrender.com/sitemap.xml
