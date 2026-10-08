@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <meta name="referrer" content="no-referrer" />
+  <title>oRRbit™ Tournament — M1.8 Fictional Demo</title>
+  <style>:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1b2b40;background:#f5f7fb;font-synthesis:none}*{box-sizing:border-box}body{margin:0;font-size:14px}button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}input,select{border:1px solid #d8e0e9;background:white;border-radius:9px;min-height:43px;padding:11px 12px;outline:none;width:100%;color:#1f2e44}input:focus,select:focus{border-color:#129a7a;box-shadow:0 0 0 3px #15a78420}input::placeholder{color:#9aa6b6}h1,h2,h3,p{margin:0}h1{font-size:28px;letter-spacing:-.8px}h2{font-size:16px;letter-spacing:-.2px}h3{font-size:14px}.muted{color:#7d8b9c;font-size:13px;line-height:1.55}.layout{min-height:100vh;display:grid;grid-template-columns:243px minmax(0,1fr)}.sidebar{background:#101e30;color:#b3c0d0;display:flex;flex-direction:column;min-height:100vh;padding:25px 16px 16px}.brand{display:flex;align-items:center;gap:10px;color:white;padding:0 11px 35px}.brand-mark{display:grid;place-items:center;background:#1aa782;color:white;font-weight:800;font-size:26px;width:39px;height:39px;border-radius:11px;letter-spacing:-3px}.brand strong{font-size:23px;font-weight:770;letter-spacing:-1px;line-height:1.1;display:block}.tm{font-size:10px;vertical-align:top;letter-spacing:0}.brand small{font-size:9px;letter-spacing:2px;font-weight:750;color:#8da0b4}.workspace-caption{color:#70819b;letter-spacing:1.6px;font-size:10px;font-weight:800;padding:0 14px 12px}.nav{display:grid;gap:5px}.nav-item{display:flex;align-items:center;text-align:left;gap:12px;background:transparent;color:#b7c4d3;border:0;border-radius:9px;padding:13px 14px;font-weight:600}.nav-item:hover{background:#23344a;color:#fff}.nav-item.active{background:#183b3e;color:#44dbb1}.nav-icon{font-size:19px;width:22px;text-align:center;font-weight:500}.sidebar-bottom{margin-top:auto}.sidebar-notice{background:#1b2c41;border:1px solid #34435a;border-radius:12px;padding:14px;margin-bottom:24px;font-size:12px}.sidebar-notice strong{color:#f4fafc;margin-left:5px}.sidebar-notice p{font-size:12px;line-height:1.5;margin-top:9px;color:#9fafc2}.support{font-size:10px;color:#6e8199;display:flex;justify-content:space-between;gap:7px;flex-wrap:wrap;padding:0 5px}.main{min-width:0}.topbar{height:77px;display:flex;justify-content:space-between;align-items:center;gap:12px;background:white;border-bottom:1px solid #e7edf3;padding:0 34px}.crumb{font-weight:700;font-size:13px;color:#7d8c9d}.crumb span:last-child{color:#253449}.crumb-separator{margin:0 10px;color:#c0c8d2}.top-actions{display:flex;gap:12px;align-items:center}.badge{display:inline-flex;align-items:center;white-space:nowrap;border-radius:6px;font-size:10px;font-weight:800;letter-spacing:.5px;padding:6px 9px}.badge-amber{background:#fff4db;color:#91611d}.badge-green{background:#d9f7eb;color:#127657}.badge-neutral{background:#f0f3f7;color:#596f87}.tenant-pill{font-size:12px;font-weight:700;border:1px solid #e5eaf0;border-radius:8px;padding:9px 12px;color:#32445b}.content{padding:30px 34px 90px;max-width:1530px;margin:0 auto}.notice{display:flex;align-items:flex-start;gap:14px;border-radius:10px;padding:12px 16px;font-size:12px;line-height:1.5;margin-bottom:27px}.notice-safety{border:1px solid #f1e4c5;background:#fffaf0;color:#806629}.notice strong{white-space:nowrap;color:#755b21}.page{display:none}.page.active{display:block}.page-heading{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:25px}.page-heading h1{margin:5px 0 7px}.eyebrow{font-size:10px;color:#099879;letter-spacing:2px;font-weight:850}.btn{min-height:39px;padding:10px 16px;border-radius:9px;white-space:nowrap;font-size:12px;font-weight:800;border:1px solid transparent}.btn-primary{background:#0e9877;color:white}.btn-primary:hover{background:#0a8065}.btn-secondary{border-color:#d6e1e9;color:#405569;background:#fff}.btn-secondary:hover{background:#f4f8fa}.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:20px}.metric{padding:22px;background:white;border:1px solid #e8edf3;border-radius:13px;min-height:150px;box-shadow:0 3px 9px #1d345507}.metric small{color:#8392a3;font-weight:700;display:block;font-size:12px;margin-bottom:13px}.metric strong{display:block;font-size:26px;font-weight:760;letter-spacing:-.6px;min-height:39px}.trend{font-size:11px;color:#8795a4}.split{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(320px,1fr);gap:19px}.split-ev{grid-template-columns:minmax(280px,.78fr) minmax(0,1.5fr)}.panel{background:white;border:1px solid #e8edf3;border-radius:13px;min-width:0;min-height:230px;padding:21px 23px;box-shadow:0 3px 10px #23335406}.panel-header{display:flex;align-items:flex-start;justify-content:space-between;gap:13px;margin-bottom:18px}.panel-header p{margin-top:5px}.text-button{color:#0b987a;background:transparent;border:0;font-size:12px;font-weight:800;padding:3px}.event-list{display:grid;gap:9px}.event-item{width:100%;text-align:left;border:1px solid #e8ecf1;border-radius:10px;padding:13px 15px;background:#fff;display:grid;grid-template-columns:1fr auto;gap:7px;align-items:center}.event-item:hover,.event-item.selected{border-color:#7fd4bb;background:#f7fcfa}.event-name{font-weight:750;font-size:13px;color:#20324b}.event-meta{font-size:11px;color:#91a0ae;margin-top:5px}.mini-badge{border-radius:6px;padding:5px 8px;font-size:10px;font-weight:800;text-transform:uppercase;background:#f0f3f7;color:#758799}.mini-badge.published{color:#137e5a;background:#e1f7eb}.steps{margin:0;padding:0;display:grid;gap:13px;list-style:none}.steps li{display:flex;align-items:center;gap:13px;font-size:12px;color:#607087;line-height:1.5}.steps b{border-radius:9px;background:#ecf7f3;color:#0d9778;padding:10px;font-size:11px}.info-subtle{margin-top:19px;background:#f7f9fc;border:1px solid #edf0f5;border-radius:10px;padding:13px;font-size:11px;line-height:1.6;color:#8190a4}.empty{padding:38px 10px;text-align:center;color:#99a5b1;font-size:12px}.meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:0}.meta-grid dt{font-size:11px;color:#8292a2;margin-bottom:5px}.meta-grid dd{margin:0;font-size:12px;font-weight:700;overflow-wrap:anywhere}.separator{height:1px;background:#edf0f4;margin:23px 0}.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}.chip{background:#eef8f5;color:#25866c;font-size:11px;font-weight:700;border:1px solid #d9eee5;border-radius:7px;padding:8px 9px}.compact-form{display:grid;grid-template-columns:1fr 1.4fr 72px 72px;gap:10px;align-items:end}.compact-form .btn{grid-column:1/-1;justify-self:start}.compact-form label,.stack-form label,.form-grid label{font-size:11px;color:#708196;font-weight:750;display:grid;gap:6px}.field-hint{font-size:11px;color:#92a0ae;line-height:1.6;margin-top:11px}.stack-form{display:grid;gap:18px}.stack-form .btn{justify-self:start}.search-label{display:block;margin-bottom:13px}.record-list{display:grid;gap:0}.record-row{border-bottom:1px solid #eff2f5;padding:15px 0;display:flex;justify-content:space-between;gap:20px;align-items:center}.record-row:last-child{border:0}.record-row strong{font-size:12px}.record-row p{font-size:11px;color:#8192a2;margin-top:5px}.eligibility{background:#f6f8fb;border:1px solid #e8edf2;color:#6d8092;font-size:11px;padding:12px;border-radius:9px;line-height:1.5}.eligibility.good{background:#e7f8f0;color:#127a59;border-color:#bce8d3}.eligibility.bad{background:#fff4ee;color:#a94f30;border-color:#f9d7c5}.roadmap{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.roadmap article{background:white;border:1px solid #e6ecf1;padding:25px;border-radius:14px}.roadmap article span{display:inline-flex;border-radius:7px;background:#e7f8f1;color:#0a8d70;font-size:13px;font-weight:850;padding:7px 9px;margin-bottom:19px}.roadmap article p{color:#8392a2;line-height:1.6;font-size:13px;margin:10px 0 20px}.roadmap article small{font-size:11px;color:#be8c43}dialog{border:1px solid #e2e8ef;box-shadow:0 18px 65px #14213740;border-radius:16px;padding:28px;background:white;width:min(650px,95vw);max-height:90vh;overflow:auto;color:#1b2b40}dialog::backdrop{background:#0b1d3491}.modal-form{display:grid;gap:20px}.modal-head{display:flex;justify-content:space-between;align-items:start;gap:18px;margin-bottom:12px}.modal-head h2{font-size:22px;margin-top:6px}.x{font-size:25px;border:0;background:transparent;color:#7b8d9e}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}.form-grid .wide{grid-column:1/-1}.form-grid .time-zone-note{font-size:11px;color:#7d8c9d;grid-column:1/-1}.modal-actions{display:flex;justify-content:flex-end;gap:10px;padding-top:16px;border-top:1px solid #edf2f5}.mode-switch{position:fixed;bottom:20px;right:20px;border:1px solid #cfdde9;background:#fff;border-radius:9px;box-shadow:0 5px 20px #18294022;padding:12px 15px;font-size:11px;font-weight:800;color:#516981;z-index:9}.toast{position:fixed;bottom:75px;right:20px;background:#162d45;color:white;border-radius:10px;padding:13px 17px;max-width:360px;font-size:12px;line-height:1.5;box-shadow:0 10px 35px #1020394d;z-index:10}.dot{width:7px;height:7px;border-radius:50%;display:inline-block}.dot-amber{background:#f1c668}.sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}[hidden]{display:none!important}@media(max-width:1100px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.split,.split-ev{grid-template-columns:1fr}.compact-form{grid-template-columns:1fr 1fr 70px 70px}}@media(max-width:770px){.layout{grid-template-columns:1fr}.sidebar{min-height:auto;padding:14px 16px;position:relative}.brand{padding:0 3px 13px}.workspace-caption,.sidebar-bottom{display:none}.nav{display:flex;overflow-x:auto}.nav-item{white-space:nowrap;padding:10px 11px;font-size:12px}.topbar{padding:13px 17px;height:auto}.content{padding:18px 15px 75px}.notice{flex-direction:column;gap:5px}.page-heading{align-items:flex-start}.page-heading h1{font-size:23px}.metrics{gap:10px}.metric{padding:15px;min-height:130px}.panel{padding:16px}.roadmap{grid-template-columns:1fr}.compact-form{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr}.form-grid .wide{grid-column:auto}.top-actions{gap:4px}.tenant-pill{display:none}.mode-switch{right:12px;bottom:12px}}@media(max-width:420px){.page-heading{flex-direction:column}.metrics{grid-template-columns:1fr 1fr}.metric strong{font-size:21px}.compact-form{grid-template-columns:1fr 1fr}}
+/* Keep the horizontal navigation scrollable rather than expanding the entire mobile page. */
+@media(max-width:770px){.layout{grid-template-columns:minmax(0,1fr);max-width:100%;}.sidebar,.nav,.content{min-width:0;max-width:100%}.nav{width:100%;overflow-x:auto;overscroll-behavior-x:contain}}
+
+/* M1.8 operator workstation */
+.operations-layout{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(310px,1fr);gap:18px;margin-bottom:19px}
+.subtle-inset{padding:12px 14px;background:#f4f8fb;border:1px solid #e4edf3;border-radius:9px;font-size:12px;color:#53677c;line-height:1.55;margin-bottom:15px}
+.tick-label{display:flex!important;align-items:center;gap:9px!important;line-height:1.4;font-size:12px!important}
+.tick-label input{width:17px;height:17px;flex:none;accent-color:#0a9974}
+.ops-queue-button{width:100%;border:0;border-bottom:1px solid #e7edf3;border-radius:0;background:#fff;text-align:left;padding:13px 8px;display:flex;gap:12px;justify-content:space-between;align-items:center;color:#25364a}
+.ops-queue-button.selected,.ops-queue-button:hover{background:#f1faf6}
+.ops-queue-button strong{display:block;font-size:12px}.ops-queue-button small{display:block;font-size:11px;color:#73879d;margin-top:4px}
+.ops-draw-panel{margin-top:18px}.draw-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:15px}.draw-card{border:1px solid #e5edf1;border-radius:11px;padding:15px;background:#fcfefd;min-width:0}
+.draw-card h3{font-size:14px;margin:0 0 8px}.draw-note{font-size:11px;color:#7d899a;line-height:1.5;margin:8px 0}.draft-bout{display:flex;justify-content:space-between;gap:10px;background:#f2f6f9;border:1px solid #e5ecf1;border-radius:8px;padding:10px 11px;margin-top:8px;line-height:1.45;font-size:11px;overflow-wrap:anywhere}
+.ops-warn{color:#ae5d14;font-size:11px;font-weight:750}.ops-good{color:#198568;font-size:11px;font-weight:750}.ops-actions{margin-top:12px}
+@media(max-width:1050px){.operations-layout{grid-template-columns:1fr}}
+@media(max-width:770px){.draw-grid{grid-template-columns:1fr}.ops-queue-button{padding:12px 5px}}
+
+.mode-switch{display:none!important;}
+</style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">o</span><div><strong>oRRbit<span class="tm">™</span></strong><small>TOURNAMENT CLOUD</small></div></div>
+      <div class="workspace-caption">ORGANIZER WORKSPACE</div>
+      <nav class="nav" aria-label="Main navigation">
+        <button class="nav-item active" data-page="overview"><span class="nav-icon">▦</span> Overview</button>
+        <button class="nav-item" data-page="tournaments"><span class="nav-icon">◫</span> Tournaments</button>
+        <button class="nav-item" data-page="athletes"><span class="nav-icon">♙</span> Athletes</button>
+        <button class="nav-item" data-page="registrations"><span class="nav-icon">≡</span> Registrations</button>
+        <button class="nav-item" data-page="operations"><span class="nav-icon">◈</span> Verification &amp; Draws</button>
+        <button class="nav-item" data-page="roadmap"><span class="nav-icon">◇</span> Coming modules</button>
+      </nav>
+      <div class="sidebar-bottom"><div class="sidebar-notice"><span class="dot dot-amber"></span> <strong>M1.8 Preview</strong><p>Official scoring and public signup are not enabled.</p></div><div class="support"><span>© oRRbit Slickteq Softech</span><span>v0.1.8 · Dev preview</span></div></div>
+    </aside>
+    <main class="main">
+      <header class="topbar"><div class="crumb">Tournament SaaS <span class="crumb-separator">/</span> <span id="pageTitle">Overview</span></div><div class="top-actions"><span id="modeBadge" class="badge badge-amber">DEMO DATA</span><span id="tenantBadge" class="tenant-pill">Demo Organizer</span></div></header>
+      <div class="content">
+        <div class="notice notice-safety"><strong>PUBLIC DEMO — NO DATABASE</strong><span>This page contains fictional in-memory records only. Login and server-side storage are disabled at this address. Do not enter real athlete data until privacy, consent, identity and production-security reviews are approved. Demo records are fictional and live only in browser memory.</span></div>
+        <section id="page-overview" class="page active">
+          <div class="page-heading"><div><p class="eyebrow">CONTROL CENTER</p><h1>Tournament overview</h1><p class="muted">Organize registrations and configure a secure, structured event.</p></div><button class="btn btn-primary" data-action="newTournament">+ New tournament</button></div>
+          <div class="metrics"><article class="metric"><small>Tournaments</small><strong id="statTournaments">—</strong><span class="trend">Total in this workspace</span></article><article class="metric"><small>Athletes</small><strong id="statAthletes">—</strong><span class="trend">Private organizer profiles</span></article><article class="metric"><small>Registrations</small><strong id="statRegistrations">—</strong><span class="trend">For selected tournament</span></article><article class="metric"><small>Active operations</small><strong>Registration</strong><span class="trend">Scoring remains disabled</span></article></div>
+          <div class="split"><div class="panel"><div class="panel-header"><div><h2>Your tournaments</h2><p class="muted">Select an event to manage divisions and registrations.</p></div><button class="text-button" data-page="tournaments">View all →</button></div><div id="overviewEvents" class="event-list"></div></div><div class="panel"><div class="panel-header"><div><h2>Getting started</h2><p class="muted">Organizer workflow (development)</p></div></div><ol class="steps"><li><b>01</b><span>Create a tournament with organizer, venue and dates.</span></li><li><b>02</b><span>Add age-based divisions before publishing.</span></li><li><b>03</b><span>Create an athlete profile and check eligibility.</span></li><li><b>04</b><span>Submit registration with duplicate protection.</span></li></ol><div class="info-subtle">Identity, verified documents, medical clearance, competition-specific weight rules and payment collection are intentionally not active yet.</div></div></div>
+        </section>
+        <section id="page-tournaments" class="page">
+          <div class="page-heading"><div><p class="eyebrow">EVENT SETUP</p><h1>Tournaments</h1><p class="muted">Create events, configure divisions and publish organizer-side registration.</p></div><button class="btn btn-primary" data-action="newTournament">+ Create event</button></div>
+          <div class="split split-ev"><div class="panel"><div class="panel-header"><h2>Events</h2></div><div id="eventList" class="event-list"></div></div><div class="panel detail-panel"><div class="panel-header"><div><h2 id="selectedEventName">Select an event</h2><p class="muted" id="selectedEventSubtitle">Configure tournament details</p></div><span id="selectedEventStatus" class="badge badge-neutral">—</span></div><div id="eventDetailEmpty" class="empty">Create or select an event to begin.</div><div id="eventDetail" hidden><dl class="meta-grid"><div><dt>Organizer</dt><dd id="eventOrganizer">—</dd></div><div><dt>Venue</dt><dd id="eventVenue">—</dd></div><div><dt>Event starts</dt><dd id="eventStarts">—</dd></div><div><dt>Registration closes</dt><dd id="eventCloses">—</dd></div><div><dt>Eligibility cutoff</dt><dd id="eventCutoff">—</dd></div><div><dt>Draft version</dt><dd id="eventVersion">—</dd></div></dl><div class="separator"></div><div class="panel-header"><div><h3>Age divisions</h3><p class="muted">Rules-based weight and style validation will follow in later milestones.</p></div></div><div id="divisionList" class="chips"></div><form id="divisionForm" class="compact-form"><label>Division code <input name="code" placeholder="U-15" maxlength="40" required/></label><label>Division name <input name="name" placeholder="Under 15" maxlength="120" required/></label><label>Min age <input name="minAge" type="number" value="12" min="0" max="120" required/></label><label>Max age <input name="maxAge" type="number" value="14" min="0" max="120" required/></label><button class="btn btn-secondary" type="submit">Add division</button></form><div class="separator"></div><button id="publishButton" class="btn btn-primary" data-action="publishEvent">Publish registration</button><p class="field-hint">Requires a future closing date and at least one division. This enables staff-side registration only—not public enrollment.</p></div></div></div>
+        </section>
+        <section id="page-athletes" class="page">
+          <div class="page-heading"><div><p class="eyebrow">ATHLETE RECORDS</p><h1>Athletes</h1><p class="muted">Manage private organizer profiles (not verified identities).</p></div></div><div class="split"><div class="panel"><div class="panel-header"><h2>Add athlete</h2></div><form id="athleteForm" class="stack-form"><label>Full name <input name="fullName" required minlength="2" maxlength="160" placeholder="Athlete full name" /></label><label>Date of birth <input name="dateOfBirth" type="date" required /></label><p class="field-hint">Demo mode accepts fictional test names only. Live profiles require legal/privacy approval first.</p><button type="submit" class="btn btn-primary">Create athlete</button></form></div><div class="panel"><div class="panel-header"><div><h2>Athlete directory</h2><p class="muted">Limited to 50 newest/matching records.</p></div></div><label class="search-label"><span class="sr-only">Search athletes</span><input id="athleteSearch" placeholder="Search by name" maxlength="80" /></label><div id="athleteList" class="record-list"></div></div></div>
+        </section>
+        <section id="page-registrations" class="page">
+          <div class="page-heading"><div><p class="eyebrow">REGISTRATION DESK</p><h1>Registrations</h1><p class="muted">Age/window pre-checks, event-specific entry IDs and idempotent submissions.</p></div></div><div class="split"><div class="panel"><div class="panel-header"><div><h2>New entry</h2><p class="muted">Organizer/staff workflow only</p></div></div><form id="registrationForm" class="stack-form"><label>Tournament <select id="registrationTournament" name="tournamentId" required></select></label><label>Athlete <select id="registrationAthlete" name="athleteId" required></select></label><label>Division <select id="registrationDivision" name="divisionId" required></select></label><div id="eligibilityResult" class="eligibility">Eligibility has not been checked.</div><button type="button" class="btn btn-secondary" id="checkEligibility">Check age eligibility</button><button type="submit" class="btn btn-primary">Submit registration</button><p class="field-hint">A passing age check does not mean athlete identity, medical status or sport eligibility is verified.</p></form></div><div class="panel"><div class="panel-header"><div><h2>Event registrations</h2><p class="muted" id="registrationEventLabel">Select a tournament</p></div></div><div id="registrationList" class="record-list"></div></div></div>
+        </section>
+        <section id="page-operations" class="page">
+          <div class="page-heading"><div><p class="eyebrow">TOURNAMENT CONTROL</p><h1>Verification &amp; provisional draws</h1><p class="muted">Review fictional athlete documents, record unverified weight readings and inspect draft brackets.</p></div><span class="badge badge-amber">NOT OFFICIAL MATCHES</span></div>
+          <div class="notice notice-safety"><strong>Not competition clearance</strong><span>Identity and medical flags are organizer attestations only. Weigh-ins have not been approved. Provisional draws must not be treated as official fixtures or published to athletes.</span></div>
+          <div class="operations-layout">
+            <article class="panel"><div class="panel-header"><div><h2>Registration verification</h2><p class="muted" id="opsEventLabel">Select a tournament</p></div><button type="button" class="btn btn-secondary" id="opsRefresh">Refresh</button></div><div id="opsQueue" class="record-list"></div></article>
+            <article class="panel"><div class="panel-header"><div><h2>Review &amp; weigh-in</h2><p class="muted">Select a registration from the list.</p></div></div>
+              <p id="opsSelected" class="subtle-inset">No registration selected.</p>
+              <form id="opsReviewForm" class="stack-form">
+                <label>Review decision<select name="decision" id="opsDecision"><option value="verify_documents">Documents checked</option><option value="needs_changes">Request changes</option><option value="reject">Reject registration</option></select></label>
+                <label>Reason (required for changes/rejection)<select name="reasonCode"><option value="">None</option><option value="identity">Identity</option><option value="age">Age</option><option value="guardian_consent">Guardian consent</option><option value="medical_document">Medical document</option><option value="other">Other</option></select></label>
+                <label class="tick-label"><input type="checkbox" name="identityEvidenceChecked" /> Identity evidence reviewed</label>
+                <label class="tick-label"><input type="checkbox" name="guardianConsentRecorded" /> Guardian consent recorded (required for minors)</label>
+                <label class="tick-label"><input type="checkbox" name="medicalAuthorizationRecorded" /> Medical authorization document recorded, not clinical clearance</label>
+                <button class="btn btn-primary" type="submit" id="opsReviewSubmit">Save review decision</button>
+              </form><div class="separator"></div>
+              <h3>Measurement log</h3><p class="muted">Readings are never auto-approved or converted to weight-category clearance.</p>
+              <form class="stack-form" id="opsWeightForm"><label>Weight (kg)<input type="number" min="0.50" max="300" step="0.01" name="weightKg" placeholder="52.40" required/></label><label>Scale reference<input name="scaleReference" minlength="2" maxlength="48" placeholder="SCALE-01" required /></label><button class="btn btn-secondary" type="submit" id="opsWeightSubmit">Record unverified reading</button></form>
+              <div id="opsWeights" class="record-list" aria-live="polite"></div>
+            </article>
+          </div>
+          <article class="panel ops-draw-panel"><div class="panel-header"><div><h2>Provisional bracket drafts</h2><p class="muted">Document-reviewed entries only. Brackets do not represent sanctioned matches, byes are not wins.</p></div></div>
+            <div id="opsDraws" class="draw-grid"></div>
+          </article>
+        </section>
+        <section id="page-roadmap" class="page"><div class="page-heading"><div><p class="eyebrow">PRODUCT ROADMAP</p><h1>Planned operations</h1><p class="muted">These modules are not enabled or validated in M1.8.</p></div></div><div class="roadmap"><article><span>02</span><h2>Official eligibility clearance</h2><p>Review documents and measurements, then apply formally approved federation rules.</p><small>Not implemented</small></article><article><span>03</span><h2>Official fixtures & schedules</h2><p>Provisional brackets exist; authorized fixture publication, ring allocation and match schedules remain pending.</p><small>Not implemented</small></article><article><span>04</span><h2>Live tournament control</h2><p>Judge/referee scoring with authoritative offline venue controller.</p><small>Not implemented</small></article><article><span>05</span><h2>Results & certificates</h2><p>Reviewed results, awards, credentials, audit and public verification.</p><small>Not implemented</small></article></div></section>
+      </div>
+    </main>
+  </div>
+  <dialog id="newTournamentDialog" aria-labelledby="dialogTitle"><form id="tournamentForm" class="modal-form"><div class="modal-head"><div><p class="eyebrow">NEW EVENT</p><h2 id="dialogTitle">Create tournament</h2></div><button type="button" class="x" id="closeDialog" aria-label="Close">×</button></div><div class="form-grid"><label class="wide">Tournament name<input required name="name" minlength="3" maxlength="160" placeholder="Example Championship 2026" /></label><label>Sport<input required name="sport" minlength="2" maxlength="64" value="Kickboxing" /></label><label>Discipline<input required name="discipline" minlength="2" maxlength="80" placeholder="Rules validation pending" /></label><label>Organizer<input required name="organizerName" minlength="3" maxlength="160" placeholder="Organizer / Association" /></label><label>Venue<input required name="venueName" minlength="3" maxlength="160" placeholder="Sports complex" /></label><label>Start<input required name="startsAtUtc" type="datetime-local" /></label><label>End<input required name="endsAtUtc" type="datetime-local" /></label><label>Registration opens<input required name="registrationOpensAtUtc" type="datetime-local" /></label><label>Registration closes<input required name="registrationClosesAtUtc" type="datetime-local" /></label><label>Age cutoff date<input required name="eligibilityCutoffDate" type="date" /></label><div class="time-zone-note">Times are entered in your browser's time zone: <strong id="tzLabel">—</strong></div></div><div class="modal-actions"><button type="button" class="btn btn-secondary" id="cancelDialog">Cancel</button><button class="btn btn-primary" type="submit">Create draft</button></div></form></dialog>
+  <dialog id="liveDialog" aria-labelledby="liveTitle">
+    <div class="modal-head"><div><p class="eyebrow">SECURE OIDC SIGN-IN</p><h2 id="liveTitle">Development API</h2></div><button class="x" id="closeLive" type="button" aria-label="Close">×</button></div>
+    <p class="muted">Sign in with the configured identity provider. No passwords or bearer tokens are entered here. Production deployment remains blocked.</p>
+    <div class="modal-actions"><button class="btn btn-secondary" id="disconnectLive" type="button">Disconnect / Demo</button><button class="btn btn-primary" id="loginLive" type="button">Sign in securely</button></div>
+    <div id="onboardingBlock" hidden><div class="separator"></div><h3>Activate organizer invitation</h3><p class="muted">Your signed-in account needs an invitation to create its first organization.</p>
+      <form id="inviteForm" class="stack-form"><label>Single-use invite code<input name="code" id="inviteCode" type="password" autocomplete="off" placeholder="ORR-..." required minlength="36" /></label><button class="btn btn-primary" type="submit">Activate organization</button></form>
+    </div>
+    <div id="tenantSwitchBlock" hidden><div class="separator"></div><h3>Organization</h3><label class="stack-form">Active organization<select id="tenantSelect"></select></label><button type="button" id="switchTenant" class="btn btn-secondary">Switch organization</button></div>
+    <p class="field-hint" id="authStatus">Not signed in.</p>
+  </dialog>
+  <button class="mode-switch" id="modeSwitch" type="button">↗ Connect development API</button>
+  <div id="toast" role="status" aria-live="polite" class="toast" hidden></div>
+  <script>
+// Pure helpers shared by browser preview and executable Node tests. Not authoritative server validation.
+function ageOnDate(dateOfBirth, cutoffDate) {
+  const dob = parseDate(dateOfBirth), cutoff = parseDate(cutoffDate);
+  if (!dob || !cutoff || dateOfBirth > cutoffDate) return null;
+  let years = cutoff.y - dob.y;
+  const anniversaryDay = dob.m === 2 && dob.d === 29 && !leap(cutoff.y) ? 28 : dob.d;
+  if (cutoff.m < dob.m || (cutoff.m === dob.m && cutoff.d < anniversaryDay)) years--;
+  return years;
+}
+function leap(y){return y%4===0 && (y%100!==0 || y%400===0)}
+function parseDate(s){const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||'');if(!m)return null;const y=+m[1],mo=+m[2],d=+m[3];const t=new Date(Date.UTC(y,mo-1,d));if(t.getUTCFullYear()!==y||t.getUTCMonth()+1!==mo||t.getUTCDate()!==d)return null;return {y,m:mo,d}}
+function eligible(dob,cutoff,min,max){const age=ageOnDate(dob,cutoff);return age!==null&&age>=min&&age<=max}
+function validWindow(now,opens,closes){const time=Date.parse(now), a=Date.parse(opens),b=Date.parse(closes);return Number.isFinite(time)&&Number.isFinite(a)&&Number.isFinite(b)&&time>=a&&time<b}
+function validEventDates(x){const v=[x.registrationOpensAtUtc,x.registrationClosesAtUtc,x.startsAtUtc,x.endsAtUtc].map(Date.parse);return v.every(Number.isFinite)&&v[1]>v[0]&&v[3]>v[2]&&v[1]<=v[3]}
+function normalizeDivisionCode(v){return (v||'').trim().toUpperCase()}
+function validDivisionCode(v){return /^[A-Z0-9_-]{2,40}$/.test(v)}
+function eventNumber(n){return `REG-${String(n).padStart(6,'0')}`}
+
+// OIDC Authorization Code + PKCE for a public SPA client. Never stores bearer tokens persistently.
+const pendingKey = 'orrbit.tournament.oidc.pending';
+function b64url(bytes) {
+  return btoa(String.fromCharCode(...bytes)).replaceAll('+','-').replaceAll('/','_').replaceAll('=','');
+}
+function randomUrlSafe(bytes=32) {
+  const out=new Uint8Array(bytes);
+  globalThis.crypto.getRandomValues(out);
+  return b64url(out);
+}
+function authorizeUrl(endpoint, clientId, callback, challenge, state, nonce, scopes='openid profile') {
+  const u=new URL(endpoint);
+  for (const [k,v] of Object.entries({client_id:clientId,redirect_uri:callback,response_type:'code',scope:scopes,code_challenge:challenge,code_challenge_method:'S256',state,nonce})) u.searchParams.set(k,v);
+  return u.toString();
+}
+function verifiedHttpsOrLoopback(url) {
+  const u=new URL(url);
+  return u.protocol==='https:' || (u.protocol==='http:' && ['localhost','127.0.0.1','[::1]'].includes(u.hostname));
+}
+async function configAndDiscovery() {
+  const r=await fetch('/auth/config',{cache:'no-store'});
+  if(!r.ok) throw new Error('OIDC login is not configured on this server. The local preview is demo-only.');
+  const config=await r.json();
+  const authority=String(config.authority||'').replace(/\/$/,'');
+  if (!verifiedHttpsOrLoopback(authority) || !config.clientId) throw Error('Invalid OIDC configuration.');
+  const discovery=await fetch(`${authority}/.well-known/openid-configuration`,{cache:'no-store'});
+  if(!discovery.ok)throw Error('Unable to retrieve identity-provider settings.');
+  const metadata=await discovery.json();
+  if(metadata.issuer!==authority || !verifiedHttpsOrLoopback(metadata.authorization_endpoint) || !verifiedHttpsOrLoopback(metadata.token_endpoint))
+    throw Error('Identity-provider discovery failed issuer/endpoint validation.');
+  return {config,metadata};
+}
+async function beginLogin() {
+  if (!globalThis.crypto?.subtle) throw Error('HTTPS or localhost is required for secure login.');
+  const {config,metadata}=await configAndDiscovery();
+  const verifier=randomUrlSafe(48), state=randomUrlSafe(),nonce=randomUrlSafe();
+  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier));
+  const redirectUri=location.origin+location.pathname;
+  sessionStorage.setItem(pendingKey, JSON.stringify({state,nonce,verifier,redirectUri,created:Date.now()}));
+  location.assign(authorizeUrl(metadata.authorization_endpoint,config.clientId,redirectUri,b64url(new Uint8Array(digest)),state,nonce,config.scopes||'openid profile'));
+}
+async function finishLogin() {
+  const params=new URLSearchParams(location.search);
+  if(!params.has('code') && !params.has('error'))return null;
+  const saved=sessionStorage.getItem(pendingKey);
+  sessionStorage.removeItem(pendingKey);
+  history.replaceState(null,'',location.pathname);
+  if(params.has('error'))throw Error('Identity provider did not complete the sign-in.');
+  if(!saved)throw Error('OIDC sign-in state expired or was lost. Start sign-in again.');
+  let pending;
+  try { pending=JSON.parse(saved); } catch { throw Error('Invalid login state.'); }
+  if(params.get('state')!==pending.state || Date.now()-pending.created>10*60_000 || pending.redirectUri!==location.origin+location.pathname)
+    throw Error('OIDC state/redirect verification failed.');
+  const {config,metadata}=await configAndDiscovery();
+  const payload=new URLSearchParams({grant_type:'authorization_code',client_id:config.clientId,code:params.get('code'),redirect_uri:pending.redirectUri,code_verifier:pending.verifier});
+  const result=await fetch(metadata.token_endpoint,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:payload,cache:'no-store'});
+  if(!result.ok)throw Error('OIDC token exchange failed. Check client PKCE and redirect URI settings.');
+  const token=await result.json();
+  if(token.token_type?.toLowerCase()!=='bearer' || typeof token.access_token!=='string')throw Error('Issuer returned an unsupported access token response.');
+  // Access-token JWT signature, issuer and API audience are verified by ASP.NET JWT middleware, not in this page.
+  return token.access_token;
+}
+
+
+const $ = (id) => document.getElementById(id);
+const state = {mode:'demo',token:null,tenantId:null,tenants:[],tenant:'Demo Organizer', role:'owner',events:[],athletes:[],registrations:[],divisions:[],selected:null, busy:false,opsQueue:[],opsSelectedId:null,opsWeights:{},opsDraws:{}};
+const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+let toastTimer;
+function key(){return globalThis.crypto?.randomUUID?.() ?? `demo-${Date.now()}-${Math.random().toString(16).slice(2)}`}
+function el(tag, text='', cls=''){const n=document.createElement(tag);if(cls)n.className=cls;n.textContent=String(text);return n}
+function empty(container,text){container.replaceChildren(el('p',text,'empty'))}
+function toast(text){const e=$('toast');e.textContent=text;e.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>e.hidden=true,5400)}
+function fmt(date){if(!date)return '—';const d=new Date(date);return Number.isFinite(d.valueOf())?new Intl.DateTimeFormat(undefined,{day:'2-digit',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'}).format(d):String(date)}
+function setBusy(v){state.busy=v;document.querySelectorAll('button[type="submit"],button[data-action="publishEvent"]').forEach(b=>b.disabled=v);renderOperations()}
+function page(name){document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===`page-${name}`));document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.page===name));$('pageTitle').textContent=name.charAt(0).toUpperCase()+name.slice(1);if(name==='registrations')refreshRegistrationLists();if(name==='operations')guard(refreshOperations);}
+function localInput(d){const x=new Date(d.getTime()-d.getTimezoneOffset()*60000);return x.toISOString().slice(0,16)}
+function startDemo(){
+  const now=Date.now();const day=86400000;
+  const e={id:key(),name:'National Martial Arts Cup (Demo)',sport:'Kickboxing',discipline:'Demo — scoring unverified',venueName:'Community Sports Arena',organizerName:'Sample Sports Association',timeZone:timezone,startsAtUtc:new Date(now+28*day).toISOString(),endsAtUtc:new Date(now+29*day).toISOString(),registrationOpensAtUtc:new Date(now-2*day).toISOString(),registrationClosesAtUtc:new Date(now+21*day).toISOString(),eligibilityCutoffDate:new Date(now+28*day).toISOString().slice(0,10),version:2,status:'published',mode:'registration_only',counter:2};
+  const a1={id:key(),fullName:'Sample Athlete One',dateOfBirth:'2012-04-05',verificationStatus:'unverified'};
+  const a2={id:key(),fullName:'Sample Athlete Two',dateOfBirth:'2014-09-18',verificationStatus:'unverified'};
+  const d={id:key(),tournamentId:e.id,code:'U-15',name:'Under 15',minAge:10,maxAge:14};
+  state.events=[e];state.athletes=[a1,a2];state.divisions=[d];state.registrations=[{id:key(),tournamentId:e.id,registrationNumber:'REG-000001',athleteId:a1.id,athleteName:a1.fullName,divisionId:d.id,divisionCode:d.code,status:'pending_verification'},{id:key(),tournamentId:e.id,registrationNumber:'REG-000002',athleteId:a2.id,athleteName:a2.fullName,divisionId:d.id,divisionCode:d.code,status:'pending_verification'}];
+  state.opsQueue=state.registrations.map(r=>({...r,reviewVersion:1}));state.opsSelectedId=null;state.opsWeights={};state.opsDraws={};
+  state.selected=e.id;state.tenant='Demo Organizer';state.mode='demo';state.role='owner';state.token=null;state.tenantId=null;state.tenants=[];
+  $('modeBadge').textContent='DEMO DATA';$('modeBadge').className='badge badge-amber';$('tenantBadge').textContent='Demo Organizer';$('modeSwitch').textContent='↗ Connect development API';render();
+}
+async function api(path,opts={}){
+  if(state.mode!=='live'||!state.token)throw Error('Connect to the development API first.');
+  const headers={Accept:'application/json',Authorization:`Bearer ${state.token}`,...(state.tenantId?{'X-Tenant-Id':state.tenantId}:{}),...(opts.body?{'Content-Type':'application/json'}:{}),...opts.headers};
+  const res=await fetch(path,{...opts,headers,cache:'no-store'});
+  if(!res.ok){let info='';try{const obj=await res.json();info=obj.error||obj.detail||obj.title||''}catch{}
+    const label={401:'Session invalid or expired',403:'No active tenant membership/role',409:'Conflict; refresh the event',428:'A fresh version is required',429:'Request limit reached'}[res.status];
+    const err=new Error(info||label||`Request rejected (${res.status})`);err.status=res.status;throw err;
+  }
+  const raw=await res.text();return raw?JSON.parse(raw):null;
+}
+async function connected(){
+  state.tenants=await api('/v1/tenants');
+  $('tenantSelect').replaceChildren(...state.tenants.map(t=>{const opt=document.createElement('option');opt.value=t.id;opt.textContent=t.name;return opt}));
+  $('onboardingBlock').hidden=state.tenants.length>0;
+  $('tenantSwitchBlock').hidden=state.tenants.length<2;
+  if (!state.tenants.length) {
+    state.tenantId=null;state.tenant='No organization';
+    $('authStatus').textContent='Signed in. An organizer invitation is required.';
+    $('liveDialog').showModal();
+    return;
+  }
+  if(!state.tenants.some(x=>x.id===state.tenantId))state.tenantId=state.tenants[0].id;
+  $('tenantSelect').value=state.tenantId;
+  const me=await api('/v1/me');state.tenant=me.tenantName;state.role=me.role;
+  state.events=await api('/v1/tournaments');state.divisions=[];state.registrations=[];state.athletes=[];state.opsQueue=[];state.opsSelectedId=null;state.opsWeights={};state.opsDraws={};
+  state.selected=state.events[0]?.id??null;
+  await loadSelected();await loadAthletes();
+  $('tenantBadge').textContent=state.tenant;$('modeBadge').textContent='DEVELOPMENT API';$('modeBadge').className='badge badge-green';$('modeSwitch').textContent='⇄ Disconnect / Demo';$('authStatus').textContent='Authenticated via OIDC. Access depends on tenant membership.';render();
+}
+async function loadSelected(){
+  if(state.mode!=='live'||!state.selected)return;
+  const id=state.selected;
+  const [event,divisions,registrations]=await Promise.all([api(`/v1/tournaments/${id}`),api(`/v1/tournaments/${id}/divisions`),state.role==='viewer'?[]:api(`/v1/tournaments/${id}/registrations`)]);
+  state.events=state.events.map(e=>e.id===id?event:e);
+  state.divisions=state.divisions.filter(d=>d.tournamentId!==id).concat(divisions.map(x=>({...x,tournamentId:id})));
+  state.registrations=state.registrations.filter(r=>r.tournamentId!==id).concat(registrations.map(x=>({...x,tournamentId:id})));
+}
+async function loadAthletes(q=''){if(state.mode!=='live')return;if(state.role==='viewer'){state.athletes=[];return}state.athletes=await api(`/v1/athletes?q=${encodeURIComponent(q)}`)}
+function selected(){return state.events.find(x=>x.id===state.selected)}
+function render(){
+  $('statTournaments').textContent=state.events.length;$('statAthletes').textContent=state.athletes.length;
+  $('statRegistrations').textContent=state.registrations.filter(r=>r.tournamentId===state.selected).length;
+  for(const target of ['overviewEvents','eventList']){
+    const root=$(target);root.replaceChildren();if(!state.events.length){empty(root,'No tournaments yet. Create your first event.');continue}
+    for(const e of state.events){const b=el('button','','event-item'+(state.selected===e.id?' selected':''));b.type='button';const l=el('div');l.append(el('div',e.name,'event-name'),el('div',`${e.sport} • ${fmt(e.startsAtUtc)}`,'event-meta'));
+      b.append(l,el('span',e.status,'mini-badge '+(e.status==='published'?'published':'')));b.addEventListener('click',async()=>{state.selected=e.id;state.opsSelectedId=null;try{if(state.mode==='live')await loadSelected();render();if(target==='overviewEvents')page('tournaments')}catch(err){toast(err.message)}});root.append(b)}
+  }
+  renderEvent();renderAthletes();refreshRegistrationLists();renderOperations();
+  const roleCanEdit=state.role==='owner'||state.role==='organizer';
+  document.querySelectorAll('[data-action="newTournament"]').forEach(b=>b.disabled=!roleCanEdit);
+  $('athleteForm').querySelector('button').disabled=state.role==='viewer';$('registrationForm').querySelector('button[type="submit"]').disabled=state.role==='viewer';
+}
+function renderEvent(){
+  const e=selected();$('eventDetailEmpty').hidden=!!e;$('eventDetail').hidden=!e;
+  $('selectedEventName').textContent=e?.name||'Select an event';$('selectedEventSubtitle').textContent=e?`${e.sport} • ${e.discipline}`:'Configure tournament details';
+  $('selectedEventStatus').textContent=e?.status||'—';$('selectedEventStatus').className='badge '+(e?.status==='published'?'badge-green':'badge-neutral');
+  if(!e)return;
+  for(const [field,val] of Object.entries({eventOrganizer:e.organizerName||'—',eventVenue:e.venueName||'—',eventStarts:fmt(e.startsAtUtc),eventCloses:fmt(e.registrationClosesAtUtc),eventCutoff:e.eligibilityCutoffDate||'—',eventVersion:e.version}))$(field).textContent=val;
+  const divisions=state.divisions.filter(d=>d.tournamentId===e.id),root=$('divisionList');root.replaceChildren();
+  if(!divisions.length)root.append(el('p','No divisions yet. Add at least one division.','muted'));
+  for(const d of divisions)root.append(el('span',`${d.code} · ${d.name} (${d.minAge}–${d.maxAge})`,'chip'));
+  $('divisionForm').hidden=e.status!=='draft'||!['owner','organizer'].includes(state.role);
+  $('publishButton').hidden=e.status!=='draft'||!['owner','organizer'].includes(state.role);
+}
+function renderAthletes(){const root=$('athleteList');root.replaceChildren();if(!state.athletes.length){empty(root,'No matching athletes.');return}
+  for(const a of state.athletes){const item=el('div','','record-row'),left=el('div');left.append(el('strong',a.fullName),el('p',`DOB ${a.dateOfBirth} · ${a.verificationStatus}`));item.append(left,el('span','Unverified','mini-badge'));root.append(item)}
+}
+function fillSelect(target,items,label,placeholder){const e=$(target),old=e.value;e.replaceChildren();const opt=el('option',placeholder);opt.value='';e.append(opt);for(const i of items){const o=el('option',label(i));o.value=i.id;e.append(o)}if(items.some(x=>x.id===old))e.value=old}
+function refreshRegistrationLists(){
+  fillSelect('registrationTournament',state.events,e=>e.name,'Select a tournament');
+  if(state.selected)$('registrationTournament').value=state.selected;
+  const eventId=$('registrationTournament').value;
+  fillSelect('registrationAthlete',state.athletes,a=>a.fullName,'Select an athlete');
+  fillSelect('registrationDivision',state.divisions.filter(d=>d.tournamentId===eventId),d=>`${d.code} · ${d.minAge}–${d.maxAge} years`,'Select a division');
+  const event=state.events.find(x=>x.id===eventId);$('registrationEventLabel').textContent=event?.name||'Select a tournament';
+  const root=$('registrationList');root.replaceChildren();const rows=state.registrations.filter(r=>r.tournamentId===eventId);
+  if(!rows.length){empty(root,'No registrations for this tournament.');return}
+  for(const r of rows){const row=el('div','','record-row'),left=el('div');left.append(el('strong',r.athleteName||state.athletes.find(x=>x.id===r.athleteId)?.fullName||'Athlete'),el('p',`${r.registrationNumber} · ${r.divisionCode||state.divisions.find(x=>x.id===r.divisionId)?.code||''}`));row.append(left,el('span','Pending','mini-badge'));root.append(row)}
+}
+function resetEligibility(){$('eligibilityResult').className='eligibility';$('eligibilityResult').textContent='Eligibility has not been checked.'}
+async function checkEligibility(){
+  const t=$('registrationTournament').value,a=$('registrationAthlete').value,d=$('registrationDivision').value;if(!t||!a||!d)throw Error('Select tournament, athlete and division first.');
+  let result;if(state.mode==='live'){result=await api(`/v1/tournaments/${t}/eligibility?athleteId=${encodeURIComponent(a)}&divisionId=${encodeURIComponent(d)}`)}else{
+    const event=state.events.find(x=>x.id===t),athlete=state.athletes.find(x=>x.id===a),division=state.divisions.find(x=>x.id===d);
+    const age=ageOnDate(athlete.dateOfBirth,event.eligibilityCutoffDate);
+    const ageEligible=eligible(athlete.dateOfBirth,event.eligibilityCutoffDate,division.minAge,division.maxAge);
+    const registrationOpen=event.status==='published'&&validWindow(new Date().toISOString(),event.registrationOpensAtUtc,event.registrationClosesAtUtc);
+    result={ageOnCutoff:age,ageEligible,registrationOpen,eligibleToSubmit:ageEligible&&registrationOpen};
+  }
+  const box=$('eligibilityResult');box.className='eligibility '+(result.eligibleToSubmit?'good':'bad');box.textContent=`Cutoff age: ${result.ageOnCutoff??'N/A'} · Age ${result.ageEligible?'eligible':'ineligible'} · Registration ${result.registrationOpen?'open':'closed'} · ${result.eligibleToSubmit?'Ready for unverified entry':'Entry blocked'}. Not identity/medical verification.`;return result;
+}
+async function doTournament(form){const input=Object.fromEntries(new FormData(form));for(const f of ['startsAtUtc','endsAtUtc','registrationOpensAtUtc','registrationClosesAtUtc']){const parsed=new Date(input[f]);if(!Number.isFinite(parsed.getTime()))throw Error('Enter valid event dates.');input[f]=parsed.toISOString()}
+  input.timeZone=timezone;if(!validEventDates(input))throw Error('Dates are inconsistent: registration must close after opening and not after event end.');
+  if(state.mode==='live'){const result=await api('/v1/tournaments',{method:'POST',body:JSON.stringify(input)});state.events=await api('/v1/tournaments');state.selected=result.id;await loadSelected()}else{
+    input.id=key();input.version=1;input.status='draft';input.mode='registration_only';input.counter=0;state.events.unshift(input);state.selected=input.id;
+  }
+  form.reset();$('newTournamentDialog').close();render();page('tournaments');toast('Tournament draft created'+(state.mode==='demo'?' (demo only).':'.'));
+}
+async function doDivision(form){const e=selected();if(!e)throw Error('Select tournament.');const input=Object.fromEntries(new FormData(form));input.code=normalizeDivisionCode(input.code);input.minAge=Number(input.minAge);input.maxAge=Number(input.maxAge);
+  if(!validDivisionCode(input.code)||input.maxAge<input.minAge||input.minAge<0||input.maxAge>120)throw Error('Invalid division code or age range.');
+  if(state.divisions.some(d=>d.tournamentId===e.id&&d.code===input.code))throw Error('Division code already exists.');
+  if(state.mode==='live'){await api(`/v1/tournaments/${e.id}/divisions`,{method:'POST',headers:{'If-Match':`"${e.version}"`},body:JSON.stringify(input)});await loadSelected()}else{state.divisions.push({...input,id:key(),tournamentId:e.id});e.version++}
+  form.reset();render();toast('Division created'+(state.mode==='demo'?' (demo only).':'.'));
+}
+async function publishEvent(){const e=selected();if(!e||e.status!=='draft')return;if(!state.divisions.some(d=>d.tournamentId===e.id))throw Error('Add a division before publishing.');
+  if(Date.parse(e.registrationClosesAtUtc)<=Date.now())throw Error('Registration closing must be in the future.');
+  if(!confirm('Publish staff-side registration for this event? Public signup and live scoring remain disabled.'))return;
+  if(state.mode==='live'){await api(`/v1/tournaments/${e.id}/publish-registration`,{method:'POST',headers:{'If-Match':`"${e.version}"`}});await loadSelected()}else{e.status='published';e.version++}
+  render();toast('Staff-side registration published'+(state.mode==='demo'?' (demo only).':'.'));
+}
+async function doAthlete(form){const data=Object.fromEntries(new FormData(form));if(!data.fullName?.trim()||!data.dateOfBirth)throw Error('Name and birth date are required.');if(Date.parse(data.dateOfBirth)>Date.now())throw Error('Date of birth cannot be in the future.');
+  if(state.mode==='demo'){const name=data.fullName.toLowerCase();if(!name.includes('demo')&&!name.includes('sample'))throw Error('Demo mode: please use a fictional name containing "Sample" or "Demo".');state.athletes.unshift({...data,id:key(),verificationStatus:'unverified'});}else{await api('/v1/athletes',{method:'POST',body:JSON.stringify(data)});await loadAthletes()}
+  form.reset();render();toast('Athlete profile created; identity remains unverified.');
+}
+async function doRegistration(form){const input=Object.fromEntries(new FormData(form));if(!input.tournamentId||!input.athleteId||!input.divisionId)throw Error('Complete all registration fields.');const check=await checkEligibility();if(!check.eligibleToSubmit)throw Error('Registration blocked by age or registration-window pre-check.');
+  const dup=state.registrations.some(r=>r.tournamentId===input.tournamentId&&r.divisionId===input.divisionId&&r.athleteId===input.athleteId);if(dup)throw Error('Athlete already registered in this division.');
+  if(state.mode==='live'){const result=await api(`/v1/tournaments/${input.tournamentId}/registrations`,{method:'POST',headers:{'Idempotency-Key':key()},body:JSON.stringify({athleteId:input.athleteId,divisionId:input.divisionId})});state.selected=input.tournamentId;await loadSelected();toast(`Registration ${result.registrationNumber||''} submitted. Verification pending.`)}else{
+    const event=state.events.find(x=>x.id===input.tournamentId),athlete=state.athletes.find(x=>x.id===input.athleteId),division=state.divisions.find(x=>x.id===input.divisionId);event.counter++;
+    const reg={id:key(),...input,registrationNumber:eventNumber(event.counter),athleteName:athlete.fullName,divisionCode:division.code,status:'pending_verification'};state.registrations.push(reg);state.opsQueue.push({...reg,reviewVersion:1});state.selected=input.tournamentId;toast('Demo registration created; not saved to a server.');
+  }
+  resetEligibility();render();page('registrations');
+}
+// M1.8 operations UI: fictional in-memory demo or authenticated, tenant-scoped development API.
+const draftKey=(eventId,divisionId)=>`${eventId}:${divisionId}`;
+const opsSourceSignature=(divisionId)=>state.opsQueue.filter(r=>r.divisionId===divisionId||state.divisions.find(d=>d.tournamentId===state.selected&&d.id===divisionId)?.code===r.divisionCode)
+  .map(r=>`${r.id}:${r.status}:${r.reviewVersion}`).sort().join('|');
+async function optionalApi(path){try{return await api(path)}catch(err){if(err.status===404)return null;throw err}}
+async function refreshOperations(){
+  const event=selected();if(!event){state.opsQueue=[];state.opsSelectedId=null;state.opsDraws={};renderOperations();return}
+  if(state.mode==='live'){
+    if(state.role==='viewer'){
+      state.opsQueue=[];state.opsSelectedId=null;
+    }else{
+      state.opsQueue=await api(`/v1/tournaments/${event.id}/verification-queue`);
+    }
+    const drafts={};
+    for(const division of state.divisions.filter(d=>d.tournamentId===event.id))
+      drafts[draftKey(event.id,division.id)]=await optionalApi(`/v1/tournaments/${event.id}/divisions/${division.id}/provisional-draw`);
+    state.opsDraws=drafts;
+  }
+  if(state.opsSelectedId&&!state.opsQueue.some(r=>r.id===state.opsSelectedId))state.opsSelectedId=null;
+  if(state.opsSelectedId)await loadOpsWeights();
+  renderOperations();
+}
+async function loadOpsWeights(){
+  const event=selected(),id=state.opsSelectedId;if(!event||!id)return;
+  if(state.mode==='live')state.opsWeights[id]=await api(`/v1/tournaments/${event.id}/registrations/${id}/weigh-ins`);
+}
+function renderOperations(){
+  const event=selected(), queue=$('opsQueue'),draws=$('opsDraws'),entries=state.opsQueue.filter(r=>r.tournamentId===state.selected||state.registrations.some(x=>x.id===r.id&&x.tournamentId===state.selected)),picked=entries.find(r=>r.id===state.opsSelectedId);
+  $('opsEventLabel').textContent=event?`${event.name} · ${entries.length} entries`:'Select a tournament';
+  queue.replaceChildren();
+  if(!event){empty(queue,'Choose a tournament from the Tournaments page.');empty(draws,'No tournament selected.');}
+  else if(!entries.length){empty(queue,state.mode==='live'&&state.role==='viewer'?'Review queue is restricted to organizers and registration staff.':'No registrations to review.');}
+  for(const r of entries){
+    const row=el('button','','ops-queue-button'+(r.id===state.opsSelectedId?' selected':''));row.type='button';
+    const label=el('span');label.append(el('strong',`${r.registrationNumber} · ${r.athleteName||'Athlete'}`),el('small',`${r.divisionCode} · ${r.status.replaceAll('_',' ')}`));
+    row.append(label,el('span',r.status==='documents_verified'?'Checked':'Review','mini-badge'+(r.status==='documents_verified'?' published':'')));
+    row.addEventListener('click',()=>guard(async()=>{state.opsSelectedId=r.id;await loadOpsWeights();renderOperations()}));queue.append(row);
+  }
+  $('opsSelected').textContent=picked?`${picked.registrationNumber} · ${picked.athleteName} · ${picked.status} · Review version ${picked.reviewVersion}`:'Select one registration above before recording a review or weigh-in.';
+  const canReview=!!picked&&['owner','organizer'].includes(state.role)&&picked.status!=='rejected';
+  const canWeigh=!!picked&&['owner','organizer','registration_staff'].includes(state.role)&&picked.status!=='rejected';
+  $('opsReviewSubmit').disabled=!canReview||state.busy;
+  $('opsWeightSubmit').disabled=!canWeigh||state.busy;
+  $('opsReviewForm').querySelectorAll('input,select').forEach(c=>c.disabled=!canReview);
+  $('opsWeightForm').querySelectorAll('input').forEach(c=>c.disabled=!canWeigh);
+  const w=$('opsWeights');w.replaceChildren();
+  if(picked){for(const record of state.opsWeights[picked.id]||[]){const item=el('div','','record-row');const left=el('div');left.append(el('strong',`${record.weightKg} kg · ${record.scaleReference}`),el('p',record.status||'unverified_measurement'));item.append(left);w.append(item)}}
+  if(!w.childElementCount)empty(w,'No weight readings recorded.');
+  draws.replaceChildren();if(!event)return;
+  const divisions=state.divisions.filter(d=>d.tournamentId===event.id);
+  if(!divisions.length){empty(draws,'Add a division to begin draft planning.');return}
+  for(const division of divisions){
+    const box=el('div','','draw-card'),header=el('h3',`${division.code} · ${division.name}`);box.append(header);
+    const source=entries.filter(r=>r.divisionCode===division.code),eligibleCount=source.filter(r=>r.status==='documents_verified').length;
+    box.append(el('p',`${eligibleCount} document-reviewed · ${source.length-eligibleCount} pending/other`,'draw-note'));
+    const draft=state.opsDraws[draftKey(event.id,division.id)];
+    if(draft){
+      const stale=state.mode==='demo'?draft.sourceSignature!==opsSourceSignature(division.id):Boolean(draft.isStale);
+      box.append(el('p',stale?'STALE — registration reviews have changed. Do not use this draft.':'DRAFT ONLY · manual sporting rules approval pending.',stale?'ops-warn':'ops-good'));
+      box.append(el('p',`${draft.participantCount} participants · ${draft.bracketSize} slots · ${draft.bouts?.filter(b=>b.isBye).length||0} byes`,'draw-note'));
+      for(const bout of draft.bouts||[]){const name=id=>state.opsQueue.find(x=>x.id===id)?.athleteName||`${String(id).slice(0,8)}…`;
+        box.append(el('div',`#${bout.boutNumber}   ${name(bout.redRegistrationId)}  vs  ${bout.blueRegistrationId?name(bout.blueRegistrationId):'BYE (not a win)'}`,'draft-bout'))}
+    }else{
+      box.append(el('p','No stored provisional draft for this division.','draw-note'));
+      const create=el('button','Generate provisional draft','btn btn-secondary');create.type='button';
+      create.disabled=eligibleCount<2||!['owner','organizer'].includes(state.role)||state.busy;
+      create.addEventListener('click',()=>guard(()=>generateOpsDraw(division)));
+      const wrap=el('div','','ops-actions');wrap.append(create);box.append(wrap);
+      if(eligibleCount<2)box.append(el('p','Requires at least two document-reviewed registrations.','ops-warn'));
+    }
+    draws.append(box);
+  }
+}
+async function submitOpsReview(form){
+  const event=selected(),entry=state.opsQueue.find(r=>r.id===state.opsSelectedId);
+  if(!event||!entry)throw Error('Select a registration.');
+  if(!['owner','organizer'].includes(state.role))throw Error('Organizer role required.');
+  const raw=Object.fromEntries(new FormData(form));const decision=raw.decision;
+  const body={decision,reasonCode:raw.reasonCode||null,identityEvidenceChecked:Boolean(raw.identityEvidenceChecked),
+    guardianConsentRecorded:Boolean(raw.guardianConsentRecorded),medicalAuthorizationRecorded:Boolean(raw.medicalAuthorizationRecorded)};
+  if(decision==='verify_documents'&&(!body.identityEvidenceChecked||!body.guardianConsentRecorded||!body.medicalAuthorizationRecorded))
+    throw Error('Check identity, guardian consent and medical-document record before marking documents checked.');
+  if(decision!=='verify_documents'&&!body.reasonCode)throw Error('A reason is required for changes or rejection.');
+  if(decision!=='verify_documents'&&!confirm(`Confirm ${decision.replaceAll('_',' ')}? The review is audited.`))return;
+  if(state.mode==='live'){
+    await api(`/v1/tournaments/${event.id}/registrations/${entry.id}/review`,{method:'POST',headers:{'If-Match':String(entry.reviewVersion)},body:JSON.stringify(body)});
+    await refreshOperations();
+  }else{
+    entry.reviewVersion++;entry.status=decision==='verify_documents'?'documents_verified':decision==='reject'?'rejected':'needs_changes';
+    const base=state.registrations.find(x=>x.id===entry.id);if(base)base.status=entry.status;
+    render();
+  }
+  form.reset();toast(`Review saved${state.mode==='demo'?' — fictional demo only':''}. No official clearance granted.`);
+}
+async function submitOpsWeight(form){
+  const event=selected(),entry=state.opsQueue.find(r=>r.id===state.opsSelectedId);if(!event||!entry)throw Error('Select a registration.');
+  const f=Object.fromEntries(new FormData(form)),weight=Number(f.weightKg),scale=f.scaleReference.trim();
+  if(!/^\d{1,3}(\.\d{1,2})?$/.test(f.weightKg)||!Number.isFinite(weight)||weight<0.5||weight>300||scale.length<2||scale.length>48)throw Error('Weight must be 0.50–300.00 kg (two decimals); scale reference 2–48 characters.');
+  if(state.mode==='live'){
+    await api(`/v1/tournaments/${event.id}/registrations/${entry.id}/weigh-ins`,{method:'POST',body:JSON.stringify({weightKg:weight,scaleReference:scale})});
+    await loadOpsWeights();
+  }else (state.opsWeights[entry.id]??=[]).unshift({weightKg:weight,scaleReference:scale,status:'unverified_measurement'});
+  form.reset();renderOperations();toast('Measurement recorded as UNVERIFIED'+(state.mode==='demo'?' (fictional demo).':'.'));
+}
+async function generateOpsDraw(division){
+  const event=selected();if(!event)throw Error('Select tournament.');
+  if(!confirm('Generate a PROVISIONAL first-round draft? This cannot be used for official fixtures or scoring.'))return;
+  const path=`/v1/tournaments/${event.id}/divisions/${division.id}/provisional-draw`;
+  if(state.mode==='live'){
+    await api(path,{method:'POST',headers:{'If-Match':String(event.version)}});await loadSelected();await refreshOperations();
+  }else{
+    const included=state.opsQueue.filter(r=>r.divisionCode===division.code&&r.status==='documents_verified');
+    if(included.length<2||included.length>128)throw Error('Requires 2–128 document-reviewed entries.');
+    // Synthetic UI demonstration; actual API uses a cryptographic, server-side draw algorithm.
+    let slots=2;while(slots<included.length)slots*=2;
+    const shuffled=[...included].sort((a,b)=>a.id.localeCompare(b.id));
+    const bouts=[];let i=0;for(let j=0;j<slots/2;j++){const red=shuffled[i++],blue=j<slots-included.length?null:shuffled[i++];
+      bouts.push({boutNumber:j+1,redRegistrationId:red.id,blueRegistrationId:blue?.id??null,isBye:!blue})}
+    state.opsDraws[draftKey(event.id,division.id)]={official:false,bracketSize:slots,participantCount:included.length,excludedCount:state.opsQueue.filter(r=>r.divisionCode===division.code).length-included.length,
+      bouts,sourceSignature:opsSourceSignature(division.id)};event.version++;render();
+  }
+  toast('Provisional draw saved. NOT an official fixture'+(state.mode==='demo'?' (fictional demo).':'.'));
+}
+function initOperations(){
+  $('opsRefresh').addEventListener('click',()=>guard(refreshOperations));
+  $('opsReviewForm').addEventListener('submit',e=>{e.preventDefault();guard(()=>submitOpsReview(e.currentTarget))});
+  $('opsWeightForm').addEventListener('submit',e=>{e.preventDefault();guard(()=>submitOpsWeight(e.currentTarget))});
+}
+async function guard(fn){if(state.busy)return;setBusy(true);try{await fn()}catch(err){toast(err.message||'Operation failed')}finally{setBusy(false)}}
+function init(){
+  $('tzLabel').textContent=timezone;
+  document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>page(b.dataset.page)));
+  document.querySelectorAll('[data-action="newTournament"]').forEach(b=>b.addEventListener('click',()=>{const form=$('tournamentForm');const now=new Date(),day=86400000;
+    form.elements.startsAtUtc.value=localInput(new Date(Date.now()+30*day));form.elements.endsAtUtc.value=localInput(new Date(Date.now()+31*day));
+    form.elements.registrationOpensAtUtc.value=localInput(now);form.elements.registrationClosesAtUtc.value=localInput(new Date(Date.now()+20*day));form.elements.eligibilityCutoffDate.value=new Date(Date.now()+30*day).toISOString().slice(0,10);$('newTournamentDialog').showModal()}));
+  $('closeDialog').addEventListener('click',()=>$('newTournamentDialog').close());$('cancelDialog').addEventListener('click',()=>$('newTournamentDialog').close());
+  $('tournamentForm').addEventListener('submit',e=>{e.preventDefault();guard(()=>doTournament(e.currentTarget))});
+  $('divisionForm').addEventListener('submit',e=>{e.preventDefault();guard(()=>doDivision(e.currentTarget))});
+  $('athleteForm').addEventListener('submit',e=>{e.preventDefault();guard(()=>doAthlete(e.currentTarget))});
+  $('registrationForm').addEventListener('submit',e=>{e.preventDefault();guard(()=>doRegistration(e.currentTarget))});
+  initOperations();
+  $('publishButton').addEventListener('click',()=>guard(publishEvent));$('checkEligibility').addEventListener('click',()=>guard(checkEligibility));
+  $('registrationTournament').addEventListener('change',()=>guard(async()=>{state.selected=$('registrationTournament').value;if(state.mode==='live'&&state.selected)await loadSelected();render();resetEligibility()}));
+  $('registrationAthlete').addEventListener('change',resetEligibility);$('registrationDivision').addEventListener('change',resetEligibility);
+  let searchHandle;$('athleteSearch').addEventListener('input',()=>{clearTimeout(searchHandle);searchHandle=setTimeout(()=>guard(async()=>{if(state.mode==='live')await loadAthletes($('athleteSearch').value);renderAthletes()}),240)});
+  $('modeSwitch').addEventListener('click',()=>state.mode==='live'?(startDemo(),page('overview')):$('liveDialog').showModal());
+  $('closeLive').addEventListener('click',()=>$('liveDialog').close());
+  $('disconnectLive').addEventListener('click',()=>{startDemo();$('liveDialog').close();page('overview')});
+  $('loginLive').addEventListener('click',()=>guard(beginLogin));
+  $('inviteForm').addEventListener('submit',e=>{e.preventDefault();guard(async()=>{
+    const code=$('inviteCode').value.trim();if(!state.token)throw Error('Sign in before activating your invitation.');
+    await api('/v1/onboarding/redeem',{method:'POST',body:JSON.stringify({code})});$('inviteCode').value='';
+    await connected();$('liveDialog').close();page('overview');toast('Organization activated.');
+  })});
+  $('switchTenant').addEventListener('click',()=>guard(async()=>{
+    state.tenantId=$('tenantSelect').value;await connected();$('liveDialog').close();page('overview');
+  }));
+  startDemo();page('overview');
+  guard(async()=>{
+    const token=await finishLogin();
+    if(!token)return;
+    state.mode='live';state.token=token;
+    try{await connected();if(state.tenants.length){$('liveDialog').close();page('overview');toast('Signed in with your organizer account.')}}
+    catch(err){startDemo();throw err}
+  });
+}
+init();
+</script>
+</body>
+</html>
