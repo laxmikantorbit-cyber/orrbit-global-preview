@@ -36,6 +36,20 @@
 @media(max-width:420px){.schedule-form{grid-template-columns:1fr}}
 
 .mode-switch{display:none!important;}
+/* M2.1 organizer readiness — clear, safe operational summaries */
+.ops-readiness-panel{margin:0 0 18px;min-height:0}
+.readiness-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;align-items:stretch}
+.readiness-summary{padding:14px 15px;border:1px solid #e1eaf1;border-radius:10px;background:#f9fbfe;min-width:0}
+.readiness-summary strong{font-size:24px;font-weight:800;display:block;color:#263c4d;line-height:1.3}
+.readiness-summary small{font-size:11px;color:#73869a;line-height:1.4;display:block}
+.readiness-division{padding:14px 15px;border:1px solid #dfeae7;border-radius:10px;min-width:0;background:#fff}
+.readiness-division strong{display:block;font-size:13px;overflow-wrap:anywhere;color:#27384b}
+.readiness-division p{font-size:11px;color:#73869a;line-height:1.55;margin:5px 0}
+.readiness-division .ops-warn{display:block;margin-top:6px}
+.readiness-blocker{grid-column:1/-1;font-size:11px;line-height:1.5;color:#895625;background:#fff8e8;border:1px solid #f2e4c5;border-radius:9px;padding:11px}
+@media(max-width:690px){.readiness-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:420px){.readiness-grid{grid-template-columns:1fr}}
+
 </style>
 </head>
 <body>
@@ -75,6 +89,10 @@
         <section id="page-operations" class="page">
           <div class="page-heading"><div><p class="eyebrow">TOURNAMENT CONTROL</p><h1>Verification, draws &amp; ring planning</h1><p class="muted">Review fictional athlete documents, record unverified weight readings and inspect draft brackets.</p></div><span class="badge badge-amber">NOT OFFICIAL MATCHES</span></div>
           <div class="notice notice-safety"><strong>Not competition clearance</strong><span>Identity and medical flags are organizer attestations only. Weigh-ins have not been approved. Provisional draws must not be treated as official fixtures or published to athletes.</span></div>
+          <article class="panel ops-readiness-panel" aria-label="Organizer readiness overview">
+            <div class="panel-header"><div><h2>What needs attention?</h2><p class="muted">A simple view of reviews, draft brackets and ring planning. Official events are not authorized here.</p></div><span class="badge badge-amber">DRAFT PLANNING</span></div>
+            <div id="opsReadiness" class="readiness-grid" aria-live="polite"><p class="muted">Select an event to check readiness.</p></div>
+          </article>
           <div class="operations-layout">
             <article class="panel"><div class="panel-header"><div><h2>Registration verification</h2><p class="muted" id="opsEventLabel">Select a tournament</p></div><button type="button" class="btn btn-secondary" id="opsRefresh">Refresh</button></div><div id="opsQueue" class="record-list"></div></article>
             <article class="panel"><div class="panel-header"><div><h2>Review &amp; weigh-in</h2><p class="muted">Select a registration from the list.</p></div></div>
@@ -238,7 +256,7 @@ function overlappingSlots(proposed, existing, athleteOfRegistration){
 
 
 const $ = (id) => document.getElementById(id);
-const state = {mode:'demo',token:null,tenantId:null,tenants:[],tenant:'Demo Organizer', role:'owner',events:[],athletes:[],registrations:[],divisions:[],selected:null, busy:false,opsQueue:[],opsSelectedId:null,opsWeights:{},opsDraws:{},opsSchedules:{}};
+const state = {mode:'demo',token:null,tenantId:null,tenants:[],tenant:'Demo Organizer', role:'owner',events:[],athletes:[],registrations:[],divisions:[],selected:null, busy:false,opsQueue:[],opsSelectedId:null,opsWeights:{},opsDraws:{},opsSchedules:{},opsReadiness:null};
 const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 let toastTimer;
 function key(){return globalThis.crypto?.randomUUID?.() ?? `demo-${Date.now()}-${Math.random().toString(16).slice(2)}`}
@@ -256,7 +274,7 @@ function startDemo(){
   const a2={id:key(),fullName:'Sample Athlete Two',dateOfBirth:'2014-09-18',verificationStatus:'unverified'};
   const d={id:key(),tournamentId:e.id,code:'U-15',name:'Under 15',minAge:10,maxAge:14};
   state.events=[e];state.athletes=[a1,a2];state.divisions=[d];state.registrations=[{id:key(),tournamentId:e.id,registrationNumber:'REG-000001',athleteId:a1.id,athleteName:a1.fullName,divisionId:d.id,divisionCode:d.code,status:'pending_verification'},{id:key(),tournamentId:e.id,registrationNumber:'REG-000002',athleteId:a2.id,athleteName:a2.fullName,divisionId:d.id,divisionCode:d.code,status:'pending_verification'}];
-  state.opsQueue=state.registrations.map(r=>({...r,reviewVersion:1}));state.opsSelectedId=null;state.opsWeights={};state.opsDraws={};state.opsSchedules={};
+  state.opsQueue=state.registrations.map(r=>({...r,reviewVersion:1}));state.opsSelectedId=null;state.opsWeights={};state.opsDraws={};state.opsSchedules={};state.opsReadiness=null;
   state.selected=e.id;state.tenant='Demo Organizer';state.mode='demo';state.role='owner';state.token=null;state.tenantId=null;state.tenants=[];
   $('modeBadge').textContent='DEMO DATA';$('modeBadge').className='badge badge-amber';$('tenantBadge').textContent='Demo Organizer';$('modeSwitch').textContent='↗ Connect development API';render();
 }
@@ -284,7 +302,7 @@ async function connected(){
   if(!state.tenants.some(x=>x.id===state.tenantId))state.tenantId=state.tenants[0].id;
   $('tenantSelect').value=state.tenantId;
   const me=await api('/v1/me');state.tenant=me.tenantName;state.role=me.role;
-  state.events=await api('/v1/tournaments');state.divisions=[];state.registrations=[];state.athletes=[];state.opsQueue=[];state.opsSelectedId=null;state.opsWeights={};state.opsDraws={};state.opsSchedules={};
+  state.events=await api('/v1/tournaments');state.divisions=[];state.registrations=[];state.athletes=[];state.opsQueue=[];state.opsSelectedId=null;state.opsWeights={};state.opsDraws={};state.opsSchedules={};state.opsReadiness=null;
   state.selected=state.events[0]?.id??null;
   await loadSelected();await loadAthletes();
   $('tenantBadge').textContent=state.tenant;$('modeBadge').textContent='DEVELOPMENT API';$('modeBadge').className='badge badge-green';$('modeSwitch').textContent='⇄ Disconnect / Demo';$('authStatus').textContent='Authenticated via OIDC. Access depends on tenant membership.';render();
@@ -387,8 +405,53 @@ const draftKey=(eventId,divisionId)=>`${eventId}:${divisionId}`;
 const opsSourceSignature=(divisionId)=>state.opsQueue.filter(r=>r.divisionId===divisionId||state.divisions.find(d=>d.tournamentId===state.selected&&d.id===divisionId)?.code===r.divisionCode)
   .map(r=>`${r.id}:${r.status}:${r.reviewVersion}`).sort().join('|');
 async function optionalApi(path){try{return await api(path)}catch(err){if(err.status===404)return null;throw err}}
+function renderReadiness(){
+  const root=$('opsReadiness');if(!root)return;root.replaceChildren();
+  const event=selected();if(!event){root.append(el('p','Select an event to view tasks.','muted'));return;}
+  if(state.mode==='live'&&state.role==='viewer'){
+    root.append(el('p','Organizer or registration-staff permissions are needed for readiness details.','muted'));return;
+  }
+  let data=state.opsReadiness;
+  if(state.mode==='demo'){
+    const divisions=state.divisions.filter(x=>x.tournamentId===event.id).map(d=>{
+      const source=state.opsQueue.filter(r=>r.divisionId===d.id||r.divisionCode===d.code);
+      const checked=source.filter(r=>r.status==='documents_verified').length;
+      const pending=source.filter(r=>r.status==='pending_verification'||r.status==='needs_changes').length;
+      const draft=state.opsDraws[draftKey(event.id,d.id)];
+      const schedule=state.opsSchedules[draftKey(event.id,d.id)];
+      const signature=opsSourceSignature(d.id);
+      const drawStale=!!draft&&draft.sourceSignature!==signature;
+      const scheduleStale=!!schedule&&(schedule.sourceSignature!==signature||drawStale);
+      return {divisionId:d.id,divisionCode:d.code,divisionName:d.name,totalRegistrations:source.length,
+        documentsChecked:checked,pendingReview:pending,hasDraw:!!draft,drawStale,hasSchedule:!!schedule,
+        scheduleStale,canGenerateDraw:event.status==='published'&&!draft&&checked>=2&&checked<=128,
+        canPlanRingTime:event.status==='published'&&!!draft&&!drawStale&&!schedule};
+    });
+    data={divisions,documentsChecked:divisions.reduce((n,x)=>n+x.documentsChecked,0),
+      pendingReviews:divisions.reduce((n,x)=>n+x.pendingReview,0),
+      staleDrawCount:divisions.filter(x=>x.drawStale).length,
+      staleScheduleCount:divisions.filter(x=>x.scheduleStale).length,
+      officialFixturesReady:false};
+  }
+  if(!data){root.append(el('p','Press Refresh to load the current organizer status.','muted'));return;}
+  for(const [value,label] of [[data.documentsChecked,'Documents checked (not sports clearance)'],[data.pendingReviews,'Entries awaiting review'],[data.staleDrawCount+data.staleScheduleCount,'Outdated draft plans']]){
+    const stat=el('div','','readiness-summary');stat.append(el('strong',value),el('small',label));root.append(stat);
+  }
+  for(const div of data.divisions){
+    const card=el('div','','readiness-division');card.append(el('strong',div.divisionCode+' · '+div.divisionName));
+    card.append(el('p',`${div.documentsChecked}/${div.totalRegistrations} documents checked · ${div.pendingReview} pending`));
+    let msg='Draft planning requires further review.';
+    if(div.drawStale||div.scheduleStale)msg='Update required: bracket or ring plan is outdated.';
+    else if(div.canGenerateDraw)msg='Next: Generate a provisional bracket.';
+    else if(div.canPlanRingTime)msg='Next: Plan provisional ring time.';
+    else if(div.hasSchedule)msg='Draft plan recorded. Official approval is still unavailable.';
+    else if(div.hasDraw)msg='Draw exists; check remaining prerequisites.';
+    card.append(el('span',msg,div.drawStale||div.scheduleStale?'ops-warn':'draw-note'));root.append(card);
+  }
+  root.append(el('div','Official fixtures and live scoring remain disabled until sports-rule, medical, security and deployment approvals.','readiness-blocker'));
+}
 async function refreshOperations(){
-  const event=selected();if(!event){state.opsQueue=[];state.opsSelectedId=null;state.opsDraws={};state.opsSchedules={};renderOperations();return}
+  const event=selected();if(!event){state.opsQueue=[];state.opsSelectedId=null;state.opsDraws={};state.opsSchedules={};state.opsReadiness=null;renderOperations();return}
   if(state.mode==='live'){
     if(state.role==='viewer'){
       state.opsQueue=[];state.opsSelectedId=null;
@@ -403,6 +466,9 @@ async function refreshOperations(){
     state.opsDraws=drafts;state.opsSchedules=schedules;
   }
   if(state.opsSelectedId&&!state.opsQueue.some(r=>r.id===state.opsSelectedId))state.opsSelectedId=null;
+  if(state.mode==='live'&&state.role!=='viewer')
+    state.opsReadiness=await api(`/v1/tournaments/${event.id}/operations-readiness`);
+  else state.opsReadiness=null;
   if(state.opsSelectedId)await loadOpsWeights();
   renderOperations();
 }
@@ -411,6 +477,7 @@ async function loadOpsWeights(){
   if(state.mode==='live')state.opsWeights[id]=await api(`/v1/tournaments/${event.id}/registrations/${id}/weigh-ins`);
 }
 function renderOperations(){
+  renderReadiness();
   const event=selected(), queue=$('opsQueue'),draws=$('opsDraws'),entries=state.opsQueue.filter(r=>r.tournamentId===state.selected||state.registrations.some(x=>x.id===r.id&&x.tournamentId===state.selected)),picked=entries.find(r=>r.id===state.opsSelectedId);
   $('opsEventLabel').textContent=event?`${event.name} · ${entries.length} entries`:'Select a tournament';
   queue.replaceChildren();
